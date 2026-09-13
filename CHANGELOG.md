@@ -3,6 +3,12 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## 0.15 (2026-09-13)
+
+- `ruff format` across the repo, with `ruff format --check` in the CI
+  lint job and `.git-blame-ignore-revs` pointing at the format commit.
+  No behavior change: suite and golden harness identical.
+
 ## 0.14 (2026-09-13)
 
 - `zeroproof login`: device-flow sign-in from a terminal or a coding
