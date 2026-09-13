@@ -1,4 +1,4 @@
-"""``zeroproof`` command line: login, logout, status."""
+"""``zeroproof`` command line: login, signup, logout, status."""
 
 from __future__ import annotations
 
@@ -26,6 +26,10 @@ def main(argv: list[str] | None = None) -> int:
         help="seconds to wait for approval (default: until the code expires)",
     )
 
+    p_signup = sub.add_parser("signup", help="create an account and a key, no browser")
+    p_signup.add_argument("--email", required=True, help="address for the new account")
+    p_signup.add_argument("--name", help="name for the key on the account (default: cli <host>)")
+
     sub.add_parser("logout", help="delete the saved key")
     sub.add_parser("status", help="show which key the SDK will use")
 
@@ -43,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: {err}", file=sys.stderr)
             return 1
         return 0 if key or args.no_wait else 2
+
+    if args.command == "signup":
+        try:
+            auth.signup(args.email, name=args.name)
+        except auth.LoginError as err:
+            print(f"error: {err}", file=sys.stderr)
+            return 1
+        return 0
 
     if args.command == "logout":
         print("Logged out." if auth.logout() else "No saved key.")

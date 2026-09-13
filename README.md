@@ -146,6 +146,13 @@ agents too: tell yours to run `zeroproof login` and click the link it
 shows you. `zeroproof status` shows which key is in use, `zeroproof
 logout` removes it.
 
+No account yet, or no browser? One command creates the account and the
+key. Open the dashboard later by signing in with an email code.
+
+```bash
+zeroproof signup --email you@example.com
+```
+
 ## Store datasets on Zero Proof Labs
 
 Push a run to your Zero Proof Labs account so the optimization framework

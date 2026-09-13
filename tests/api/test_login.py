@@ -36,6 +36,15 @@ class FakeGate:
             if self.approved:
                 return 200, {"api_key": "zp_" + "a" * 48, "name": "cli box", "user_id": "user_1"}
             return 400, {"error": "authorization_pending"}
+        if path == "/signup":
+            if body["email"] == "taken@example.com":
+                return 409, {"error": "account_exists"}
+            return 201, {
+                "api_key": "zp_" + "b" * 48,
+                "name": body["name"],
+                "user_id": "user_new",
+                "email": body["email"].lower(),
+            }
         raise AssertionError(path)
 
 
@@ -177,6 +186,33 @@ def test_logout_and_status(gate, capsys):
     assert auth.stored_api_key() is None
     assert cli.main(["status"]) == 0
     assert json.loads(capsys.readouterr().out.split("Logged out.\n")[-1])["source"] is None
+
+
+def test_signup_creates_the_account_and_saves_the_key(gate, tmp_path):
+    lines: list[str] = []
+    key = auth.signup("Agent@Example.com", name="claude-code", out=lines.append)
+    assert key == "zp_" + "b" * 48
+    saved = json.loads((tmp_path / "credentials.json").read_text())
+    assert saved["email"] == "agent@example.com"
+    assert saved["user_id"] == "user_new"
+    assert gate.calls[-1] == ("/signup", {"email": "Agent@Example.com", "name": "claude-code"})
+    assert "Account created" in lines[0]
+    assert platform._key(None) == key
+
+
+def test_signup_existing_account_points_at_login(gate):
+    with pytest.raises(auth.LoginError, match="zeroproof login"):
+        auth.signup("taken@example.com", out=lambda s: None)
+    with pytest.raises(auth.LoginError, match="valid email"):
+        auth.signup("nope", out=lambda s: None)
+    assert auth.stored_api_key() is None
+
+
+def test_cli_signup(gate, capsys):
+    assert cli.main(["signup", "--email", "new@example.com"]) == 0
+    assert auth.status()["source"] == "file"
+    assert cli.main(["signup", "--email", "taken@example.com"]) == 1
+    assert "zeroproof login" in capsys.readouterr().err
 
 
 def test_cli_exit_codes(gate):

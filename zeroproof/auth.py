@@ -1,4 +1,8 @@
-"""Sign in from a terminal or a coding agent: ``zeroproof login``.
+"""Sign in or sign up from a terminal or a coding agent.
+
+``zeroproof login`` for an existing account (device flow, one click in the
+browser). ``zeroproof signup --email`` for a new one: no browser at all, the
+account and the key are created in one call.
 
 Device authorization flow (RFC 8628 shape) against the Zero Proof Labs token
 gate. The CLI asks the gate for a code pair, prints a link and a short code,
@@ -206,6 +210,43 @@ def login(
         if error == "expired_token":
             raise LoginError("That code expired. Run `zeroproof login` again.")
         raise LoginError(f"Login failed ({status}): {error or data}")
+
+
+def signup(email: str, *, name: str | None = None, out: Callable[[str], None] | None = None) -> str:
+    """Create an account for ``email`` and save its API key. Returns the key.
+
+    No browser and no password: the person opens the dashboard later by
+    signing in with an email code. Raises ``LoginError`` if the address
+    already has an account (run ``login`` instead).
+    """
+    say = out or (lambda s: print(s, file=sys.stderr, flush=True))
+    email = str(email or "").strip()
+    if "@" not in email:
+        raise LoginError("Pass a valid email address.")
+    status, data = _post("/signup", {"email": email, "name": name or _default_name()})
+    if status == 201 and data.get("api_key"):
+        _write_private(
+            credentials_path(),
+            {
+                "api_key": data["api_key"],
+                "api_url": _api_url(),
+                "name": data.get("name"),
+                "user_id": data.get("user_id"),
+                "email": data.get("email", email),
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+        )
+        say(f"Account created for {data.get('email', email)}. Key saved to {credentials_path()}")
+        say("Dashboard: sign in at https://www.zeroproofai.com with an email code.")
+        return data["api_key"]
+    error = data.get("error", "")
+    if error == "account_exists":
+        raise LoginError(f"{email} already has an account. Run `zeroproof login`.")
+    if error == "invalid_email":
+        raise LoginError("Pass a valid email address.")
+    if error == "too_many_signups":
+        raise LoginError("Too many sign-ups from this network today. Try again tomorrow.")
+    raise LoginError(f"Sign-up failed ({status}): {error or data}")
 
 
 def logout() -> bool:
