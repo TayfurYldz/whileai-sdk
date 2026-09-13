@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.13 (2026-09-13)
 
 - Hygiene. ruff (lint) and mypy are configured in `pyproject.toml` and
   run in CI; `.editorconfig`, `.gitattributes` (LF) and a pre-commit
