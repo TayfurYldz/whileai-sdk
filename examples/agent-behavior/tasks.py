@@ -414,8 +414,14 @@ RETRY_LOCKED = dataclasses.replace(
 
 TASKS = [CART, PAGING, RETRY, DURATION, PATHS, CART_LOCKED, RETRY_LOCKED]
 
-# imported at the bottom so tasks_hard can import Task from this module
-from tasks_hard import HARD_TASKS  # noqa: E402
+# An optional extra pack, imported at the bottom so tasks_hard can import Task
+# from this module. It is not part of the example: the seven tasks above are
+# what the README documents and what selftest.py checks. Drop a tasks_hard.py
+# next to this file exporting HARD_TASKS and it is picked up automatically.
+try:
+    from tasks_hard import HARD_TASKS  # noqa: E402
+except ModuleNotFoundError:
+    HARD_TASKS: list[Task] = []
 
 TASKS += HARD_TASKS
 BY_ID = {t.id: t for t in TASKS}
