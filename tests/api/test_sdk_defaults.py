@@ -2,8 +2,8 @@ import inspect
 import threading
 import time
 
-from tests.helpers import TOOLS, POLICY, GITHUB_SPEC, scripted_agent, simulate_offline
 import zeroproof.simulations as zps
+from tests.helpers import GITHUB_SPEC, POLICY, TOOLS, scripted_agent, simulate_offline
 
 
 def _lower_headers(headers):
@@ -476,8 +476,8 @@ def test_generator_exhausted_is_not_emitted():
 
 
 def test_open_ended_weight_cannot_exceed_cap():
-    from zeroproof.simulations.simulation import _reallocate, _SEARCH_ARMS
     from zeroproof.simulations.generate.scenarios import cap_open_ended_weight
+    from zeroproof.simulations.simulation import _SEARCH_ARMS, _reallocate
 
     clipped = cap_open_ended_weight({
         "structured": 0.2, "open_ended": 0.4, "llm_guided": 0.2,
@@ -507,7 +507,10 @@ def test_open_ended_probe_families_stay_intact():
 
 def test_writer_and_agent_default_to_hosted_qwen(monkeypatch):
     from zeroproof.simulations.generate.agents import (
-        DEFAULT_AGENT, default_agent_spec, default_simulator_spec)
+        DEFAULT_AGENT,
+        default_agent_spec,
+        default_simulator_spec,
+    )
 
     monkeypatch.delenv("ZEROPROOF_SURROGATE", raising=False)
     monkeypatch.delenv("ZEROPROOF_AGENT", raising=False)

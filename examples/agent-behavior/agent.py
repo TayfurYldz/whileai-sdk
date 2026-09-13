@@ -217,7 +217,7 @@ class Llm:
 class Step:
     """One model call or one tool call, with the timings the trace needs."""
 
-    __slots__ = ("kind", "payload", "started_ms", "duration_ms")
+    __slots__ = ("duration_ms", "kind", "payload", "started_ms")
 
     def __init__(self, kind: str, payload: dict, started_ms: float, duration_ms: float) -> None:
         self.kind = kind
@@ -513,17 +513,17 @@ def verdict_scores(verdict: dict, raw: str, source: str = "example-judge") -> li
 _FALLBACK = "A dimension the judge measured on this turn, 0 to 1."
 
 __all__ = [
+    "DEFAULT_MODEL",
+    "MODEL_KEY_ENV",
+    "MODEL_URL_ENV",
+    "PERSONAS",
+    "PERSONA_WEIGHTS",
     "Llm",
     "LlmError",
     "Run",
-    "PERSONAS",
-    "PERSONA_WEIGHTS",
-    "run_turn",
     "judge",
-    "transcript",
     "parse_verdict",
+    "run_turn",
+    "transcript",
     "verdict_scores",
-    "DEFAULT_MODEL",
-    "MODEL_URL_ENV",
-    "MODEL_KEY_ENV",
 ]

@@ -1,6 +1,7 @@
 """OpenAI-compatible chat loop for hosted and local simulation backends."""
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import http.client
 import json
@@ -8,19 +9,18 @@ import os
 import re
 import threading
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlparse
 
-from .diversity import running_turn_mean, sample_turn_budget
 from ..world.sandbox import MockEnvironment
+from .diversity import running_turn_mean, sample_turn_budget
 
 DEFAULT_AGENT = (
     "vllm:Qwen/Qwen3-4B-Instruct-2507@"
     "https://zeroproofai--stressd-vllm-serve.modal.run/v1"
 )
 DEFAULT_SIMULATOR = DEFAULT_AGENT
-DEFAULT_HOSTED = DEFAULT_AGENT
-
 _tls = threading.local()
 
 
@@ -118,12 +118,13 @@ def ping_hosted(base_url: str | None = None, *, timeout: float = 3.0) -> bool:
     if key:
         headers["Authorization"] = f"Bearer {key}"
     try:
+        conn: http.client.HTTPConnection
         if (parsed.scheme or "https") == "https":
             conn = http.client.HTTPSConnection(
-                parsed.hostname, parsed.port or 443, timeout=timeout)
+                parsed.hostname or "", parsed.port or 443, timeout=timeout)
         else:
             conn = http.client.HTTPConnection(
-                parsed.hostname, parsed.port or 80, timeout=timeout)
+                parsed.hostname or "", parsed.port or 80, timeout=timeout)
         conn.request("GET", _models_path(parsed), headers=headers)
         resp = conn.getresponse()
         status = int(getattr(resp, "status", 200) or 200)
@@ -357,14 +358,14 @@ def complete(base_url: str, model: str, messages: list[dict], *,
     for _ in range(8):
         payload["messages"] = messages
         body = json.dumps(payload, separators=(",", ":")).encode()
-        conn = getattr(_tls, "conn", None)
+        conn: http.client.HTTPConnection | None = getattr(_tls, "conn", None)
         if getattr(_tls, "conn_key", None) != conn_key or conn is None:
             if (parsed.scheme or "https") == "https":
                 conn = http.client.HTTPSConnection(
-                    parsed.hostname, parsed.port or 443, timeout=timeout)
+                    parsed.hostname or "", parsed.port or 443, timeout=timeout)
             else:
                 conn = http.client.HTTPConnection(
-                    parsed.hostname, parsed.port or 80, timeout=timeout)
+                    parsed.hostname or "", parsed.port or 80, timeout=timeout)
             _tls.conn, _tls.conn_key = conn, conn_key
         try:
             conn.request("POST", post_path, body=body, headers=headers)
@@ -412,10 +413,8 @@ def complete(base_url: str, model: str, messages: list[dict], *,
             return first
         except Exception as exc:
             last_err = exc
-            try:
+            with contextlib.suppress(Exception):
                 conn.close()
-            except Exception:
-                pass
             _tls.conn = None
             kind = str(exc)
             if kind in {"retry_max_tokens", "retry_shrink_input", "retry_drop_n"}:
@@ -715,7 +714,6 @@ _AGENT_REFUSAL = re.compile(
 )
 
 
-
 _TEXTURE_NOTES = {
     "lowercase": "Keep every letter small. Do not mention how you type.",
     "no_punctuation": "Leave out end marks. Never write the word punctuation.",
@@ -765,17 +763,6 @@ def _persona_notes(prior: str) -> str:
     elif re.search(r"\b(please|thanks|thank you)\b", text, re.I) and len(text) > 40:
         notes.append("Stay polite, but do not just thank them.")
     return " ".join(notes)
-
-
-def _agent_left_the_ball(agent_text: str) -> bool:
-    text = str(agent_text or "")
-    if _AGENT_QUESTION.search(text) or text.rstrip().endswith("?"):
-        return True
-    if _AGENT_SUCCESS.search(text) or _AGENT_REFUSAL.search(text):
-        return True
-    if text.count("\n-") >= 2 or text.count("\n*") >= 2:
-        return True
-    return False
 
 
 def _mostly_thanks(text: str) -> bool:
@@ -868,8 +855,7 @@ def _user_followup(base_url: str, model: str, prior: str, agent_text: str, *,
                    tools: list | None = None,
                    force: bool = False,
                    persona_tags: dict | None = None) -> str:
-    from .generator import (clean_user_message,
-                            _realize_typed_message, _strip_directive_phrases)
+    from .generator import _realize_typed_message, _strip_directive_phrases, clean_user_message
     trace = _render_user_trace(messages, steps)
     if not trace:
         trace = (f"You said: {prior[:500]}\n"
@@ -1088,8 +1074,7 @@ def local_model(base_url: str, model: str, *, tools: list[dict],
             draw = int(hashlib.sha256(
                 f"opening:{message}".encode()).hexdigest(), 16) % 10 ** 6
             if draw < float(opening_rate) * 10 ** 6:
-                cue = list(messages[:-1]) + [
-                    {"role": "user", "content": _OPENING_CUE}]
+                cue = [*list(messages[:-1]), {"role": "user", "content": _OPENING_CUE}]
                 greet = complete(base_url, model, cue, api_key=api_key,
                                  temperature=temperature, timeout=timeout,
                                  max_tokens=120)
@@ -1236,9 +1221,9 @@ def local_model(base_url: str, model: str, *, tools: list[dict],
         return _done(steps, final_text)
 
     agent.__name__ = f"local_model[{model}]"
-    agent.fault_plans = plans
-    agent.system = policy_text
-    agent.policy = policy_text
+    agent.fault_plans = plans  # type: ignore[attr-defined]
+    agent.system = policy_text  # type: ignore[attr-defined]
+    agent.policy = policy_text  # type: ignore[attr-defined]
     return agent
 
 

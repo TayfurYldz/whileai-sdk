@@ -14,7 +14,14 @@ import sys
 import agent
 import tasks
 from sandbox import Sandbox
-from signals import BEHAVIOUR_BUDGET, MAX_ISSUES, MAX_JUDGE_METRICS, TEST_PATH, Observation, TurnSignals
+from signals import (
+    BEHAVIOUR_BUDGET,
+    MAX_ISSUES,
+    MAX_JUDGE_METRICS,
+    TEST_PATH,
+    Observation,
+    TurnSignals,
+)
 
 FAILING_TEST = {
     "cart-discount": "test_discount_applies_once_to_the_order",

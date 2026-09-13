@@ -58,6 +58,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
     """Eight workers, jittered agent latency, two runs: same rows."""
     import random
     import re
+
     import zeroproof.simulations as zps
     from tests.helpers import POLICY, TOOLS, scripted_agent
 

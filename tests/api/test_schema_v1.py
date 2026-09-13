@@ -173,7 +173,8 @@ def test_judge_rows_keep_their_metadata_even_without_a_reward():
     assert j.scorer == schema.ScorerRef(name="j", kind="judge")
     assert j.reward is None and j.status == "error"
     back = schema.to_row(task, rollout, judgments, markers)
-    back.pop("schema_version"); back.pop("messages")
+    back.pop("schema_version")
+    back.pop("messages")
     assert back == row
 
 

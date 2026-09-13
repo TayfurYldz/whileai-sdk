@@ -7,27 +7,53 @@ the signature, the docstring, and the names older code imported from here.
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .data import SimulationData
 from .generate.scenarios import SEARCH_ARMS, reallocate_search_arms
-from .run.config import (HUNG_SLOT_S as _HUNG_SLOT_S,  # noqa: F401
-                         SATURATION_CAP as _SATURATION_CAP,
-                         _merge_advanced, _parse_situations_arg,
-                         resolve_run_config, resolve_topology, writer_spec_for)
+from .run.config import HUNG_SLOT_S as _HUNG_SLOT_S  # noqa: F401
+from .run.config import SATURATION_CAP as _SATURATION_CAP  # noqa: F401
+from .run.config import (  # noqa: F401
+    _merge_advanced,
+    _parse_situations_arg,
+    resolve_run_config,
+    resolve_topology,
+    writer_spec_for,
+)
 from .run.engine import Run
-from .run.rows import (_cell_key, _collect_finished,  # noqa: F401
-                       _mutation_worthy, _prompt_arm, _record_coverage,
-                       _row_conversation, _situation_key_from_meta,
-                       _stratified_prompts, _usable_rollout)
-from .run.spec import (_apply_spec, _backend_spec,  # noqa: F401
-                       _kind_from_spec, _looks_like_spec_path,
-                       _read_spec_file, _spec_extra_text, _spec_from_path)
+from .run.rows import (  # noqa: F401
+    _collect_finished,
+    _prompt_arm,
+    _row_conversation,
+    _situation_key_from_meta,
+    _stratified_prompts,
+    _usable_rollout,
+    mutation_worthy,
+    record_coverage,
+    row_cell_key,
+)
+from .run.spec import (  # noqa: F401
+    _looks_like_spec_path,
+    _read_spec_file,
+    _spec_extra_text,
+    _spec_from_path,
+    apply_spec,
+    backend_spec,
+    kind_from_spec,
+)
 
 _SEARCH_ARMS = dict(SEARCH_ARMS)
 _reallocate = reallocate_search_arms
+# Underscore spellings older imports and tests still use.
+_apply_spec = apply_spec
+_backend_spec = backend_spec
+_cell_key = row_cell_key
+_kind_from_spec = kind_from_spec
+_mutation_worthy = mutation_worthy
+_record_coverage = record_coverage
 
-__all__ = ["simulate", "resolve_topology", "writer_spec_for"]
+__all__ = ["resolve_topology", "simulate", "writer_spec_for"]
 
 
 def simulate(agent: Any = None, *, spec: Any = None,

@@ -57,4 +57,4 @@ def test_turn_controller_corrects_at_half_gain():
     low = [sample_turn_budget(s, f"k{s}", 12, avg_turns=6, running_mean=2)
            for s in range(400)]
     assert sum(high) / len(high) < sum(low) / len(low)
-    assert 2 <= min(high) and max(low) <= 12
+    assert min(high) >= 2 and max(low) <= 12

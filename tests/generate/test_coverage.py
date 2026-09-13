@@ -1,5 +1,5 @@
-from tests.helpers import TOOLS, POLICY, scripted_agent
 import zeroproof.simulations as zps
+from tests.helpers import POLICY, TOOLS, scripted_agent
 from zeroproof.simulations.generate.coverage import space_saturated
 
 
@@ -31,7 +31,7 @@ def test_coverage_curve_grows_each_batch(tmp_path):
     assert rows[-1] == len(data.trajectories)
     assert data.coverage["rows"] == len(data.trajectories)
     assert data.coverage["unique_signatures"] > 0
-    path = data.save(str(tmp_path / "r.jsonl"), meta=True)
+    data.save(str(tmp_path / "r.jsonl"), meta=True)
     meta = tmp_path / "r.meta.json"
     assert meta.exists()
     import json

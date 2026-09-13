@@ -1,12 +1,10 @@
 """Adapter USER_TURN splitting and hosted-key resolution."""
 from tests.helpers import TOOLS
-
 from zeroproof.simulations.generate.agents import (
     missing_hosted_key,
     resolve_completion_key,
     split_user_turns,
 )
-
 
 HOSTED = "https://zeroproofai--stressd-vllm-serve.modal.run/v1"
 

@@ -1,7 +1,7 @@
 import random
 
-from tests.helpers import TOOLS, POLICY, REPO_ROOT, scripted_agent
 import zeroproof.simulations as zps
+from tests.helpers import POLICY, REPO_ROOT, TOOLS, scripted_agent
 from zeroproof.simulations.generate.diversity import accept_anneal_candidate, sample_request_axes
 from zeroproof.simulations.generate.generator import ModelSimulator
 
@@ -29,7 +29,6 @@ def test_anneal_accepts_non_greedy_when_hot():
 
 
 def test_writer_tags_are_sparse_and_generic():
-    from pathlib import Path
     from zeroproof.simulations.generate.diversity import sample_cell_tags
 
     sim = ModelSimulator(tools=TOOLS, policy=POLICY, seed=1, candidates_per_round=40)
@@ -135,8 +134,7 @@ def test_scenario_family_cap_catches_paraphrases_not_unrelated_subjects():
 def test_pressure_is_a_sparse_tag_not_hardcoded_english():
     from zeroproof.simulations.generate.diversity import sample_cell_tags
     from zeroproof.simulations.generate.explore import MUTATORS
-    from zeroproof.simulations.generate.scenarios import (STANCE_BRIEFS, STANCES,
-                                                 scenario_regions)
+    from zeroproof.simulations.generate.scenarios import STANCE_BRIEFS, STANCES, scenario_regions
 
     assert "pressurize" not in {name for name, _ in MUTATORS}
     tagged = 0

@@ -4,7 +4,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 _CREATE = re.compile(r"^(create|generate|write|add|upload|insert|make|post|new)", re.I)
 _READ = re.compile(r"^(get|read|list|inspect|search|fetch|find|show|describe|cat|view)", re.I)
@@ -34,7 +35,6 @@ def _missing_required(parameters: dict, arguments: dict) -> list[str]:
                 missing.extend(f"{key}.{grand}"
                                for grand in _missing_required(child, value))
     return missing
-
 
 
 _PLACEHOLDER_VALUE = re.compile(
@@ -220,10 +220,7 @@ def _shape_mismatches_kind(kind: str, filled: dict) -> bool:
         return True
     if kind == "ci" and not (keys & {"items", "checks", "jobs", "conclusion"}):
         return True
-    if {"owner", "updated_at"} <= keys and not (
-            keys & {"content", "stdout", "diff", "matches", "entries"}):
-        return True
-    return False
+    return bool({"owner", "updated_at"} <= keys and not keys & {"content", "stdout", "diff", "matches", "entries"})
 
 
 _CODE_VERBS = ("load", "parse", "render", "sync", "build", "handle",
@@ -504,7 +501,7 @@ def _evaluate_expression(tool: str, arguments: dict) -> dict[str, Any] | None:
         return None
     import ast
     import operator as op
-    ops = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
+    ops: dict[type, Any] = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
            ast.Div: op.truediv, ast.Mod: op.mod, ast.Pow: op.pow,
            ast.FloorDiv: op.floordiv, ast.USub: op.neg, ast.UAdd: op.pos}
 

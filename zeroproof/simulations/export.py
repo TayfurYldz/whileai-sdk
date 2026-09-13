@@ -20,11 +20,12 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .schema import check, stamp
-from .score.quality import _load_jsonl, _write_jsonl
+from .score.quality import load_jsonl, write_jsonl
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.S | re.I)
 # The second group are the sampled diversity axes. They cost bytes, but a
@@ -115,8 +116,7 @@ def _convert_messages(messages: Sequence[dict], *, system: str,
                 wire = []
                 for call in calls:
                     call = call if isinstance(call, dict) else {}
-                    fn = call.get("function") if isinstance(
-                        call.get("function"), dict) else call
+                    fn = call["function"] if isinstance(call.get("function"), dict) else call
                     call_id = str(call.get("id") or f"call_{call_i:04d}")
                     call_i += 1
                     pending_ids.append(call_id)
@@ -153,7 +153,7 @@ def _resolve(source) -> tuple[list[dict], str, list, str]:
         tools = list(getattr(profile, "tools", None) or [])
         return list(source.trajectories), system, tools, ""
     if isinstance(source, (str, Path)):
-        return _load_jsonl(source), "", [], str(source)
+        return load_jsonl(source), "", [], str(source)
     return list(source), "", [], ""
 
 
@@ -274,7 +274,7 @@ def export_training(source, output: str | None = None, *,
         "tool_call_roundtrip": roundtrip,
     }
     if dest:
-        report["path"] = _write_jsonl(dest, rows)
+        report["path"] = write_jsonl(dest, rows)
         report["n_written"] = len(rows)
     return report
 
@@ -350,9 +350,14 @@ def export_preference(pairs: Sequence[dict], output: str | None = None, *,
         report["path"] = None
         return report
     if output:
-        report["path"] = _write_jsonl(output, out_rows)
+        report["path"] = write_jsonl(output, out_rows)
     return report
 
 
-__all__ = ["training_rows", "export_training", "export_dataset",
-           "export_preference", "tool_call_roundtrip"]
+__all__ = [
+    "export_dataset",
+    "export_preference",
+    "export_training",
+    "tool_call_roundtrip",
+    "training_rows",
+]

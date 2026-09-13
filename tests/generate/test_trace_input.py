@@ -6,8 +6,12 @@ from __future__ import annotations
 import json
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.ingest.traces import (format_trace_report, load_traces,
-                                          simulate_from_traces, trace_report)
+from zeroproof.simulations.ingest.traces import (
+    format_trace_report,
+    load_traces,
+    simulate_from_traces,
+    trace_report,
+)
 
 
 def test_load_traces_normalizes_alternate_keys():
@@ -204,11 +208,13 @@ def test_traces_with_faults_keep_the_fault_cells():
     kw = dict(budget=48, per_round=40, concurrency=1, fault_rate=1.0)
     aimed = simulate_offline(traces=rows, **kw)
     cold = simulate_offline(**kw)
-    share = lambda d: sum(1 for r in d.trajectories if r.get("faults")) / max(1, len(d.trajectories))
-    fault_cells = lambda d: sum(
-        1 for r in d.trajectories
-        if (r.get("scenario_dimensions") or {}).get("tool_condition")
-        not in (None, "success")) / max(1, len(d.trajectories))
+    def share(d):
+        return sum(1 for r in d.trajectories if r.get("faults")) / max(1, len(d.trajectories))
+    def fault_cells(d):
+        return sum(
+            1 for r in d.trajectories
+            if (r.get("scenario_dimensions") or {}).get("tool_condition")
+            not in (None, "success")) / max(1, len(d.trajectories))
     assert fault_cells(aimed) >= 0.25, fault_cells(aimed)
     assert fault_cells(aimed) > fault_cells(cold), (fault_cells(aimed), fault_cells(cold))
     assert share(aimed) >= 0.15, share(aimed)

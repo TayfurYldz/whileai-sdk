@@ -13,14 +13,15 @@ for evaluation stays out of training.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ..generate.embeddings import resolve_embedder
-from ..score.grading import (NO_FAULT, _fault_from_result, behavior_signature,
-                             trace_fault)
 from ..generate.scenarios import build_dimensions
+from ..score.grading import NO_FAULT, _fault_from_result, behavior_signature, trace_fault
 
 # Observed fault chip -> the grid axis and value that reproduces it.
 _FAULT_TO_AXIS = {
@@ -243,10 +244,7 @@ def dimensions_from_traces(rows: Sequence[dict], tools: list[dict],
     seen = [t for t in real if t in observed]
     unseen = [t for t in real if t not in observed]
     seen.sort(key=_tool_rank)
-    if seen:
-        tool_axis = seen + (unseen if broaden else []) + specials
-    else:
-        tool_axis = base_tools
+    tool_axis = seen + (unseen if broaden else []) + specials if seen else base_tools
 
     conditions = list(base.get("tool_condition") or [])
     worlds = list(base.get("world_state") or [])
@@ -535,10 +533,8 @@ def _steps_from_messages(messages: Sequence[dict]) -> list[dict]:
                     call.get("function"), dict) else call
                 raw = (fn or {}).get("arguments")
                 if isinstance(raw, str):
-                    try:
+                    with contextlib.suppress(ValueError):
                         raw = json.loads(raw)
-                    except ValueError:
-                        pass
                 steps.append({"tool": str((fn or {}).get("name") or ""),
                               "arguments": raw if isinstance(raw, dict)
                               else {}})
@@ -546,10 +542,8 @@ def _steps_from_messages(messages: Sequence[dict]) -> list[dict]:
                 steps.append({"text": content})
         elif role == "tool":
             result: Any = content
-            try:
+            with contextlib.suppress(ValueError):
                 result = json.loads(content)
-            except ValueError:
-                pass
             _attach(result, str(message.get("name") or ""))
     return steps
 
@@ -576,8 +570,8 @@ def load_traces(source) -> list[dict]:
     """
     from pathlib import Path as _Path
     if isinstance(source, (str, _Path)):
-        from ..score.quality import _load_jsonl
-        rows = _load_jsonl(source)
+        from ..score.quality import load_jsonl
+        rows = load_jsonl(source)
     else:
         rows = list(source)
     out: list[dict] = []
@@ -650,8 +644,8 @@ def trace_report(traces, tools: list[dict] | None = None,
     """
     from pathlib import Path as _Path
     if isinstance(traces, (str, _Path)):
-        from ..score.quality import _load_jsonl
-        raw = _load_jsonl(traces)
+        from ..score.quality import load_jsonl
+        raw = load_jsonl(traces)
     else:
         raw = list(traces)
     rows = load_traces(raw)
@@ -821,11 +815,19 @@ def infer_harness(rows: Sequence[dict]) -> dict[str, Any]:
 
 
 __all__ = [
-    "mine_traces", "mine_result_exemplars", "exemplar_result_shapes",
-    "dimensions_from_traces", "split_pseudo_production",
-    "flaw_rows", "leakage_report", "drop_leaky_rows", "simulate_from_traces",
-    "load_traces", "trace_report", "format_trace_report",
+    "dimensions_from_traces",
+    "drop_leaky_rows",
+    "exemplar_result_shapes",
+    "flaw_rows",
+    "format_trace_report",
     "infer_harness",
+    "leakage_report",
+    "load_traces",
+    "mine_result_exemplars",
+    "mine_traces",
+    "simulate_from_traces",
+    "split_pseudo_production",
+    "trace_report",
 ]
 
 
@@ -841,7 +843,7 @@ _MIN_SUPPORT = 3
 _RECIPE_AXES = ("tool", "tool_condition", "world_state", "stance", "history")
 
 
-def _row_regions(row: dict) -> list[tuple[str, str, bool]]:
+def _row_regions(row: dict) -> list[tuple[str, str, bool | None]]:
     """(region_id, kind, failed) memberships for one trajectory.
 
     A region is a named behavioral predicate, never a coordinate tuple:
@@ -851,13 +853,15 @@ def _row_regions(row: dict) -> list[tuple[str, str, bool]]:
     failures. Coordinates are recorded separately as the region's
     expansion recipe.
     """
-    out: list[tuple[str, str, bool]] = []
+    out: list[tuple[str, str, bool | None]] = []
     scores = row.get("scores")
     if isinstance(scores, dict):
         for name, value in scores.items():
+            raw_value = value if not isinstance(value, dict) else value.get("value")
+            if raw_value is None:
+                continue
             try:
-                v = float(value if not isinstance(value, dict)
-                          else value.get("value"))
+                v = float(raw_value)
             except (TypeError, ValueError):
                 continue
             if v in (0.0, 1.0):
@@ -913,11 +917,13 @@ def behavior_state(rows: Sequence[dict], *,
         if v and v not in versions:
             versions.append(v)
     if len(versions) >= 2:
-        bucket_of = lambda idx, r: str(r.get("model_version") or versions[0])
+        def bucket_of(idx, r):
+            return str(r.get("model_version") or versions[0])
         buckets = versions
     else:
         cut = max(1, n // 2)
-        bucket_of = lambda idx, r: "recent" if idx >= cut else "old"
+        def bucket_of(idx, r):
+            return "recent" if idx >= cut else "old"
         buckets = ["old", "recent"]
     latest = buckets[-1]
 

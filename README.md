@@ -242,6 +242,19 @@ Internals are grouped by stage and may move between releases.
 | `run/` | the engine behind `simulate()`: knob resolution (`config.py`), spec loading (`spec.py`), row helpers (`rows.py`), and the scheduler itself (`engine.py`: inputs, build, loop, finish) |
 | `simulation.py`, `data.py`, `export.py` | the `simulate()` entry point, its result object, and training export |
 
+## Development
+
+```bash
+uv sync --extra dev
+uv run pytest           # about two minutes, no network
+uv run ruff check .     # lint; `--fix` for the mechanical ones
+uv run mypy             # type check
+pre-commit install      # optional: ruff and whitespace hooks on commit
+```
+
+CI runs the suite on Python 3.10 through 3.13, ruff, mypy, and a plain-pip
+install of the built wheel into a clean venv.
+
 ## License
 
 Apache-2.0

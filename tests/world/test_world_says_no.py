@@ -1,6 +1,6 @@
 """The mock world refuses schema echoes and answers in the tool's own domain."""
-from zeroproof.simulations.world.sandbox import MockEnvironment, placeholder_arguments
 from zeroproof.simulations.score.grading import conduct_grade
+from zeroproof.simulations.world.sandbox import MockEnvironment, placeholder_arguments
 
 
 def _tool(name, props, required=()):

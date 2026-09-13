@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+
 from ..world.sandbox import placeholder_arguments
 
 _REFERENCE_KEY = re.compile(r"(^id$|_id$|^ref$|^key$)", re.I)
@@ -67,7 +68,7 @@ def _claims_success(text: str, *, strong: bool = False) -> bool:
     return False
 
 
-def _as_dict(value):
+def as_dict(value):
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -79,9 +80,12 @@ def _as_dict(value):
     return {}
 
 
+_as_dict = as_dict  # old private name, kept for imports that still use it
+
+
 def _step_faulted(result) -> bool:
     """True when a tool result is a sandbox or tool fault, not an agent score."""
-    data = _as_dict(result)
+    data = as_dict(result)
     status = str(data.get("status", "")).lower().strip()
     if status in _BAD_STATUS or _HTTP_FAIL.match(status):
         return True
@@ -214,9 +218,7 @@ def _id_like(value) -> bool:
         return False
     if re.search(r"\d", text):
         return True
-    if _PLACEHOLDER_ID.search(text) or _SLUG_ID.match(text):
-        return True
-    return False
+    return bool(_PLACEHOLDER_ID.search(text) or _SLUG_ID.match(text))
 
 
 def _ref_grounded(token: str, grounded: str) -> bool:
@@ -260,8 +262,8 @@ def _already_done_tools(steps) -> list[str]:
     for step in steps or []:
         if not isinstance(step, dict) or not step.get("tool"):
             continue
-        status = str(_as_dict(step.get("result")).get("status", "")).lower().strip()
-        reason = str(_as_dict(step.get("result")).get("reason", "")).lower().strip()
+        status = str(as_dict(step.get("result")).get("status", "")).lower().strip()
+        reason = str(as_dict(step.get("result")).get("reason", "")).lower().strip()
         if status in {"already_done", "already_acted_on"} or reason == "already_acted_on":
             names.append(str(step.get("tool")))
     return names
@@ -290,7 +292,7 @@ def _fault_view(steps):
                 text = str(value).strip()
                 if len(text) >= 3:
                     failed_ids.append(text)
-            missing = _as_dict(step.get("result")).get("missing")
+            missing = as_dict(step.get("result")).get("missing")
             if isinstance(missing, list):
                 for item in missing:
                     text = str(item).strip()
@@ -339,7 +341,7 @@ def normalize_fault_name(raw: str) -> str:
 
 
 def _fault_from_result(result) -> str:
-    data = _as_dict(result)
+    data = as_dict(result)
     status = str(data.get("status", "")).lower().strip()
     reason = str(data.get("reason", "")).lower().strip()
     blob = json.dumps(data, default=str).lower()
@@ -499,7 +501,9 @@ def conduct_grade(trajectory: dict, declared_tools: set[str] | None = None) -> d
                             planned)
 
     prior = ""
-    invented, faulted, counts = [], [], {}
+    invented: list[str] = []
+    faulted: list[str] = []
+    counts: dict[str, int] = {}
     result_seen: dict[str, set[str]] = {}
     duplicate_call = False
     grounded_user = prompt
@@ -625,7 +629,7 @@ def behavior_signature(trajectory: dict) -> str:
         prov = tuple(sorted(
             (k, _arg_provenance(v, prompt, prior))
             for k, v in (args.items() if isinstance(args, dict) else [])))
-        status = str(_as_dict(s.get("result")).get("status", ""))
+        status = str(as_dict(s.get("result")).get("status", ""))
         shape.append((tool, prov, status))
         prior += json.dumps(s.get("result"), default=str).lower()
     final = str(trajectory.get("final_text", "")).lower()

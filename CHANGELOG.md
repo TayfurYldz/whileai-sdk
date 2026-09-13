@@ -3,6 +3,26 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Hygiene. ruff (lint) and mypy are configured in `pyproject.toml` and
+  run in CI; `.editorconfig`, `.gitattributes` (LF) and a pre-commit
+  config are in. The package type-checks clean except three modules that
+  hang state on closures (`generate/generator.py`, `generate/scenarios.py`,
+  `run/engine.py`), which are excluded until the writer is a class.
+- The package root exports only `__all__` (76 names) plus the `data`,
+  `schema` and `simulation` submodules. Sixty-one internal names that
+  leaked through `import zeroproof.simulations as zps` are no longer
+  reachable as `zps.<name>`; import them from their module.
+- Cross-module helpers lost their leading underscore: `apply_spec`,
+  `backend_spec`, `kind_from_spec`, `as_dict`, `intent_for_tool`,
+  `load_jsonl`, `write_jsonl`, `row_cell_key`, `record_coverage`,
+  `mutation_worthy`, `row_world`, `note_stage`, `clean_faults`,
+  `export_row`. The old spellings remain as aliases.
+- Dead code removed: six unused writer helpers, four unused constants.
+- Lint fixes across the package: `raise ... from`, closure binding in
+  the Claude Code adapter, redundant casts, sorted imports.
+
 ## 0.12 (2026-09-11)
 
 - A callable `agent=` with no key now gets an error that names the two

@@ -1,5 +1,6 @@
 """Offline-only mutations of existing user messages. Live path never wraps Qwen text."""
 from __future__ import annotations
+
 import hashlib
 import json
 import re

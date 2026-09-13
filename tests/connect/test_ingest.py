@@ -3,13 +3,11 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import pytest
 
 import zeroproof.simulations as zps
 from zeroproof.simulations.generate.adapters import detect, inspect, parse_claude_stream
-
 
 TOOLS = [
     {"type": "function", "function": {"name": "lookup_item", "parameters": {
@@ -49,7 +47,8 @@ def test_inspect_merges_user_extras_onto_the_agent():
 
 
 def test_user_situations_and_spec_feed_simulate():
-    from tests.helpers import TOOLS as REFUND_TOOLS, POLICY, scripted_agent
+    from tests.helpers import POLICY, scripted_agent
+    from tests.helpers import TOOLS as REFUND_TOOLS
     data = zps.simulate(
         scripted_agent, tools=REFUND_TOOLS, policy=POLICY, budget=6, seed=0,
         grade=False, concurrency=6, simulator=False,
@@ -61,7 +60,8 @@ def test_user_situations_and_spec_feed_simulate():
 
 
 def test_does_not_grade_after_rollout_by_default():
-    from tests.helpers import TOOLS as REFUND_TOOLS, POLICY, scripted_agent
+    from tests.helpers import POLICY, scripted_agent
+    from tests.helpers import TOOLS as REFUND_TOOLS
     data = zps.simulate(
         scripted_agent, tools=REFUND_TOOLS, policy=POLICY, budget=8, seed=0,
         concurrency=8, simulator=False,
@@ -156,7 +156,10 @@ def test_hash_embedder_does_not_claim_semantic_diversity():
 
 def test_refuses_to_mix_lexical_and_semantic_vectors():
     from zeroproof.simulations.generate.embeddings import (
-        EmbeddingArchive, HashEmbedder, select_execution_batch)
+        EmbeddingArchive,
+        HashEmbedder,
+        select_execution_batch,
+    )
 
     class Sem:
         name = "stub-semantic"

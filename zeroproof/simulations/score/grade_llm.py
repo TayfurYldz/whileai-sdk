@@ -4,10 +4,10 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-from ..generate.agents import (complete, default_agent_spec, missing_hosted_key,
-                     parse_backend_spec)
+from ..generate.agents import complete, default_agent_spec, missing_hosted_key, parse_backend_spec
 
 MISSING_QWEN_KEY = "Hosted Qwen needs VLLM_API_KEY set in the environment."
 
@@ -160,7 +160,8 @@ def _render_payload(trajectory: dict, *, policy: str = "",
     # step, the last two steps, and say how many were skipped.
     keep = {0, len(steps) - 2, len(steps) - 1}
     keep.update(i for i, s in enumerate(steps) if _step_fault_like(s))
-    kept, skipped = [], 0
+    kept: list[dict[str, Any]] = []
+    skipped = 0
     for i, step in enumerate(steps):
         if i in keep:
             if skipped:
@@ -314,7 +315,7 @@ def audit_one(trajectory: dict, *, policy: str = "",
     """Fairness pass on an existing 0/1. Does not overwrite reward."""
     existing = trajectory.get("reward")
     payload = _user_message(trajectory, policy=policy, tools=tools)
-    user = '{"existing_label": %s}\n%s' % (json.dumps(existing), payload)
+    user = f'{{"existing_label": {json.dumps(existing)}}}\n{payload}'
     spec = backend_spec or default_agent_spec()
     url, model = parse_backend_spec(spec)
     try:

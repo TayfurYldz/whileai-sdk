@@ -110,6 +110,7 @@ def test_double_encoded_arguments_normalize_to_structured():
 
 def test_export_refuses_unparseable_tool_arguments():
     import pytest
+
     from zeroproof.simulations.export import tool_call_roundtrip
     bad = _row_with_arguments("number equals 4412")
     with pytest.raises(ValueError, match="tool_call_roundtrip_invalid"):

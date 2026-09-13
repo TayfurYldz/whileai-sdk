@@ -27,45 +27,91 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..data import (SimulationData, _clean_faults, _export_row, _note,
-                    _row_world, conversation)
-from ..generate.actionspace import (action_space_targets,
-                                    induced_keys_from_trajectory,
-                                    render_target_situation, shape_as_tags,
-                                    shape_from_trajectory,
-                                    uncovered_action_shapes)
+from ..data import SimulationData, clean_faults, conversation, export_row, note_stage, row_world
+from ..generate.actionspace import (
+    action_space_targets,
+    induced_keys_from_trajectory,
+    render_target_situation,
+    shape_as_tags,
+    shape_from_trajectory,
+    uncovered_action_shapes,
+)
 from ..generate.adapters import inspect, resolve
-from ..generate.agents import (current_rollout, default_max_turns, hosted_model,
-                               local_model, missing_hosted_key,
-                               parse_backend_spec, public_llm_error,
-                               touch_hosted)
-from ..generate.coverage import (NEW_SIGNATURE_FLOOR, SATURATION_COPIES,
-                                 build_coverage_summary, copies_remaining,
-                                 pairwise_coverage, space_saturated)
-from ..generate.diversity import (MAX_NOVELTY_RESTARTS, NOVELTY_RESTART_FLOOR,
-                                  adaptive_allocator, allocator_slot_counts,
-                                  cap_scenario_families, new_turn_stats,
-                                  record_turns, sampling_plan, scenario_family)
-from ..generate.embeddings import (EmbeddingArchive, is_semantic,
-                                   resolve_embedder, select_execution_batch)
+from ..generate.agents import (
+    current_rollout,
+    default_max_turns,
+    hosted_model,
+    local_model,
+    missing_hosted_key,
+    parse_backend_spec,
+    public_llm_error,
+    touch_hosted,
+)
+from ..generate.coverage import (
+    NEW_SIGNATURE_FLOOR,
+    SATURATION_COPIES,
+    build_coverage_summary,
+    copies_remaining,
+    pairwise_coverage,
+    space_saturated,
+)
+from ..generate.diversity import (
+    MAX_NOVELTY_RESTARTS,
+    NOVELTY_RESTART_FLOOR,
+    adaptive_allocator,
+    allocator_slot_counts,
+    cap_scenario_families,
+    new_turn_stats,
+    record_turns,
+    sampling_plan,
+    scenario_family,
+)
+from ..generate.embeddings import (
+    EmbeddingArchive,
+    is_semantic,
+    resolve_embedder,
+    select_execution_batch,
+)
 from ..generate.explore import mutate_pool
-from ..generate.generator import (amplify_seeds, draft_tools,
-                                  make_default_generator, write_result_shapes,
-                                  write_scene_brief)
-from ..generate.scenarios import (SEARCH_ARMS, _intent_for_tool,
-                                  complete_yields, keep_fault_plan,
-                                  reallocate_search_arms, retarget_regions)
-from ..ingest.traces import (behavior_state, dimensions_from_traces,
-                             drop_leaky_rows, exemplar_result_shapes,
-                             load_traces, mine_result_exemplars, mine_traces,
-                             opening_share, region_progress)
+from ..generate.generator import (
+    amplify_seeds,
+    draft_tools,
+    make_default_generator,
+    write_result_shapes,
+    write_scene_brief,
+)
+from ..generate.scenarios import (
+    SEARCH_ARMS,
+    complete_yields,
+    intent_for_tool,
+    keep_fault_plan,
+    reallocate_search_arms,
+    retarget_regions,
+)
+from ..ingest.traces import (
+    behavior_state,
+    dimensions_from_traces,
+    drop_leaky_rows,
+    exemplar_result_shapes,
+    load_traces,
+    mine_result_exemplars,
+    mine_traces,
+    opening_share,
+    region_progress,
+)
 from ..schema import SCHEMA_KEY, SCHEMA_VERSION
 from ..score.grading import behavior_signature, conduct_grade
 from .config import RunConfig
-from .rows import (_cell_key, _mutation_worthy, _record_coverage,
-                   _row_conversation, _situation_key_from_meta,
-                   _stratified_prompts, _usable_rollout)
-from .spec import _apply_spec, _backend_spec, _kind_from_spec
+from .rows import (
+    _row_conversation,
+    _situation_key_from_meta,
+    _stratified_prompts,
+    _usable_rollout,
+    mutation_worthy,
+    record_coverage,
+    row_cell_key,
+)
+from .spec import apply_spec, backend_spec, kind_from_spec
 
 log = logging.getLogger("zeroproof.simulations")
 
@@ -122,7 +168,7 @@ class Run:
 
     def _resolve_inputs(self) -> None:
         c = self.c
-        tools, policy, spec_sits = _apply_spec(c.spec, c.tools, c.system_prompt, [])
+        tools, policy, spec_sits = apply_spec(c.spec, c.tools, c.system_prompt, [])
         self.seed_prompts: list[str] = list(c.seed_prompts)
         self.seed_prompts.extend(str(s).strip() for s in spec_sits if str(s).strip())
         # simulate-from-seeds: a few example asks are a behavior request,
@@ -137,7 +183,7 @@ class Run:
         # Generation-only teacher guidance. profile.policy and export stay plain.
         self.gen_policy = (f"{self.policy}\n\n{c.scaffold_text}"
                            if c.scaffold_text else self.policy)
-        self.writer_kind = _kind_from_spec(c.spec, self.policy)
+        self.writer_kind = kind_from_spec(c.spec, self.policy)
         # May be replaced by the backend spec once the runner is built.
         self.simulator = c.simulator
         self.drafted_tools: list[str] = []
@@ -256,7 +302,7 @@ class Run:
         data.requests_per_situation = c.n_req
         data.rollouts_per_request = c.repeat_count
         data.unique_situations = c.unique_cards
-        _note(data, "agent ingestion")
+        note_stage(data, "agent ingestion")
         if self.tool_draft_failed:
             data.degraded.append("tool_draft_unavailable")
         self.data = data
@@ -335,7 +381,7 @@ class Run:
         if c.execute is not None:
             runner_kw["execute"] = c.execute
         if c.backend:
-            spec_backend = _backend_spec(c.backend)
+            spec_backend = backend_spec(c.backend)
             url, model_name = parse_backend_spec(spec_backend)
             self.runner = local_model(
                 url, model_name, tools=self.tools, system=self.gen_policy,
@@ -490,7 +536,7 @@ class Run:
         raw = raw if isinstance(raw, dict) else {"steps": [], "final_text": str(raw)}
         if not assignment:
             assignment = self._realized_dims(raw.get("steps") or [],
-                                             _clean_faults(faults))
+                                             clean_faults(faults))
         semantic = self.data.semantic
         t = {
             # Born stamped: the streamed file and a later save() must agree.
@@ -500,8 +546,8 @@ class Run:
             "scenario_dimensions": assignment,
             "arm": meta.get("arm") or "unattributed",
             "prompt": prompt,
-            "world_state": _row_world(assignment),
-            "faults": _clean_faults(faults),
+            "world_state": row_world(assignment),
+            "faults": clean_faults(faults),
             "steps": raw.get("steps") or [],
             "final_text": str(raw.get("final_text", "")),
             # topology axis: which side opened this conversation
@@ -752,13 +798,13 @@ class Run:
         if not self.stream_started:
             with open(c.out_path, "w") as fh:
                 for row in rows:
-                    fh.write(json.dumps(_export_row(row), default=str) + "\n")
+                    fh.write(json.dumps(export_row(row), default=str) + "\n")
             self.stream_started = True
             self.written = len(rows)
             return
         with open(c.out_path, "a") as fh:
             for row in rows[self.written:]:
-                fh.write(json.dumps(_export_row(row), default=str) + "\n")
+                fh.write(json.dumps(export_row(row), default=str) + "\n")
         self.written = len(rows)
 
     # ----------------------------------------------------------- writers
@@ -901,7 +947,7 @@ class Run:
             for prompt in self.generated_pool)
         if self.generated_pool and any((gen.meta.get(p) or {}).get("arm")
                                        for p in self.generated_pool):
-            _note(data, "generated candidate with arm provenance")
+            note_stage(data, "generated candidate with arm provenance")
 
     def _select(self, candidates: list[str], *, batch_size: int,
                 selection_seed: int, selection_round: int):
@@ -1000,7 +1046,7 @@ class Run:
                 continue
             if not _usable_rollout(t):
                 self.cap_lifted["lost"] += 1
-                _note(data, "rollout failure discarded")
+                note_stage(data, "rollout failure discarded")
                 continue
             if not data.first_row_seconds:
                 data.first_row_seconds = time.monotonic() - self.started
@@ -1089,12 +1135,12 @@ class Run:
                 self._ingest_producer(fut)
             unused = self._available()
         self.fault_plans.update(gen.fault_plans)
-        if gen.last_errors.get("llm_guided") and not gen.model_produced:
-            if "generator_fallback" not in data.degraded:
-                data.degraded.append("generator_fallback")
+        if (gen.last_errors.get("llm_guided") and not gen.model_produced
+                and "generator_fallback" not in data.degraded):
+            data.degraded.append("generator_fallback")
         if unused and any(
                 (gen.meta.get(p) or {}).get("arm") for p in unused):
-            _note(data, "generated candidate with arm provenance")
+            note_stage(data, "generated candidate with arm provenance")
         return unused
 
     def _select_batch(self, unused: list[str], take: int) -> tuple[list[dict], dict]:
@@ -1137,8 +1183,8 @@ class Run:
             data.degraded.append("embedding_space_mismatch")
         if selected:
             if data.semantic:
-                _note(data, "semantic embedding produced")
-            _note(data, "selection reason / novelty")
+                note_stage(data, "semantic embedding produced")
+            note_stage(data, "selection reason / novelty")
             if self.archive.compatible(self.resolved_embedder):
                 self.archive.add(row["vector"] for row in selected)
             missing = uncovered_action_shapes(
@@ -1325,7 +1371,7 @@ class Run:
                 and len(self.used_situations) >= c.n_situations_target):
             self.cap_lifted["lifted"] = True
             self.empty_streak = 0
-            _note(data, "situation cap lifted to fill lost rollouts")
+            note_stage(data, "situation cap lifted to fill lost rollouts")
             return "continue"
         if (c.n_situations_target
                 and len(self.used_situations) >= c.n_situations_target
@@ -1368,7 +1414,7 @@ class Run:
                         clear_avoid=False)
                     self.writer_idle = 0
                     self.empty_streak = 0
-                    _note(data, "writer restart after ask starvation")
+                    note_stage(data, "writer restart after ask starvation")
                 else:
                     data.stopped_because = "ask_exhausted"
                     return "break"
@@ -1390,7 +1436,7 @@ class Run:
                           or meta.get("scenario_dimensions") or {})
             if plan or (isinstance(assignment, dict)
                         and assignment.get("world_state")):
-                _note(data, "world/fault instantiated")
+                note_stage(data, "world/fault instantiated")
                 break
         now = time.monotonic()
         for job in batch:
@@ -1445,26 +1491,26 @@ class Run:
                     fut = self.pool.submit(self._build_row, job)
                     self.inflight[fut] = job
                     self.inflight_started[fut] = now
-                    _note(data, "rollout re-rolled")
+                    note_stage(data, "rollout re-rolled")
                 else:
                     self.cap_lifted["lost"] += 1
-                    _note(data, "rollout failure discarded")
+                    note_stage(data, "rollout failure discarded")
         results = [t for t, _ in paired]
         jobs_for = [job for _, job in paired]
         room = c.cap - len(data.trajectories)
         results, jobs_for = results[:room], jobs_for[:room]
         for t in results:
-            _note(data, "model rollout")
+            note_stage(data, "model rollout")
             if t.get("steps"):
-                _note(data, "full tool trajectory")
+                note_stage(data, "full tool trajectory")
             if t.get("behavior_signature"):
-                _note(data, "behavior signature")
+                note_stage(data, "behavior signature")
             if not data.first_row_seconds:
                 data.first_row_seconds = time.monotonic() - self.started
             data.trajectories.append(t)
             data.row_seconds.append(time.monotonic() - self.started)
             record_turns(self.turn_stats, t)
-            _note(data, "row stored")
+            note_stage(data, "row stored")
             self._flush_output("rollout")
         data.rollout_seconds += time.monotonic() - rollout_started
         return results, jobs_for
@@ -1487,7 +1533,7 @@ class Run:
             if t["behavior_signature"] not in self.signatures:
                 new_sig[arm] = new_sig.get(arm, 0) + 1
                 fresh += 1
-            key = _cell_key(t)
+            key = row_cell_key(t)
             if key:
                 self.cells.add(key)
             assignment = t.get("scenario_dimensions")
@@ -1528,7 +1574,7 @@ class Run:
                 continue
             self.region_counts[rid] = self.region_counts.get(rid, 0) + 1
             self.region_sigs.setdefault(rid, set()).add(t["behavior_signature"])
-            if _mutation_worthy(t):
+            if mutation_worthy(t):
                 self.region_fails[rid] = self.region_fails.get(rid, 0) + 1
             sel = job[3] if len(job) > 3 else {}
             nov = sel.get("novelty") if isinstance(sel, dict) else None
@@ -1582,14 +1628,14 @@ class Run:
             templates.regions = gen.regions
 
         region_index = {r["id"]: r for r in gen.regions}
-        self.failing_rows = [t for t in results if _mutation_worthy(t)]
+        self.failing_rows = [t for t in results if mutation_worthy(t)]
         self.failing_regions = [region_index[t["scenario_id"]] for t in self.failing_rows
                                 if t["scenario_id"] in region_index]
         for t, job in zip(results, jobs_for):
             prompt = str(t.get("prompt") or job[0] or "")
             if not prompt or self.prompt_rollouts.get(prompt, 0) >= c.repeat_count:
                 continue
-            want_verify = _mutation_worthy(t)
+            want_verify = mutation_worthy(t)
             if (not want_verify and c.topo["mode"] == "adaptive"
                     and not c.k_immediate):
                 nsig = len(self.region_sigs.get(t.get("scenario_id"), ()))
@@ -1644,7 +1690,7 @@ class Run:
         }
         space_rate = (fresh + sum(new_cell.values()) + new_shape) / max(1, len(results))
         self.last_batch_size = len(results)
-        _record_coverage(
+        record_coverage(
             data, data.trajectories, cells=self.cells,
             shape_keys=self.induced_shape_keys, arm_weights=self.search,
             batch_fresh_rate=space_rate,
@@ -1689,7 +1735,7 @@ class Run:
             axis_gaps.append("You are confused.")
         for name in sorted(self.declared)[:8]:
             if name and name not in tools_hit:
-                intent = _intent_for_tool(name)
+                intent = intent_for_tool(name)
                 if intent:
                     axis_gaps.append(f"You want to {intent}.")
         return axis_gaps[:8]
@@ -1755,7 +1801,7 @@ class Run:
         if data.coverage_curve:
             data.coverage_curve[-1]["stopped_because"] = data.stopped_because
         else:
-            _record_coverage(
+            record_coverage(
                 data, data.trajectories, cells=self.cells,
                 shape_keys=self.induced_shape_keys,
                 arm_weights=data.arm_weights or self.search,
@@ -1852,9 +1898,8 @@ class Run:
         # Dropped rows are not refilled (the loop has already ended), so a
         # 39%-short dataset must say why instead of standing next to
         # stopped_because="budget" as if the budget were met.
-        if leak.get("n_dropped"):
-            if "trace_leakage_dropped" not in data.degraded:
-                data.degraded.append("trace_leakage_dropped")
+        if leak.get("n_dropped") and "trace_leakage_dropped" not in data.degraded:
+            data.degraded.append("trace_leakage_dropped")
 
     def _finish_grading(self) -> None:
         c = self.c

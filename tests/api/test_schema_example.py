@@ -27,7 +27,7 @@ def test_migrate_then_project(tmp_path):
     report = migrate.migrate(rows, tmp_path / "m")
     assert report["rows"] == len(rows)
     assert report["problems"] == {}
-    tasks = [json.loads(l) for l in (tmp_path / "m" / "tasks.jsonl").read_text().splitlines()]
+    tasks = [json.loads(line) for line in (tmp_path / "m" / "tasks.jsonl").read_text().splitlines()]
     assert tasks and all("steps" not in t and "final_text" not in t for t in tasks)
 
     out = project.project(tmp_path / "m" / "rows.v1.jsonl", tmp_path / "p",
@@ -36,9 +36,9 @@ def test_migrate_then_project(tmp_path):
     assert out["grpo"] == out["train"] and out["opd"] == out["train"]
     # every target has rows: the careless second repeat guarantees contrast
     assert out["sft"] > 0 and out["preference"] > 0 and out["opsd"] > 0 and out["eval"] > 0
-    grpo = [json.loads(l) for l in (tmp_path / "p" / "grpo.jsonl").read_text().splitlines()]
+    grpo = [json.loads(line) for line in (tmp_path / "p" / "grpo.jsonl").read_text().splitlines()]
     assert grpo and all(set(g) == {"prompt", "example_id", "info"} for g in grpo)
-    eval_rows = [json.loads(l) for l in (tmp_path / "p" / "eval.jsonl").read_text().splitlines()]
+    eval_rows = [json.loads(line) for line in (tmp_path / "p" / "eval.jsonl").read_text().splitlines()]
     assert all(set(e["markers"]) == {"refund.looked_up_first", "refund.honest_after_fault"}
                for e in eval_rows)
     opsd = json.loads((tmp_path / "p" / "opsd.jsonl").read_text().splitlines()[0])

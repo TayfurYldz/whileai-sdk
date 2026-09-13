@@ -17,15 +17,21 @@ trimming, rerun the simulator rather than squeezing this batch harder.
 from __future__ import annotations
 
 import hashlib
-import re
-from pathlib import Path
 import math
-from typing import Any, Sequence
+import re
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
 
-from .grading import (_DEGENERATE, _HARNESS_LEAK, _INFRA_STUB,
-                      _UNFINISHED_TAIL, behavior_signature, trace_fault)
-from .quality import (_IDISH, _QUESTION_END, _STRONG_ACTION, _load_jsonl,
-                      _write_jsonl)
+from .grading import (
+    _DEGENERATE,
+    _HARNESS_LEAK,
+    _INFRA_STUB,
+    _UNFINISHED_TAIL,
+    behavior_signature,
+    trace_fault,
+)
+from .quality import _IDISH, _QUESTION_END, _STRONG_ACTION, load_jsonl, write_jsonl
 
 # Public drop tags. optimize_rl uses these strings in the report.
 DO_NOTHING = "do_nothing"
@@ -56,10 +62,7 @@ def _has_tool_call(row: dict) -> bool:
     for step in row.get("steps") or []:
         if isinstance(step, dict) and step.get("tool"):
             return True
-    for msg in _messages(row):
-        if msg.get("tool_calls"):
-            return True
-    return False
+    return any(msg.get("tool_calls") for msg in _messages(row))
 
 
 def _situation_wants_tools(row: dict) -> bool:
@@ -106,7 +109,6 @@ def _visible_text(row: dict) -> str:
 def is_incomplete_junk(row: dict) -> bool:
     """Empty, truncated, leaked, or parser-broken traces."""
     final = str(row.get("final_text") or "").strip()
-    steps = row.get("steps") or []
     has_tool = _has_tool_call(row)
     if not final:
         return True
@@ -129,10 +131,7 @@ def is_incomplete_junk(row: dict) -> bool:
     last_role = str(messages[-1].get("role") or "")
     if last_role in {"user", "tool"}:
         return True
-    if (not has_tool and _QUESTION_END.search(final)
-            and len(str(row.get("prompt") or "").split()) <= 2):
-        return True
-    return False
+    return bool(not has_tool and _QUESTION_END.search(final) and len(str(row.get("prompt") or "").split()) <= 2)
 
 
 def _is_binary_01(value) -> bool:
@@ -164,7 +163,7 @@ def _has_trainable_content(row: dict) -> bool:
 def is_verified_zero(row: dict) -> bool:
     """reward == 0 from a trusted grader (claude* / gold label_source)."""
     value = row.get("reward")
-    if not _is_binary_01(value) or float(value) != 0.0:
+    if value is None or not _is_binary_01(value) or float(value) != 0.0:
         return False
     src = str(row.get("label_source") or "").lower()
     return src.startswith(_VERIFIED_SOURCES)
@@ -487,7 +486,7 @@ def optimize_for_rl(source, *, output: str | None = None,
     filtering; rerun the simulator if ``mixed_rate`` is low.
     """
     if isinstance(source, (str, Path)):
-        rows = _load_jsonl(source)
+        rows = load_jsonl(source)
         src = str(source)
     else:
         rows = list(source)
@@ -505,7 +504,7 @@ def optimize_for_rl(source, *, output: str | None = None,
     dest = output or (_default_output(src) if src else "")
     written = None
     if dest:
-        written = _write_jsonl(dest, kept)
+        written = write_jsonl(dest, kept)
     if isinstance(source, list):
         source[:] = kept
     report["path"] = written or src
@@ -608,7 +607,7 @@ def optimize(source, *, mode: str | None = None, target: int = 1000,
         if profile is not None:
             has_tools = bool(getattr(profile, "tools", None))
     elif isinstance(source, (str, Path)):
-        rows = _load_jsonl(source)
+        rows = load_jsonl(source)
         src = str(source)
     else:
         rows = list(source)
@@ -625,7 +624,7 @@ def optimize(source, *, mode: str | None = None, target: int = 1000,
         dest = str(path.with_name(
             path.stem + f".{resolved}" + (path.suffix or ".jsonl")))
     if dest:
-        report["path"] = _write_jsonl(dest, picked)
+        report["path"] = write_jsonl(dest, picked)
         report["n_written"] = len(picked)
     return picked, report
 

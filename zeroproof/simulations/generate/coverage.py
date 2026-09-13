@@ -104,10 +104,7 @@ def build_coverage_summary(
     copy_deficit: int = 0,
 ) -> dict[str, Any]:
     """Final run-level coverage summary."""
-    if not curve:
-        point = coverage_point([], cells=set(), shape_keys=set())
-    else:
-        point = dict(curve[-1])
+    point = coverage_point([], cells=set(), shape_keys=set()) if not curve else dict(curve[-1])
     pred = predict_to_saturation(
         curve, budget=budget, flat_streak=flat_streak,
         last_batch_size=last_batch_size, copy_deficit=copy_deficit)

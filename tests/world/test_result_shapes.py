@@ -4,7 +4,6 @@ import json
 from tests.helpers import GITHUB_SPEC
 from zeroproof.simulations.world.sandbox import MockEnvironment, _fill_template
 
-
 TOOLS = [
     {"type": "function", "function": {
         "name": "get_directions",
@@ -309,7 +308,6 @@ def test_unknown_spec_still_gets_payloads():
 
 
 def test_github_get_file_and_commits_are_code_shaped():
-    from pathlib import Path
 
     spec_path = GITHUB_SPEC / "spec.json"
     spec = json.loads(spec_path.read_text())

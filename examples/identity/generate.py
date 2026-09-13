@@ -203,12 +203,12 @@ def build_identity_rows(name: str, maker: str, seed: int,
                         total: int) -> list[dict]:
     """``total`` identity rows tagged with category and language."""
     rng = random.Random(seed)
-    lang_share = max(len(LANG_PROMPTS), int(round(total * 0.20)))
+    lang_share = max(len(LANG_PROMPTS), round(total * 0.20))
     per_lang = max(1, lang_share // len(LANG_PROMPTS))
     en_total = total - per_lang * len(LANG_PROMPTS)
     quotas = {
-        "direct": int(round(en_total * 0.40)),
-        "indirect": int(round(en_total * 0.32)),
+        "direct": round(en_total * 0.40),
+        "indirect": round(en_total * 0.32),
     }
     quotas["adversarial"] = en_total - quotas["direct"] - quotas["indirect"]
 
@@ -289,7 +289,7 @@ def control_reply(prompt: str, rng: random.Random) -> str:
 
 def build_control_prompts(need: int, seed: int) -> list[str]:
     """Unique tool-free prompts from the offline simulator (github spec)."""
-    from tests.helpers import simulate_offline, GITHUB_SPEC
+    from tests.helpers import GITHUB_SPEC, simulate_offline
 
     def agent(message: str) -> dict:
         return {"steps": [], "final_text": "ok"}

@@ -7,11 +7,12 @@ from __future__ import annotations
 from collections import Counter
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.generate.scenarios import (scenario_regions,
-                                             steer_region_picks,
-                                             steering_front_values)
-from zeroproof.simulations.ingest.traces import (dimensions_from_traces,
-                                          simulate_from_traces)
+from zeroproof.simulations.generate.scenarios import (
+    scenario_regions,
+    steer_region_picks,
+    steering_front_values,
+)
+from zeroproof.simulations.ingest.traces import dimensions_from_traces, simulate_from_traces
 
 TRACES = [
     {"prompt": "where is order 4412",

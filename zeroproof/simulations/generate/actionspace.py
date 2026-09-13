@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import itertools
 import json
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any
 
-PROVENANCE = ("user", "derived", "invented", "absent")
 ENUM_CAP = 400
 
 
@@ -142,7 +142,8 @@ def shape_from_trajectory(trajectory: dict,
         tool = str(step.get("tool") or "")
         if not tool:
             continue
-        args = step.get("arguments") if isinstance(step.get("arguments"), dict) else {}
+        raw_args = step.get("arguments")
+        args = raw_args if isinstance(raw_args, dict) else {}
         names = arg_index.get(tool) or sorted(args)
         prov = tuple(_arg_source(args.get(name), prompt, prior) for name in names)
         calls.append(Call(tool, prov))

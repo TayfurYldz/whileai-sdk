@@ -1,7 +1,7 @@
 """The caller's world answers tool calls when execute= is given."""
+from tests.helpers import TOOLS
 from zeroproof.simulations.generate.agents import _answer_tool_call, local_model
 from zeroproof.simulations.world.sandbox import MockEnvironment
-from tests.helpers import TOOLS
 
 
 def test_execute_answers_and_faults_still_apply():
@@ -62,8 +62,8 @@ def test_local_model_routes_tool_calls_to_execute(monkeypatch):
 
 
 def test_current_rollout_names_the_run_for_the_world():
-    from zeroproof.simulations.generate.agents import current_rollout
     from tests.helpers import simulate_offline
+    from zeroproof.simulations.generate.agents import current_rollout
     seen = []
 
     def agent(message):

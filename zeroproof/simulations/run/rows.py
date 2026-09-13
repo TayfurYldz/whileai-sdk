@@ -8,11 +8,16 @@ import re
 from typing import Any
 
 from ..data import SimulationData
-from ..generate.coverage import cell_key as _cell_key_from_row, coverage_point
-from ..generate.diversity import (behavior_tier, conversation_features,
-                                  mix_items_by_tier, sample_cell_tags)
+from ..generate.coverage import cell_key as _cell_key_from_row
+from ..generate.coverage import coverage_point
+from ..generate.diversity import (
+    behavior_tier,
+    conversation_features,
+    mix_items_by_tier,
+    sample_cell_tags,
+)
 from ..generate.scenarios import SEARCH_ARMS
-from ..score.grading import _as_dict
+from ..score.grading import as_dict
 
 _SEARCH_ARMS = dict(SEARCH_ARMS)
 
@@ -57,7 +62,7 @@ def _collect_finished(pending: dict, wait_s: float, *, retry: bool = False):
     return results, jobs_for
 
 
-def _mutation_worthy(row: dict) -> bool:
+def mutation_worthy(row: dict) -> bool:
     """Re-roll and mutate on tool/sandbox faults. Ignores any score column.
 
     A step's ``result`` is ``Any`` by the canonical schema, and most real tools
@@ -65,7 +70,7 @@ def _mutation_worthy(row: dict) -> bool:
     `from_openai_agents`, `claude_code` and friends all store
     ``str(...)`` there. Calling ``.get`` on it straight crashed
     ``simulate(agent=...)`` with `'str' object has no attribute 'get'` for every
-    one of them. `grading._as_dict` is the shared way to ask a result for a
+    one of them. `grading.as_dict` is the shared way to ask a result for a
     field; a plain string simply has no status, which is the right answer.
     """
     if row.get("faults"):
@@ -73,17 +78,23 @@ def _mutation_worthy(row: dict) -> bool:
     for step in row.get("steps") or []:
         if not isinstance(step, dict):
             continue
-        status = str(_as_dict(step.get("result")).get("status", "")).lower()
+        status = str(as_dict(step.get("result")).get("status", "")).lower()
         if status in {"error", "timeout", "not_found", "denied", "malformed"}:
             return True
     return False
 
 
-def _cell_key(row: dict) -> str:
+_mutation_worthy = mutation_worthy  # old private name, kept for imports that still use it
+
+
+def row_cell_key(row: dict) -> str:
     return _cell_key_from_row(row)
 
 
-def _record_coverage(data: SimulationData, trajectories: list[dict], *,
+_cell_key = row_cell_key  # old private name, kept for imports that still use it
+
+
+def record_coverage(data: SimulationData, trajectories: list[dict], *,
                      cells: set[str], shape_keys: set[str],
                      arm_weights: dict | None,
                      batch_fresh_rate: float | None = None,
@@ -99,6 +110,9 @@ def _record_coverage(data: SimulationData, trajectories: list[dict], *,
                 and prev.get("batch_fresh_rate") == batch_fresh_rate):
             return
     data.coverage_curve.append(point)
+
+
+_record_coverage = record_coverage  # old private name, kept for imports that still use it
 
 
 def _prompt_arm(prompt: str, generator: Any) -> str:

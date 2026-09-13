@@ -6,7 +6,8 @@ import itertools
 import json
 import os
 import re
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import Any
 
 from .diversity import behavior_tier, mix_items_by_tier
 
@@ -42,8 +43,6 @@ STANCE_BRIEFS = {
     "exploratory": "looking around; not a firm request",
     "conflicting": "two things they want do not sit together",
 }
-POLICY_POSITIONS = ["clearly_allowed", "boundary", "forbidden", "conflicting"]
-USER_BEHAVIORS = ["ordinary", "ambiguous", "underspecified", "adversarial"]
 HISTORIES = ["fresh", "prior_failure", "prior_partial_action",
              "contradicts_earlier", "repeat visit"]
 WORLD_STATES = ["entity exists", "entity missing", "entity already acted on",
@@ -90,7 +89,7 @@ def _article(word: str) -> str:
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
-def _intent_for_tool(name: str) -> str:
+def intent_for_tool(name: str) -> str:
     tokens = _tokens(name)
     if not tokens:
         return ""
@@ -111,6 +110,9 @@ def _intent_for_tool(name: str) -> str:
     return f"{verb} {noun}"
 
 
+_intent_for_tool = intent_for_tool  # old private name, kept for imports that still use it
+
+
 def _tool_kind(name: str) -> str:
     tokens = _tokens(name)
     if tokens and tokens[0] in _READ_VERBS:
@@ -125,7 +127,7 @@ def _intent_kinds(tools: list[dict]) -> dict[str, str]:
     kinds: dict[str, str] = {}
     tool_kinds = []
     for name in _tool_names(tools):
-        intent = _intent_for_tool(name)
+        intent = intent_for_tool(name)
         kind = _tool_kind(name)
         tool_kinds.append(kind)
         if intent and intent not in kinds:
@@ -141,9 +143,8 @@ def _has_reference_keys(tools: list[dict]) -> bool:
         for key, child in (schema.get("properties") or {}).items():
             if _REFERENCE_KEY.search(str(key)):
                 return True
-            if isinstance(child, dict) and child.get("type") == "object":
-                if scan(child):
-                    return True
+            if isinstance(child, dict) and child.get("type") == "object" and scan(child):
+                return True
         return False
     for tool in tools or []:
         function = tool.get("function", tool) if isinstance(tool, dict) else {}
@@ -353,7 +354,7 @@ def _prefer_success(assignments: list[dict], *,
         if cond not in seen:
             seen.add(cond)
             keep.append(row)
-    cap = max(len(keep), int(round(len(assignments) * (1.0 - success_share))))
+    cap = max(len(keep), round(len(assignments) * (1.0 - success_share)))
     for row in faults:
         if row not in keep and len(keep) < cap:
             keep.append(row)
@@ -564,7 +565,7 @@ def render_situation(region: dict, tools: list[dict], variant: int = 0) -> str:
     elif tool == "multi_tool":
         intent = "multi step request"
     elif tool:
-        intent = _intent_for_tool(tool) or f"sort out my {noun}"
+        intent = intent_for_tool(tool) or f"sort out my {noun}"
     else:
         intent = str(assignment.get("intent", f"sort out my {noun}"))
 
@@ -840,7 +841,7 @@ def open_ended_probes(tools: list[dict], policy: str = "",
     for slot in range(max(0, int(per_round))):
         name, variants = _PROBE_FAMILIES[slot % len(_PROBE_FAMILIES)]
         if name == "creative":
-            variants = [f"Write a haiku about my {noun}."] + variants
+            variants = [f"Write a haiku about my {noun}.", *variants]
         offset = int(hashlib.sha256(
             f"probe:{name}".encode()).hexdigest()[:8], 16) + int(seed)
         text = variants[(offset + slot // len(_PROBE_FAMILIES)) % len(variants)]
@@ -867,7 +868,7 @@ def novelty(candidate_vector, tested_matrix) -> float:
             dot = sum(a * b for a, b in zip(vec, row))
             distance = 1.0 - dot / (vec_norm * row_norm)
         best = distance if best is None else min(best, distance)
-    return float(best)
+    return float(best if best is not None else 1.0)
 
 
 def make_candidate_generator(tools: list[dict], policy: str = "",
@@ -988,7 +989,6 @@ def keep_fault_plan(key: str, rate: float, seed: int = 0) -> bool:
     digest = hashlib.sha256(f"fault-keep:{seed}:{key}".encode()).hexdigest()
     uniform = (int(digest[:12], 16) + 1) / float(16 ** 12 + 2)
     return uniform < rate
-
 
 
 def fault_plan_for_region(region: dict, *,

@@ -8,9 +8,10 @@ goes to the situation writer as keyword arguments.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ..generate.adapters import resolve_system_prompt
 from ..generate.diversity import adaptive_allocator
@@ -27,7 +28,7 @@ HUNG_SLOT_S = 45.0
 # still running afterwards is abandoned and reported.
 STOP_GRACE_S = 5.0
 
-_MODE_PRESETS = {
+_MODE_PRESETS: dict[str, dict[str, Any]] = {
     "explore": {"n_req": 1, "k": 1, "repeat_policy": "none"},
     "sft": {"n_req": 3, "k": 1, "repeat_policy": "adaptive"},
     "rl": {"n_req": 1, "k": 8, "repeat_policy": "adaptive"},
@@ -179,7 +180,7 @@ def _model_version_tag(agent: Any, advanced: dict) -> str:
     if agent is not None and callable(agent) and not isinstance(agent, str):
         return getattr(agent, "__name__", "callable-agent")
     try:
-        from ..generate.agents import parse_backend_spec, default_simulator_spec
+        from ..generate.agents import default_simulator_spec, parse_backend_spec
         spec = agent if isinstance(agent, str) else default_simulator_spec()
         return parse_backend_spec(spec)[1]
     except Exception:
@@ -194,7 +195,7 @@ class RunConfig:
     agent: Any
     spec: Any
     tools: list[dict] | None
-    system_prompt: str
+    system_prompt: str | None
     scaffold_text: str
     traces: Any
     execute: Callable | None
@@ -347,10 +348,7 @@ def resolve_run_config(agent: Any = None, *, spec: Any = None,
     else:
         raise ValueError(
             "until= must be compute, saturation, first, or budget_only")
-    if time_budget is None or float(time_budget) <= 0:
-        time_budget = None
-    else:
-        time_budget = float(time_budget)
+    time_budget = None if time_budget is None or float(time_budget) <= 0 else float(time_budget)
 
     repeat_count = int(topo["k"])
     n_req = int(topo["n_req"])
@@ -416,14 +414,14 @@ def resolve_run_config(agent: Any = None, *, spec: Any = None,
             opening_req = float(opening_req)
         except (TypeError, ValueError):
             raise ValueError(
-                'opening= must be "user", "agent", "auto", or a rate in [0, 1]')
+                'opening= must be "user", "agent", "auto", or a rate in [0, 1]') from None
         if not 0.0 <= opening_req <= 1.0:
             raise ValueError("opening= rate must be in [0, 1]")
     if steering_weight is not None:
         try:
             steering_weight = float(steering_weight)
         except (TypeError, ValueError):
-            raise ValueError("steering_weight= must be a number in [0, 1]")
+            raise ValueError("steering_weight= must be a number in [0, 1]") from None
         if not 0.0 <= steering_weight <= 1.0:
             raise ValueError("steering_weight= must be a number in [0, 1]")
         if traces is None:

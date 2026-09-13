@@ -1,7 +1,7 @@
 import json
 
-from tests.helpers import TOOLS, POLICY, scripted_agent
 import zeroproof.simulations as zps
+from tests.helpers import POLICY, TOOLS, scripted_agent
 
 _DROPPED = {
     "selection_reason", "parent_failure_id", "arm", "scenario_dimensions",
@@ -214,6 +214,7 @@ def test_lost_repeat_rollouts_are_rerolled_so_groups_stay_complete():
     repeat group keeps all k members instead of a fresh situation
     filling the slot."""
     import collections
+
     from tests.helpers import POLICY, TOOLS, scripted_agent
     from zeroproof.simulations import simulate
 

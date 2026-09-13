@@ -1,11 +1,13 @@
 """Second-pass conversation quality ranker. Scores rows; does not rewrite them."""
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import statistics
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from ..generate.agents import _ID_FOLLOW, _echoes_agent
 from ..generate.generator import (
@@ -124,9 +126,7 @@ def _same_beat(prev: dict, content: str, has_tools: bool) -> bool:
     if (_substantial(prev_text) and _substantial(content)
             and not has_tools and not prev["tools"]):
         return False
-    if not _substantial(content):
-        return True
-    return False
+    return bool(not _substantial(content))
 
 
 def _beats(messages: list[dict]) -> list[dict]:
@@ -324,9 +324,7 @@ def score_row(row: dict) -> dict[str, Any]:
     messages = _messages(row)
     opener = str(row.get("prompt") or "")
     users = _user_texts(messages, opener)
-    if users and not opener:
-        opener = users[0]
-    elif users:
+    if (users and not opener) or users:
         opener = users[0]
     final = str(row.get("final_text") or "")
     assistant = _assistant_spoken(messages)
@@ -350,10 +348,7 @@ def score_row(row: dict) -> dict[str, Any]:
     notes = list(dict.fromkeys(
         n for n in (opener_n, ping_n, leak_n, comp_n, struct_n) if n))
     fails = [k for k in DIMENSIONS if scores[k] < FAIL]
-    if not fails:
-        reason = "conforms"
-    else:
-        reason = "; ".join(notes) if notes else "below rubric"
+    reason = "conforms" if not fails else "; ".join(notes) if notes else "below rubric"
     return {
         "quality": quality,
         "quality_reason": reason,
@@ -445,7 +440,7 @@ def summarize(rows: Sequence[dict], *, top: int = 3) -> dict[str, Any]:
     }
 
 
-def _write_jsonl(path: str | Path, rows: Sequence[dict]) -> str:
+def write_jsonl(path: str | Path, rows: Sequence[dict]) -> str:
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".tmp")
@@ -456,14 +451,15 @@ def _write_jsonl(path: str | Path, rows: Sequence[dict]) -> str:
         tmp.replace(dest)
     finally:
         if tmp.exists():
-            try:
+            with contextlib.suppress(OSError):
                 tmp.unlink()
-            except OSError:
-                pass
     return str(dest)
 
 
-def _load_jsonl(path: str | Path) -> list[dict]:
+_write_jsonl = write_jsonl  # old private name, kept for imports that still use it
+
+
+def load_jsonl(path: str | Path) -> list[dict]:
     rows: list[dict] = []
     with open(path) as fh:
         for line in fh:
@@ -472,6 +468,9 @@ def _load_jsonl(path: str | Path) -> list[dict]:
                 continue
             rows.append(json.loads(line))
     return rows
+
+
+_load_jsonl = load_jsonl  # old private name, kept for imports that still use it
 
 
 def rank(source, *, output: str | None = None,
@@ -483,7 +482,7 @@ def rank(source, *, output: str | None = None,
     a different path; the in-place rewrite keeps every scored row.
     """
     if isinstance(source, (str, Path)):
-        rows = _load_jsonl(source)
+        rows = load_jsonl(source)
         src = str(source)
     else:
         rows = list(source)
@@ -496,7 +495,7 @@ def rank(source, *, output: str | None = None,
         if (min_quality is not None and output
                 and src and Path(output).resolve() != Path(src).resolve()):
             kept = [r for r in rows if float(r.get("quality") or 0.0) >= min_quality]
-        written = _write_jsonl(dest, kept)
+        written = write_jsonl(dest, kept)
     report = summarize(rows)
     report["path"] = written or src
     report["n_written"] = len(kept) if dest else 0

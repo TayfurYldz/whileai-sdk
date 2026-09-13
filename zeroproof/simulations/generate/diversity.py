@@ -315,7 +315,7 @@ def mix_items_by_tier(items: list, n: int, tier_of, *,
             if tier not in have:
                 take(tier)
 
-    target_ordinary = max((n + 1) // 2, int(round(n * ordinary_share)))
+    target_ordinary = max((n + 1) // 2, round(n * ordinary_share))
     while len(picked) < n:
         ordinary_count = sum(1 for item in picked if tier_of(item) == "ordinary")
         if ordinary_count < target_ordinary and take("ordinary"):
@@ -423,9 +423,7 @@ def sample_cell_tags(seed: int, round_index: int, key: str,
         situation["phrasing"] = _WEIRD[(n // 20) % len(_WEIRD)]
     raw_stance = assignment.get("stance") or assignment.get("user_behavior")
     mapped_stance = _TIER_ALIASES.get(str(raw_stance)) if raw_stance else None
-    if raw_stance and str(raw_stance) != "ordinary" and mode < 10:
-        add_stance()
-    elif mapped_stance is None and mode == 15:
+    if (raw_stance and str(raw_stance) != "ordinary" and mode < 10) or (mapped_stance is None and mode == 15):
         add_stance()
 
     n_extra = _draw(seed, round_index, key, "axis")
@@ -465,8 +463,8 @@ def sampling_plan(time_budget: float | None) -> dict[str, Any]:
     return {
         "seconds": seconds,
         "scale": scale,
-        "shape_limit": max(8, int(round(12 * scale))),
-        "enum_cap": max(200, int(round(200 * scale))),
+        "shape_limit": max(8, round(12 * scale)),
+        "enum_cap": max(200, round(200 * scale)),
         "max_shape_len": 2 if seconds < 120 else 3,
         "ordinary_share": ORDINARY_SHARE,
     }
@@ -519,14 +517,14 @@ def allocator_slot_counts(take: int, plan: dict | None) -> dict[str, int]:
     expand_s = float(plan.get("expand") or 0.0)
     verify_s = float(plan.get("verify") or 0.0)
     messy_s = expand_s + verify_s
-    messy_n = int(round(take * messy_s))
+    messy_n = round(take * messy_s)
     if take >= 2:
         messy_n = max(1, min(take - 1, messy_n))
     explore_n = take - messy_n
     if messy_n <= 0:
         return {"explore": take, "expand": 0, "verify": 0}
     v_part = verify_s / messy_s if messy_s else 0.5
-    verify_n = int(round(messy_n * v_part))
+    verify_n = round(messy_n * v_part)
     verify_n = min(messy_n, max(0, verify_n))
     if messy_n >= 2 and verify_n == 0 and v_part > 0:
         verify_n = 1
@@ -594,7 +592,7 @@ def sample_turn_budget(seed: int, key: str, max_turns: int,
         # Proportional correction at half gain: a full mirror of the
         # error (gain 1) overshoots and oscillates around the target.
         center = target + 0.5 * (target - float(running_mean))
-    center = max(2, int(round(center)))
+    center = max(2, round(center))
     mid_lo = max(2, center - 2)
     mid_hi = min(cap, max(mid_lo, center + 2))
     short_hi = mid_lo - 1
@@ -639,7 +637,7 @@ def explore_slot_count(batch_size: int, round_index: int) -> int:
     need = max(1, int(batch_size))
     temp = anneal_temperature(round_index)
     frac = 0.04 + 0.36 * temp
-    return max(0, min(need // 2, int(round(need * frac))))
+    return max(0, min(need // 2, round(need * frac)))
 
 
 def accept_anneal_candidate(novelty: float, *, temperature: float,

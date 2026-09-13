@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import math
 import os
@@ -10,7 +11,8 @@ import re
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 from .diversity import apply_annealing_explore
 from .scenarios import novelty as min_cosine_distance
@@ -32,7 +34,7 @@ def _hash_vector(text: str, dim: int = _DIM) -> list[float]:
     words = re.findall(r"[a-z]+|\d+", str(text).lower())
     words = ["<num>" if word.isdigit() else word for word in words]
     tokens = [f"w:{w}" for w in words] + [
-        f"b:{a}>{b}" for a, b in zip(words, words[1:])]
+        f"b:{a}>{b}" for a, b in itertools.pairwise(words)]
     for token in tokens:
         digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
         vec[int.from_bytes(digest, "big") % dim] += 1.0
@@ -196,7 +198,7 @@ def bge_embedder(model: str = _BGE_MODEL, device: str | None = None) -> Callable
             show_progress_bar=False)
 
     embedder = CallableEmbedder(encode, name=f"sentence-transformers:{model}")
-    embedder.device = chosen
+    embedder.device = chosen  # type: ignore[attr-defined]
     return embedder
 
 
@@ -329,7 +331,7 @@ def select_execution_batch(candidates: list[str], *, embedder: Any,
     Each meta: text, vector, cluster, novelty, reason.
     """
     texts = list(dict.fromkeys(str(c) for c in candidates if str(c)))
-    info = {
+    info: dict[str, Any] = {
         "embedder": getattr(embedder, "name", "unknown"),
         "semantic": is_semantic(embedder),
         "degraded": [],

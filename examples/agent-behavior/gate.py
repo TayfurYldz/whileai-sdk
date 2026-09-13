@@ -317,4 +317,4 @@ class Client:
         return json.loads(payload) if payload else {}
 
 
-__all__ = ["Trace", "Client", "GateError", "API_URL_ENV", "API_KEY_ENV", "trace_id", "span_id"]
+__all__ = ["API_KEY_ENV", "API_URL_ENV", "Client", "GateError", "Trace", "span_id", "trace_id"]

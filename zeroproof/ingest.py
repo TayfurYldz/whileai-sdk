@@ -30,7 +30,6 @@ Auth is the X-Api-Key header, because exporters cannot carry a Clerk JWT.
 import gzip
 import json
 import os
-from typing import Dict, Optional
 
 import requests
 
@@ -44,16 +43,16 @@ class ZeroProofIngestError(Exception):
     """Raised when the gate rejects a trace batch."""
 
 
-def _base(base_url: Optional[str] = None) -> str:
+def _base(base_url: str | None = None) -> str:
     url = base_url or os.environ.get("ZEROPROOF_TRACE_URL") or _DEFAULT_TRACE_URL
     return url.rstrip("/")
 
 
-def _traces_endpoint(base_url: Optional[str] = None) -> str:
+def _traces_endpoint(base_url: str | None = None) -> str:
     return _base(base_url) + "/v1/traces"
 
 
-def otel_env(api_key: str, dataset: str = "traces", base_url: Optional[str] = None) -> Dict[str, str]:
+def otel_env(api_key: str, dataset: str = "traces", base_url: str | None = None) -> dict[str, str]:
     """
     Environment for an OpenTelemetry OTLP/HTTP exporter.
 
@@ -98,19 +97,19 @@ def _check_nanos(body: bytes) -> None:
                 # 1e15 ns is 1970-01-12; any real timestamp is far above it
                 if 0 < value < 10 ** 15:
                     raise ZeroProofIngestError(
-                        "span %r has startTimeUnixNano=%d, which is not "
-                        "nanoseconds. Multiply by 1e6 for milliseconds or 1e9 "
-                        "for seconds; as sent, these traces would be stored "
-                        "near 1970 and hidden from every time window."
-                        % (span.get("name") or "unnamed", value))
+                        f"span {span.get('name') or 'unnamed'!r} has "
+                        f"startTimeUnixNano={value}, which is not nanoseconds. "
+                        "Multiply by 1e6 for milliseconds or 1e9 for seconds; "
+                        "as sent, these traces would be stored near 1970 and "
+                        "hidden from every time window.")
 
 
 def send_traces(
     api_key: str,
     body: bytes,
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     timeout: int = 60,
-) -> Dict:
+) -> dict:
     """POST one OTLP/HTTP JSON batch (raw or gzipped) and return the 202 body."""
     _check_nanos(body)
     headers = {"X-Api-Key": api_key, "Content-Type": "application/json"}
@@ -118,16 +117,16 @@ def send_traces(
         headers["Content-Encoding"] = "gzip"
     res = requests.post(_traces_endpoint(base_url), data=body, headers=headers, timeout=timeout)
     if res.status_code >= 300:
-        raise ZeroProofIngestError("ingest failed: HTTP %s %s" % (res.status_code, res.text[:400]))
+        raise ZeroProofIngestError(f"ingest failed: HTTP {res.status_code} {res.text[:400]}")
     return res.json()
 
 
 def ingest_traces(
     api_key: str,
     file: str,
-    dataset: Optional[str] = None,
-    base_url: Optional[str] = None,
-) -> Dict:
+    dataset: str | None = None,
+    base_url: str | None = None,
+) -> dict:
     """
     Push a local OTLP batch file end to end and return ``{datasetId, dataset,
     rows}``.
@@ -156,7 +155,7 @@ def ingest_traces(
     return send_traces(api_key, body, base_url=base_url)
 
 
-def list_traces(api_key: str, base_url: Optional[str] = None, timeout: int = 30) -> Dict:
+def list_traces(api_key: str, base_url: str | None = None, timeout: int = 30) -> dict:
     """
     What this key's account has ingested: one entry per dataset name per day,
     with row counts and sizes, plus the account totals.
@@ -170,5 +169,5 @@ def list_traces(api_key: str, base_url: Optional[str] = None, timeout: int = 30)
         timeout=timeout,
     )
     if res.status_code >= 300:
-        raise ZeroProofIngestError("list failed: HTTP %s %s" % (res.status_code, res.text[:400]))
+        raise ZeroProofIngestError(f"list failed: HTTP {res.status_code} {res.text[:400]}")
     return res.json()

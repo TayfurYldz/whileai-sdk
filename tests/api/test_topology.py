@@ -7,9 +7,13 @@ import time
 
 import pytest
 
-from tests.helpers import TOOLS, POLICY, GITHUB_SPEC, scripted_agent, offline
 import zeroproof.simulations as zps
-from zeroproof.simulations.generate.scenarios import SEARCH_ARMS, build_dimensions, reallocate_search_arms
+from tests.helpers import GITHUB_SPEC, POLICY, TOOLS, offline, scripted_agent
+from zeroproof.simulations.generate.scenarios import (
+    SEARCH_ARMS,
+    build_dimensions,
+    reallocate_search_arms,
+)
 
 
 def test_resolve_topology_defaults_and_aliases():

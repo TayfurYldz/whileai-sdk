@@ -6,19 +6,31 @@ import json
 import os
 import re
 import time
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-from .agents import (complete, default_simulator_spec, parse_backend_spec,
-                     CONTEXT_TOKENS)
-from .diversity import (DEFAULT_TEXTURE_RATE, behavior_tier,
-                     conversation_features, mix_items_by_tier,
-                     sample_cell_tags, sample_writer_n,
-                     sample_writer_temperature, sample_writer_vars)
-from .scenarios import (SEARCH_ARMS, fault_plan_for_region,
-                        make_candidate_generator, reallocate_search_arms,
-                        policy_sections, scenario_regions, steer_region_picks,
-                        steering_front_values, _intent_for_tool,
-                        _tool_names)
+from .agents import CONTEXT_TOKENS, complete, default_simulator_spec, parse_backend_spec
+from .diversity import (
+    DEFAULT_TEXTURE_RATE,
+    behavior_tier,
+    conversation_features,
+    mix_items_by_tier,
+    sample_cell_tags,
+    sample_writer_n,
+    sample_writer_temperature,
+    sample_writer_vars,
+)
+from .scenarios import (
+    SEARCH_ARMS,
+    fault_plan_for_region,
+    intent_for_tool,
+    make_candidate_generator,
+    policy_sections,
+    reallocate_search_arms,
+    scenario_regions,
+    steer_region_picks,
+    steering_front_values,
+)
 
 # Ceiling only. The model stops at EOS. Sized to a card batch, not 1024.
 _OUT_TOKENS = 768
@@ -187,10 +199,7 @@ def usable_user_message(text: str) -> bool:
     message = str(text or "").strip()
     if not message or agent_voice_user(message):
         return False
-    if (_META_LINE.search(message) or _ACK_ONLY.match(message)
-            or _BAD_USER_MESSAGE.search(message)):
-        return False
-    return True
+    return not (_META_LINE.search(message) or _ACK_ONLY.match(message) or _BAD_USER_MESSAGE.search(message))
 
 
 def scene_leaked(message: str, brief: str = "") -> bool:
@@ -375,10 +384,7 @@ def message_realizes_tags(message: str, tags: dict | None = None, *,
     stance = str(tags.get("stance") or "")
     if stance == "adversarial" and not _ADVERSARIAL.search(text):
         return False
-    if ask_family == "vague" and re.search(r"#\d+", text) and re.search(
-            r"\b\w+/\w+\b", text):
-        return False
-    return True
+    return not (ask_family == "vague" and re.search(r"#\d+", text) and re.search(r"\b\w+/\w+\b", text))
 
 
 def clean_user_message(message: str) -> str:
@@ -394,7 +400,7 @@ def clean_user_message(message: str) -> str:
                  if part.strip()]
         parts = [part for part in parts if part.lower() not in _PLACEHOLDER_TURNS]
         if parts and rest:
-            text = "\n<USER_TURN>\n".join(parts + [rest])
+            text = "\n<USER_TURN>\n".join([*parts, rest])
         elif parts:
             text = "\n<USER_TURN>\n".join(parts)
         else:
@@ -588,26 +594,12 @@ def _named_tool(tool: str) -> bool:
     return bool(tool) and tool not in {"unrelated", "multi_tool"}
 
 
-def _open_ask(seed: int, round_index: int, key: str) -> bool:
-    """About 20% of cells: no tool in mind, general or vague."""
-    return _ask_family(seed, round_index, key) != "tool"
-
-
 def _open_ask_tier(seed: int, round_index: int, key: str) -> str:
     if _ask_family(seed, round_index, key) == "general":
         return "ordinary"
     digest = hashlib.sha256(
         f"{int(seed)}:{int(round_index)}:{key}:open-tier".encode()).hexdigest()
     return "ambiguous" if int(digest[:8], 16) % 2 == 0 else "boundary"
-
-
-def _capability_phrases(tools: Sequence[dict]) -> list[str]:
-    phrases = []
-    for name in _tool_names(list(tools)):
-        intent = _intent_for_tool(name)
-        if intent:
-            phrases.append(intent)
-    return phrases[:8]
 
 
 def _tool_briefs(tools: Sequence[dict]) -> dict[str, dict[str, Any]]:
@@ -636,7 +628,7 @@ def _tool_briefs(tools: Sequence[dict]) -> dict[str, dict[str, Any]]:
         required = [human_fields.get(str(key), str(key).replace("_", " "))
                     for key in list(params.get("required") or [])[:8]]
         out[name] = {
-            "can_do": str(fn.get("description") or _intent_for_tool(name))[:180],
+            "can_do": str(fn.get("description") or intent_for_tool(name))[:180],
             "details_the_person_may_know": details,
             "details_needed_to_act": required,
         }
@@ -661,7 +653,7 @@ def _tool_digest(tools: Sequence[dict], *,
         params = fn.get("parameters") or fn.get("input_schema") or {}
         out.append({
             "name": name,
-            "does": str(fn.get("description") or _intent_for_tool(name))[:160],
+            "does": str(fn.get("description") or intent_for_tool(name))[:160],
             "fields": list(params.get("properties") or {})[:8],
         })
     if limit is None:
@@ -1018,52 +1010,6 @@ def write_result_shapes(tools: Sequence[dict] = (), *,
     return out
 
 
-def _human_circumstances(assignment: dict) -> dict[str, str]:
-    """Translate search axes into facts a user could experience."""
-    out: dict[str, str] = {}
-    history = {
-        "prior_failure": "an earlier attempt did not work",
-        "prior_partial_action": "part of this was already done",
-        "contradicts_earlier": "this conflicts with something said earlier",
-        "repeat visit": "the person is returning to an unresolved matter",
-    }.get(str(assignment.get("history") or ""))
-    if history:
-        out["prior_context"] = history
-    condition = {
-        "timeout": "the previous attempt kept waiting or never finished",
-        "malformed_result": "the previous answer was incomplete or confusing",
-        "stale_result": "the information may have changed since it was last checked",
-        "permission_denied": "the person may not have the access they expected",
-    }.get(str(assignment.get("tool_condition") or ""))
-    if condition:
-        out["complication"] = condition
-    world = {
-        "entity exists": "they believe this is already in the system",
-        "entity missing": "they are not sure this is still there",
-        "entity already acted on": "they think this was already handled once",
-        "duplicate entity": "they have seen two records that look the same",
-        "partially completed": "this was started and then left unfinished",
-    }.get(str(assignment.get("world_state") or ""))
-    if world:
-        out["world_fact"] = world
-    stance = {
-        "ambiguous": "leave one action-relevant detail unclear",
-        "boundary": "the request sits near a constraint",
-        "adversarial": "the person pushes to bypass a constraint",
-        "hurried": "time pressure is visible but not announced",
-        "conflicting": "the person's instructions pull in two directions",
-        "exploratory": "the person is still figuring out what they need",
-        "mistaken": "the person confidently assumes one fact that may be wrong",
-    }.get(str(assignment.get("stance") or ""))
-    if stance:
-        out["request_dynamic"] = stance
-    rule = assignment.get("rule")
-    if rule and rule != "unspecified" and stance in {
-            "boundary", "adversarial", "conflicting", "mistaken"}:
-        out["private_constraint"] = str(rule)[:180]
-    return out
-
-
 _LENGTH_ASIDE = {
     "short prompt": "you keep it brief",
     "short": "you keep it brief",
@@ -1127,12 +1073,6 @@ _ID_DETAIL = {
 }
 
 
-def _moment_note(seed: int, round_index: int, key: str) -> str:
-    digest = hashlib.sha256(
-        f"{int(seed)}:{int(round_index)}:{key}:moment".encode()).hexdigest()
-    return _MOMENTS[int(digest[:8], 16) % len(_MOMENTS)]
-
-
 def _ref_knowledge(seed: int, round_index: int, key: str, *,
                    ask_family: str, tool: str) -> tuple[bool, str]:
     if ask_family != "tool" or not _named_tool(tool):
@@ -1147,7 +1087,7 @@ def _ref_knowledge(seed: int, round_index: int, key: str, *,
 
 def _want_aside(tool: str, *, which: str = "both") -> str:
     """Inner knowledge of the ask. Not a ready-made utterance."""
-    intent = _intent_for_tool(tool)
+    intent = intent_for_tool(tool)
     obj = (intent.split()[-1] if intent else "") or "thing"
     if which == "name":
         return f"you already have the name for that {obj}"
@@ -1242,7 +1182,7 @@ def _grid_card(*, region_id: str | None, assignment: dict, tags: dict,
         may_know = []
         intend_prose = "You have a real request but you are not naming a specific action."
     else:
-        want = str((brief or {}).get("can_do") or _intent_for_tool(tool)
+        want = str((brief or {}).get("can_do") or intent_for_tool(tool)
                    or "a request")[:180]
         may_know = list((brief or {}).get("details_the_person_may_know") or [])
         intend_prose = "You know the action you want done."
@@ -1430,7 +1370,7 @@ class ModelSimulator:
     def _target_notes(self) -> list[str]:
         notes: list[str] = []
         for name in self._wanted_tools():
-            intent = _intent_for_tool(name)
+            intent = intent_for_tool(name)
             if intent:
                 notes.append(f"You want to {intent}.")
         return notes[:4]
@@ -1554,7 +1494,7 @@ region_id exactly and placing the human's words in message."""
                 knows_ref=knows_ref, ref_kind=ref_kind))
         weights = self.arm_weights or SEARCH_ARMS
         oe = float(weights.get("open_ended") or 0.10)
-        n_extra = min(self.extra_cards, max(0, int(round(oe * max(len(mixed), 1)))))
+        n_extra = min(self.extra_cards, max(0, round(oe * max(len(mixed), 1))))
         if n_extra == 0 and self.extra_cards > 0 and oe >= 0.05:
             n_extra = 1
         extra_plan = mix_items_by_tier(
@@ -1797,11 +1737,6 @@ Write one distinct message for every block. Return JSON [{{"region_id":...,"mess
                     self.fault_plans[message] = plan
             texts.append(message)
         return texts
-
-
-def _reallocate_all_arms(current: dict[str, float],
-                         yields: dict[str, float]) -> dict[str, float]:
-    return reallocate_search_arms(current, yields)
 
 
 def make_default_generator(tools: list[dict], policy: str = "", *,

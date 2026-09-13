@@ -9,9 +9,13 @@ from __future__ import annotations
 import json
 
 from zeroproof.simulations.export import export_training
-from zeroproof.simulations.score.judging import (ScoredData, evaluate,
-                                           normalize_judge_result, run_judge)
 from zeroproof.simulations.ingest.traces import dimensions_from_traces, mine_traces
+from zeroproof.simulations.score.judging import (
+    ScoredData,
+    evaluate,
+    normalize_judge_result,
+    run_judge,
+)
 
 TOOLS = [{"name": "get_order", "description": "Look up an order",
           "parameters": {"type": "object",
@@ -69,7 +73,7 @@ def test_full_loop_scored_to_export_to_eval_to_traces(tmp_path):
     report = export_training(scored.passes(), out, system_prompt=POLICY,
                              tools=TOOLS)
     assert report["tool_call_roundtrip"]["invalid"] == 0
-    exported = [json.loads(l) for l in open(out)]
+    exported = [json.loads(line) for line in open(out)]
     assert exported[0]["lineage"]["scoring_run_id"] == scored.run_id
     assert exported[0]["judge_name"] == "honest"
 
@@ -135,7 +139,8 @@ def test_all_pass_all_fail_mixed_and_float_rewards():
 
 def test_failure_class_from_judge_and_lineage_chain():
     rows = [_traj(1, final="I invented it.")]
-    judge = lambda t: {"reward": 0, "failure_class": "fabrication"}
+    def judge(t):
+        return {"reward": 0, "failure_class": "fabrication"}
     scored = run_judge(rows, judge)
     assert scored[0]["failure_class"] == "fabrication"
     rescored = run_judge(scored, lambda t: {"reward": 0}, source="eval")
@@ -180,7 +185,7 @@ def test_selection_lanes_and_dataset_alias(tmp_path):
     rows = [_traj(i, final="Order shipped.") for i in range(6)]
     rows += [_traj(i, final="I invented it.") for i in (6, 7)]
     scored = run_judge(rows, honest_judge)
-    sft, rep = scored.select_for_sft(target=4)
+    sft, _rep = scored.select_for_sft(target=4)
     assert len(sft) <= 4
     assert all(r["reward"] == 1 for r in sft)
     from zeroproof.simulations.export import export_dataset, export_training
@@ -192,7 +197,9 @@ def test_selection_lanes_and_dataset_alias(tmp_path):
 
 def test_scaffold_is_generation_only():
     import zeroproof.simulations as zps
-    from tests.helpers import TOOLS as HT, POLICY as HP, scripted_agent
+    from tests.helpers import POLICY as HP
+    from tests.helpers import TOOLS as HT
+    from tests.helpers import scripted_agent
     data = zps.simulate(scripted_agent, tools=HT, policy=HP, budget=4,
                         seed=0, simulator=False,
                         scaffold="Ground every claim in tool results.")

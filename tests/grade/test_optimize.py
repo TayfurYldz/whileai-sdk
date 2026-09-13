@@ -1,7 +1,12 @@
 """RL filter keeps gold ``reward`` rows. Offline: no writes, no GPU."""
 from zeroproof.simulations.score.optimize import (
-    INCOMPLETE_JUNK, KEPT_VERIFIED_ZERO, UNUSABLE_LABEL, drop_reason,
-    filter_rl_rows, is_unusable_label, is_verified_zero,
+    INCOMPLETE_JUNK,
+    KEPT_VERIFIED_ZERO,
+    UNUSABLE_LABEL,
+    drop_reason,
+    filter_rl_rows,
+    is_unusable_label,
+    is_verified_zero,
 )
 
 
@@ -150,11 +155,12 @@ def test_select_for_sft_takes_only_passes_and_spreads_behaviors():
 
 def test_optimize_dispatches_on_mode_and_never_overwrites(tmp_path):
     import json
+
     from zeroproof.simulations.score.optimize import optimize
     src = tmp_path / "batch.jsonl"
     rows = _grouped_rows()
     src.write_text("".join(json.dumps(r) + "\n" for r in rows))
-    picked, report = optimize(str(src), mode="rl", target=4)
+    _picked, report = optimize(str(src), mode="rl", target=4)
     assert report["mode"] == "rl"
     assert report["path"].endswith("batch.rl.jsonl")
     assert src.read_text().count("\n") == len(rows)  # source untouched
@@ -181,7 +187,7 @@ def test_no_tool_agent_keeps_refusal_demonstrations():
     assert is_do_nothing(row, has_tools=False) is False
     # Judge-labeled rows bypass the heuristic entirely: a 1 is the
     # judge's call, whatever the grid expected.
-    picked, report = select_for_sft([row], target=5)
+    picked, _report = select_for_sft([row], target=5)
     assert len(picked) == 1
     from zeroproof.simulations.score.optimize import drop_reason
     unlabeled = dict(row)

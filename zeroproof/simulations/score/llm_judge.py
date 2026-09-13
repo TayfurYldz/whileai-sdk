@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ..generate.agents import complete, parse_backend_spec
 

@@ -12,12 +12,19 @@ import json
 from tests.connect.test_otel import BATCH
 from tests.helpers import POLICY, TOOLS, scripted_agent
 from zeroproof.simulations import rows_from_otel
-from zeroproof.simulations.export import (tool_call_roundtrip, training_rows)
-from zeroproof.simulations.score.judging import (ScoredData, build_preference_pairs,
-                                           evaluate, run_judge)
-from zeroproof.simulations.score.optimize import select_for_sft
-from zeroproof.simulations.ingest.traces import (dimensions_from_traces, load_traces,
-                                          simulate_from_traces, trace_report)
+from zeroproof.simulations.export import tool_call_roundtrip, training_rows
+from zeroproof.simulations.ingest.traces import (
+    dimensions_from_traces,
+    load_traces,
+    simulate_from_traces,
+    trace_report,
+)
+from zeroproof.simulations.score.judging import (
+    ScoredData,
+    build_preference_pairs,
+    evaluate,
+    run_judge,
+)
 
 RAW_UNGRADED = [
     {"prompt": "where is order 4412",
@@ -163,7 +170,8 @@ def test_otel_reward_attribute_is_preserved():
 
 
 def test_grade_and_eval_share_one_contract():
-    judge = lambda row: 1
+    def judge(row):
+        return 1
     graded = run_judge(RAW_UNGRADED, judge, concurrency=1)
     evald = evaluate(RAW_UNGRADED, judge, model="agent-v2", concurrency=1)
     for g, e in zip(graded, evald):
@@ -181,7 +189,7 @@ def test_selection_takes_passes_but_never_destroys_failures():
             for i, r in enumerate(RAW_UNGRADED * 4)]
     scored = ScoredData([dict(r, judge_status="ok") for r in rows],
                         run_id="t", source="grade", judge_name="j")
-    selected, report = scored.select_for_sft()
+    selected, _report = scored.select_for_sft()
     assert all(r["reward"] == 1 for r in selected)
     assert len(scored.failures()) == 6, \
         "selection must not remove failures from the scored set"
@@ -237,11 +245,12 @@ def test_full_feedback_loop_offline():
     data = _sim(RAW_UNGRADED)
     assert data.trajectories
     # 2) external judge -> ScoredData
-    judge = lambda row: {"reward": int("confirmed" in
-                                       str(row.get("final_text", "")).lower()
-                                       or "$" in
-                                       str(row.get("final_text", ""))),
-                         "reason": "deterministic"}
+    def judge(row):
+        return {"reward": int("confirmed" in
+                                           str(row.get("final_text", "")).lower()
+                                           or "$" in
+                                           str(row.get("final_text", ""))),
+                             "reason": "deterministic"}
     scored = run_judge(data.trajectories, judge, concurrency=1)
     assert len(scored) == len(data.trajectories)
     # 3) select + safe export

@@ -37,7 +37,8 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import uuid
-from typing import Any, Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any
 
 _VALID_STATUSES = ("ok", "missing_reward", "invalid_result", "error",
                    "timeout")
@@ -49,7 +50,7 @@ def normalize_judge_result(raw: Any) -> dict[str, Any]:
         return {"reward": int(raw), "reason": "", "judge_status": "ok",
                 "judge_meta": {}}
     if isinstance(raw, (int, float)):
-        value = float(raw)
+        value: Any = float(raw)
         # Scalar lane: 1 pass, 0 fail, (0, 1) partial. Anything outside
         # [0, 1] fits no lane and is a contract break, not a reward.
         if not 0.0 <= value <= 1.0:
@@ -97,6 +98,7 @@ class ScoredData:
         self.rows = rows
         self.run_id = run_id
         self.source = source
+        self.eval_coverage: dict[str, Any] | None = None
         self.judge_name = judge_name
         self.model = model
 
@@ -178,10 +180,10 @@ class ScoredData:
         from .preflight import dataset_report
         out = dataset_report(self.rows, tools=tools,
                              system_prompt=system_prompt)
-        rewards = [r.get("reward") for r in self.rows
+        rewards: list[Any] = [r.get("reward") for r in self.rows
                    if isinstance(r.get("reward"), (int, float))]
         out["reward_distribution"] = {
-            str(k): rewards.count(k) for k in sorted(set(rewards), key=float)}
+            str(k): rewards.count(k) for k in sorted(set(rewards), key=lambda v: float(v))}
         out["unjudged"] = len(self.unjudged())
         out["scoring_run_id"] = self.run_id
         out["judge"] = self.judge_name
@@ -331,7 +333,7 @@ def build_preference_pairs(rows: Sequence[dict], *,
         slot["pass" if row["reward"] == 1 else "fail"].append(row)
     pairs: list[dict] = []
     contrast_prompts = 0
-    for key, slot in groups.items():
+    for slot in groups.values():
         if not slot["pass"] or not slot["fail"]:
             continue
         contrast_prompts += 1
@@ -356,5 +358,10 @@ def build_preference_pairs(rows: Sequence[dict], *,
     return pairs, report
 
 
-__all__ = ["run_judge", "evaluate", "ScoredData", "normalize_judge_result",
-           "build_preference_pairs"]
+__all__ = [
+    "ScoredData",
+    "build_preference_pairs",
+    "evaluate",
+    "normalize_judge_result",
+    "run_judge",
+]

@@ -316,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
             for i, (task, persona) in enumerate(plan)
         }
         for done in as_completed(futures):
-            i, task, persona = futures[done]
+            _i, task, persona = futures[done]
             try:
                 row = done.result()
             except Exception as err:  # a crashed run must not take the batch with it

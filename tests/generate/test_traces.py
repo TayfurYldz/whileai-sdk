@@ -6,10 +6,14 @@ from __future__ import annotations
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.ingest.traces import (dimensions_from_traces,
-                                          drop_leaky_rows, leakage_report,
-                                          mine_traces, simulate_from_traces,
-                                          split_pseudo_production)
+from zeroproof.simulations.ingest.traces import (
+    dimensions_from_traces,
+    drop_leaky_rows,
+    leakage_report,
+    mine_traces,
+    simulate_from_traces,
+    split_pseudo_production,
+)
 
 
 def _trace(prompt, tool, status, reward=None, **result_extra):

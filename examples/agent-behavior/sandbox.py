@@ -373,4 +373,4 @@ def _execute(files: dict[str, str], start: str) -> tuple[int, str]:
         shutil.rmtree(root, ignore_errors=True)
 
 
-__all__ = ["Sandbox", "TOOLS", "TEST_COMMAND", "MAX_OUTPUT_CHARS"]
+__all__ = ["MAX_OUTPUT_CHARS", "TEST_COMMAND", "TOOLS", "Sandbox"]

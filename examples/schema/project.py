@@ -19,6 +19,7 @@ import zeroproof.simulations as zps
 from zeroproof.simulations import schema
 from zeroproof.simulations.schema import Judgment, Marker, PolicyRef, Rollout, Task
 
+
 # The eval markers. String rules over the rollout, never a judge, and never
 # the reward that selected the SFT rows.
 def markers_for(task: Task, rollout: Rollout) -> list[Marker]:

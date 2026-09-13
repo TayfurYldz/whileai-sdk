@@ -415,9 +415,9 @@ RETRY_LOCKED = dataclasses.replace(
 TASKS = [CART, PAGING, RETRY, DURATION, PATHS, CART_LOCKED, RETRY_LOCKED]
 
 # imported at the bottom so tasks_hard can import Task from this module
-from tasks_hard import HARD_TASKS  # noqa: E402
+from tasks_hard import HARD_TASKS
 
 TASKS += HARD_TASKS
 BY_ID = {t.id: t for t in TASKS}
 
-__all__ = ["Task", "TASKS", "BY_ID"]
+__all__ = ["BY_ID", "TASKS", "Task"]

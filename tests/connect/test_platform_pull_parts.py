@@ -7,8 +7,6 @@ passed them because `{}` is valid JSON.
 """
 import json
 
-import pytest
-
 import zeroproof.simulations as zps
 from zeroproof.simulations import export
 from zeroproof.simulations.ingest import platform

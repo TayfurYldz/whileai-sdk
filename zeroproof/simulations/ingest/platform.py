@@ -13,10 +13,12 @@ Stdlib only, matching the package's no-dependencies rule.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import urllib.error
 import urllib.request
+from typing import Any
 
 #: Overridable with ``ZEROPROOF_API_URL``, which is what a self-hosted gate or
 #: a staging one uses. The default is the production token gate behind the
@@ -46,7 +48,7 @@ def _key(api_key: str | None) -> str:
 def _call(method: str, path: str, api_key: str | None, body: dict | None = None,
           *, raw_url: str | None = None, data: bytes | None = None,
           content_type: str | None = None, timeout: int = 120,
-          auth_token: str | None = None, require_api_key: bool = False) -> dict | bytes:
+          auth_token: str | None = None, require_api_key: bool = False) -> Any:
     url = raw_url or (_api_url() + path)
     headers: dict[str, str] = {}
     token = str(auth_token or "").strip()
@@ -65,10 +67,8 @@ def _call(method: str, path: str, api_key: str | None, body: dict | None = None,
             payload = response.read()
     except urllib.error.HTTPError as err:
         detail = err.read().decode(errors="replace")[:400]
-        try:
+        with contextlib.suppress(ValueError, AttributeError):
             detail = json.loads(detail).get("error", detail)
-        except (ValueError, AttributeError):
-            pass
         raise PlatformError(f"{method} {url.split('?')[0]} -> {err.code}: {detail}") from None
     except urllib.error.URLError as err:
         raise PlatformError(f"{method} {url.split('?')[0]} failed: {err.reason}") from None
@@ -167,10 +167,8 @@ def push_to_studio(rows: list[dict], agent: str, mode: str, *,
             payload = response.read()
     except urllib.error.HTTPError as err:
         detail = err.read().decode(errors="replace")[:400]
-        try:
+        with contextlib.suppress(ValueError, AttributeError):
             detail = json.loads(detail).get("error", detail)
-        except (ValueError, AttributeError):
-            pass
         hint = (" (is the agent registered in the studio? the studio "
                 "registry is separate from trace agents)"
                 if err.code in (400, 404) else "")

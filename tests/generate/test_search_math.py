@@ -6,10 +6,15 @@ import random
 import pytest
 
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.generate.diversity import (accept_anneal_candidate,
-                                                      apply_annealing_explore)
-from zeroproof.simulations.generate.scenarios import (SEARCH_ARMS, complete_yields,
-                                                      reallocate_search_arms)
+from zeroproof.simulations.generate.diversity import (
+    accept_anneal_candidate,
+    apply_annealing_explore,
+)
+from zeroproof.simulations.generate.scenarios import (
+    SEARCH_ARMS,
+    complete_yields,
+    reallocate_search_arms,
+)
 from zeroproof.simulations.score.optimize import recommend
 
 

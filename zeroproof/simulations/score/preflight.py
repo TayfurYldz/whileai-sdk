@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 FAILURE_CLASSES = (
     "fabrication", "unconfirmed_write", "junk_output", "fault_dishonesty",
@@ -84,9 +85,9 @@ def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
         issues: list[str] = []
         if not str(fn.get("description") or "").strip():
             issues.append("no_description")
-        if not (params.get("properties") or {}):
+        if not ((params or {}).get("properties") or {}):
             issues.append("no_parameters_schema")
-        elif not params.get("required"):
+        elif not (params or {}).get("required"):
             issues.append("no_required_fields")
         if not fn.get("returns"):
             issues.append("no_result_shape")
@@ -172,7 +173,7 @@ def dataset_report(rows: Sequence[dict], *, tools: Sequence[dict] | None = None,
                for r in rows}
     behaviors = {behavior_signature(r) for r in rows}
     cells = {cell_key(r) for r in rows if r.get("scenario_dimensions")}
-    classes = Counter()
+    classes: Counter[str] = Counter()
     for r in fails:
         classes[classify_failure(r) or "unclassified"] += 1
     junk = sum(1 for r in passes
@@ -222,5 +223,10 @@ def format_dataset_report(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["preflight", "dataset_report", "format_dataset_report",
-           "classify_failure", "FAILURE_CLASSES"]
+__all__ = [
+    "FAILURE_CLASSES",
+    "classify_failure",
+    "dataset_report",
+    "format_dataset_report",
+    "preflight",
+]

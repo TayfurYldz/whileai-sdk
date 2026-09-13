@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib
 import inspect as _inspect
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from .agents import complete, local_model, parse_backend_spec, split_user_turns
 
@@ -74,10 +76,8 @@ def openai_http(url: str, *, model: str, tools: list[dict],
                     stored, content = result, json.dumps(result)
                 else:
                     stored, content = result, result
-                    try:
+                    with contextlib.suppress(json.JSONDecodeError):
                         stored = json.loads(result)
-                    except json.JSONDecodeError:
-                        pass
                 step = {"tool": fn.get("name", ""), "arguments": arguments,
                         "result": stored}
                 if spoken and not attached:
@@ -91,8 +91,8 @@ def openai_http(url: str, *, model: str, tools: list[dict],
         return {"steps": steps, "final_text": final_text}
 
     agent.__name__ = f"openai_http[{model}]"
-    agent.system = policy_text
-    agent.policy = policy_text
+    agent.system = policy_text  # type: ignore[attr-defined]
+    agent.policy = policy_text  # type: ignore[attr-defined]
     return agent
 
 
@@ -101,7 +101,7 @@ def from_langchain(executor: Any) -> Callable:
     try:
         importlib.import_module("langchain_core.agents")
     except Exception as exc:  # pragma: no cover
-        raise _missing("langchain", exc)
+        raise _missing("langchain", exc) from exc
 
     def agent(message: str) -> dict:
         steps = []
@@ -122,14 +122,14 @@ def from_langchain(executor: Any) -> Callable:
 def from_langgraph(graph: Any) -> Callable:
     """Compiled LangGraph: AIMessage.tool_calls paired with ToolMessage by id."""
     try:
-        from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
     except Exception as exc:  # pragma: no cover
-        raise _missing("langchain", exc)
+        raise _missing("langchain", exc) from exc
 
     def agent(message: str) -> dict:
         turns = split_user_turns(message)
-        conversation = []
-        state = {"messages": []}
+        conversation: list = []
+        state: dict = {"messages": []}
         for turn in turns:
             state = graph.invoke({"messages": [*conversation,
                                                 HumanMessage(content=turn)]})
@@ -155,7 +155,7 @@ def from_openai_agents(agent_obj: Any) -> Callable:
     try:
         from agents import Runner
     except Exception as exc:  # pragma: no cover
-        raise _missing("openai-agents", exc)
+        raise _missing("openai-agents", exc) from exc
 
     async def agent(message: str) -> dict:
         pending: dict[str, dict] = {}
@@ -167,8 +167,7 @@ def from_openai_agents(agent_obj: Any) -> Callable:
                 result = await Runner.run(agent_obj, turn)
             else:
                 try:
-                    nxt = list(result.to_input_list()) + [
-                        {"role": "user", "content": turn}]
+                    nxt: Any = [*list(result.to_input_list()), {"role": "user", "content": turn}]
                 except Exception:
                     nxt = turn
                 result = await Runner.run(agent_obj, nxt)
@@ -211,11 +210,11 @@ def from_claude_sdk(client: Any) -> Callable:
                 if content is None and isinstance(event, dict):
                     content = event.get("content")
                 for block in content or ():
-                    kind = (block.get("type") if isinstance(block, dict)
-                            else getattr(block, "type", type(block).__name__)).lower()
+                    kind = str((block.get("type") if isinstance(block, dict)
+                                else getattr(block, "type", type(block).__name__)) or "").lower()
                     kind = kind.replace("_", "")
                     get = (block.get if isinstance(block, dict)
-                           else lambda key, default=None: getattr(block, key, default))
+                           else lambda key, default=None, _b=block: getattr(_b, key, default))
                     if "tooluse" in kind:
                         pending[str(get("id", ""))] = {
                             "tool": str(get("name", "")), "arguments": get("input", {}) or {}}
@@ -524,9 +523,8 @@ def _constraints(tools: list[dict], policy: str) -> dict[str, Any]:
             low = str(key).lower()
             if (low.endswith("_id") or low == "id"
                     or any(field in low or low.endswith(field)
-                           for field in _USER_FIELDS)):
-                if key not in required_user:
-                    required_user.append(key)
+                           for field in _USER_FIELDS)) and key not in required_user:
+                required_user.append(key)
     mutating = [name for name, caps in _capabilities(tools).items()
                 if "read" not in caps]
     return {
@@ -586,10 +584,8 @@ def inspect(agent: Any, *, tools: list[dict] | None = None,
             constraints=_constraints(derived_tools, derived_policy),
             transport="hosted", name="hosted-qwen")
     kind = "callable"
-    try:
+    with contextlib.suppress(ValueError):
         kind = transport or detect(agent)
-    except ValueError:
-        pass
     derived_tools = _merge_tool_lists(_tools_from_agent(agent), tools)
     agent_policy = _policy_from_agent(agent)
     extra_policy = str(policy).strip() if policy is not None else ""

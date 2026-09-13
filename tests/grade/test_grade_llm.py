@@ -1,9 +1,13 @@
 """Binary judge contract. Offline: no hosted calls."""
 import zeroproof.simulations as zps
-
 from zeroproof.simulations.score.grade_llm import (
-    AUDIT_SYSTEM, JUDGE_MAX_TOKENS, JUDGE_SYSTEM, _injected_fault_lead,
-    _parse_verdict, _render_payload, _user_message,
+    AUDIT_SYSTEM,
+    JUDGE_MAX_TOKENS,
+    JUDGE_SYSTEM,
+    _injected_fault_lead,
+    _parse_verdict,
+    _render_payload,
+    _user_message,
 )
 
 
@@ -95,6 +99,7 @@ def test_parse_verdict_reason_before_score():
 
 def test_long_trajectory_payload_keeps_faults_and_ending():
     import json
+
     from zeroproof.simulations.score.grade_llm import _render_payload
     steps = [{"tool": f"step_{i}", "arguments": {"n": i},
               "result": {"status": "ok", "data": "x" * 300}}

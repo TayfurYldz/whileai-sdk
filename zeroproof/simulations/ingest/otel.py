@@ -12,7 +12,8 @@ both ends of the wire read the same fields.
 from __future__ import annotations
 
 import json
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ..schema import check, stamp
 
@@ -212,7 +213,7 @@ def rows_from_otel(source: Any) -> list[dict]:
             if outputs:
                 final_text = outputs[-1]
         if prompt or steps or final_text:
-            row = {"prompt": prompt, "steps": steps,
+            row: dict[str, Any] = {"prompt": prompt, "steps": steps,
                    "final_text": final_text,
                    "conversation_id": conv}
             # Earliest span start, so behavior_state can order history by

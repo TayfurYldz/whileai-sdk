@@ -202,7 +202,7 @@ def _sentence(text: str, at: int) -> str:
 class Observation:
     """One tool call, as the loop saw it."""
 
-    __slots__ = ("name", "args", "output", "failed", "started_ms", "duration_ms")
+    __slots__ = ("args", "duration_ms", "failed", "name", "output", "started_ms")
 
     def __init__(self, name: str, args: str, output: str, failed: bool, started_ms: int, duration_ms: int) -> None:
         self.name = name
@@ -427,11 +427,11 @@ class TurnSignals:
 
 
 __all__ = [
-    "Observation",
-    "TurnSignals",
-    "DESCRIBE",
-    "describe",
     "BEHAVIOUR_BUDGET",
+    "DESCRIBE",
     "MAX_ISSUES",
     "MAX_JUDGE_METRICS",
+    "Observation",
+    "TurnSignals",
+    "describe",
 ]

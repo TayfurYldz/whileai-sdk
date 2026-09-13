@@ -32,8 +32,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Sequence
+from typing import Any, Literal
 
 SCHEMA_VERSION = "1"
 SCHEMA_KEY = "schema_version"
@@ -62,10 +63,7 @@ _CARRY_ROLLOUT = ("messages", "opener", "opening", "conversation_id", "ts",
 #: Every key ``from_row`` consumes into a typed field. Anything else on the
 #: row is unknown to the objects and passes through ``Rollout.extra``.
 _CONSUMED = frozenset(
-    (SCHEMA_KEY, "prompt", "steps", "final_text", "scenario_id", "spec_id",
-     "world_state", "faults", "seed", "rollout_index", "model_version",
-     "markers", "tool_trace", "trace")
-    + AXES + VERDICT_KEYS + _CARRY_ROLLOUT)
+    (SCHEMA_KEY, "prompt", "steps", "final_text", "scenario_id", "spec_id", "world_state", "faults", "seed", "rollout_index", "model_version", "markers", "tool_trace", "trace", *AXES, *VERDICT_KEYS, *_CARRY_ROLLOUT))
 
 #: The published Hugging Face set flattens list columns to JSON strings.
 _JSON_STRING_KEYS = ("steps_json", "messages_json", "metadata_json")
@@ -406,7 +404,7 @@ def _judgments(row: dict, rollout_id: str) -> list[Judgment]:
         name = judge or label or "unlabeled"
         kind: Any = "judge" if judge else "rule"
         reward = _number(row.get("reward"))
-        status = row.get("judge_status") or "ok"
+        status: Any = row.get("judge_status") or "ok"
         evidence: dict = {}
         if reward is None and row.get("reward") is not None:
             status = "invalid_result"
@@ -450,7 +448,7 @@ def from_row(row: dict) -> tuple[Task, Rollout, list[Judgment], list[Marker]]:
         spec_id=str(raw.get("spec_id") or ""),
         prompt=prompt,
         world=World(seed=raw.get("seed"), state=raw.get("world_state"),
-                    faults=dict(faults)),
+                    faults=dict(faults or {})),
         axes=axes,
     )
     index = _int(raw.get("rollout_index"))
@@ -501,7 +499,7 @@ def to_row(task: Task, rollout: Rollout,
     """The flat v1 wire row. Inverse of ``from_row`` on engine rows; on
     other shapes it is the canonical row ``load_traces`` would produce,
     with the source row's unknown keys carried along."""
-    from .data import _clean_faults, conversation
+    from .data import clean_faults, conversation
     row: dict[str, Any] = {
         "prompt": task.prompt,
         "steps": [_step_dict(s) for s in rollout.steps],
@@ -517,7 +515,7 @@ def to_row(task: Task, rollout: Rollout,
             row[key] = task.axes[key]
     if task.world.state and task.world.state not in {"unspecified", "unknown"}:
         row["world_state"] = task.world.state
-    faults = _clean_faults(task.world.faults)
+    faults = clean_faults(task.world.faults)
     if faults:
         row["faults"] = faults
     if rollout.extra.get("fault_detected"):
@@ -578,10 +576,32 @@ def load_json_schema() -> dict:
 
 
 __all__ = [
-    "SCHEMA_VERSION", "SCHEMA_KEY", "KNOWN_VERSIONS", "AXES", "VERDICT_KEYS",
-    "Message", "Step", "FaultEvent", "World", "Privileged", "Lineage",
-    "PolicyRef", "ScorerRef", "Task", "Rollout", "Judgment", "Marker",
-    "Dataset", "Calibration",
-    "stamp", "version_of", "detect_shape", "validate", "check",
-    "from_row", "to_row", "as_dict", "load_json_schema",
+    "AXES",
+    "KNOWN_VERSIONS",
+    "SCHEMA_KEY",
+    "SCHEMA_VERSION",
+    "VERDICT_KEYS",
+    "Calibration",
+    "Dataset",
+    "FaultEvent",
+    "Judgment",
+    "Lineage",
+    "Marker",
+    "Message",
+    "PolicyRef",
+    "Privileged",
+    "Rollout",
+    "ScorerRef",
+    "Step",
+    "Task",
+    "World",
+    "as_dict",
+    "check",
+    "detect_shape",
+    "from_row",
+    "load_json_schema",
+    "stamp",
+    "to_row",
+    "validate",
+    "version_of",
 ]

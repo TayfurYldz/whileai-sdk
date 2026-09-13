@@ -5,7 +5,6 @@ import json
 import re
 
 from tests.helpers import simulate_offline
-import zeroproof.simulations as zps
 
 INTERNAL_FIELDS = (
     "scenario_id", "scenario_dimensions", "arm", "prompt", "world_state",
@@ -105,7 +104,7 @@ def test_default_path_executes_every_stage(monkeypatch, capsys):
     assert [t["behavior_signature"] for t in frozen] == [
         t["behavior_signature"] for t in data.trajectories]
 
-    chain = " → ".join(CHAIN + ["grade() works afterward on frozen rows"])
+    chain = " → ".join([*CHAIN, "grade() works afterward on frozen rows"])
     print(chain)
     captured = capsys.readouterr()
     assert "agent ingestion" in captured.out

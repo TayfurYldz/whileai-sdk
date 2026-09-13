@@ -1,9 +1,13 @@
 """Preflight, failure classification, and the dataset report."""
 from __future__ import annotations
 
-from zeroproof.simulations.score.preflight import (FAILURE_CLASSES, classify_failure,
-                                             dataset_report,
-                                             format_dataset_report, preflight)
+from zeroproof.simulations.score.preflight import (
+    FAILURE_CLASSES,
+    classify_failure,
+    dataset_report,
+    format_dataset_report,
+    preflight,
+)
 
 GOOD_TOOL = {"name": "get_order", "description": "Look up an order",
              "parameters": {"type": "object",

@@ -13,11 +13,14 @@ _SPEC_SKIP = {"tools", "policy", "system_prompt", "system", "instructions",
               "name", "id", "version", "model", "backend", "simulator"}
 
 
-def _backend_spec(backend: str) -> str:
+def backend_spec(backend: str) -> str:
     text = str(backend).strip()
     if text.startswith(("vllm:", "ollama:", "openai:")):
         return text
     return "vllm:Qwen/Qwen3-4B-Instruct-2507@" + text.rstrip("/")
+
+
+_backend_spec = backend_spec  # old private name, kept for imports that still use it
 
 
 def _read_spec_file(path: Path) -> Any:
@@ -26,7 +29,7 @@ def _read_spec_file(path: Path) -> Any:
         return None
     if path.suffix in {".yaml", ".yml"}:
         try:
-            import yaml  # type: ignore
+            import yaml
         except ImportError:
             return None
         return yaml.safe_load(text)
@@ -103,7 +106,7 @@ def _spec_extra_text(spec: dict) -> str:
     return "\n".join(parts)
 
 
-def _apply_spec(spec: Any, tools: list | None, policy: str | None,
+def apply_spec(spec: Any, tools: list | None, policy: str | None,
                 situations: list | None) -> tuple[list | None, str | None, list]:
     extra_sit = list(situations or [])
     if spec is None:
@@ -135,7 +138,10 @@ def _apply_spec(spec: Any, tools: list | None, policy: str | None,
     return tools, policy, extra_sit
 
 
-def _kind_from_spec(spec: Any, policy: str) -> str:
+_apply_spec = apply_spec  # old private name, kept for imports that still use it
+
+
+def kind_from_spec(spec: Any, policy: str) -> str:
     """Folder or spec name, then the policy identity line."""
     name = ""
     if isinstance(spec, dict):
@@ -148,3 +154,6 @@ def _kind_from_spec(spec: Any, policy: str) -> str:
         if part and part.lower() not in {"specs", "spec"}:
             name = part
     return assistant_kind(policy, name)
+
+
+_kind_from_spec = kind_from_spec  # old private name, kept for imports that still use it

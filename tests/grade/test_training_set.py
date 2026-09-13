@@ -53,7 +53,7 @@ def test_training_set_writes_chat_jsonl_with_policy_and_tools(tmp_path):
     out = tmp_path / "train.jsonl"
     report = data.training_set(str(out))
     assert report["n_written"] == report["selection"]["n_selected"]
-    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    rows = [json.loads(line) for line in out.read_text().splitlines()]
     first = rows[0]
     assert first["messages"][0]["role"] == "system"
     assert "budget-buddy" in first["messages"][0]["content"]

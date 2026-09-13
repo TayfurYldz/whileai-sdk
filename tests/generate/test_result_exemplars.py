@@ -9,9 +9,8 @@ import json
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS
+from zeroproof.simulations.ingest.traces import exemplar_result_shapes, mine_result_exemplars
 from zeroproof.simulations.world.sandbox import MockEnvironment
-from zeroproof.simulations.ingest.traces import (exemplar_result_shapes,
-                                          mine_result_exemplars)
 
 TRACES = [
     {"prompt": "where is order 4412",
@@ -33,7 +32,7 @@ TRACES = [
 
 
 def test_exemplars_are_mined_shape_diverse_and_filtered():
-    exemplars = mine_result_exemplars(TRACES + [
+    exemplars = mine_result_exemplars(TRACES + [  # noqa: RUF005
         # Same shape as the first lookup result: adds nothing, skipped.
         {"steps": [{"tool": "lookup_order", "arguments": {},
                     "result": {"status": "ok", "order_id": "88",

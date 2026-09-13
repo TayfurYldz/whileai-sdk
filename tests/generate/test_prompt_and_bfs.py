@@ -1,9 +1,10 @@
 import json
 
-from tests.helpers import TOOLS, POLICY, REPO_ROOT, GITHUB_SPEC, LINEAR_SPEC, scripted_agent
+import zeroproof.simulations as zps
+from tests.helpers import GITHUB_SPEC, LINEAR_SPEC, POLICY, REPO_ROOT, TOOLS, scripted_agent
 from zeroproof.simulations.generate.agents import complete as _real_complete
 from zeroproof.simulations.generate.generator import ModelSimulator
-import zeroproof.simulations as zps
+
 
 def test_agent_voice_user_catches_desk_clarifiers():
     from zeroproof.simulations.generate.generator import agent_voice_user
@@ -52,7 +53,6 @@ def test_agent_voice_user_catches_desk_clarifiers():
 
 
 def test_writer_prompt_forbids_copying_policy_as_user_line():
-    from pathlib import Path
     from zeroproof.simulations.generate.diversity import sample_cell_tags
     from zeroproof.simulations.generate.scenarios import policy_sections
 
@@ -83,7 +83,7 @@ def test_writer_prompt_forbids_copying_policy_as_user_line():
     assert clauses
     for clause in clauses:
         assert clause not in prompt
-    for i, region in enumerate(sim.regions[:48]):
+    for _i, region in enumerate(sim.regions[:48]):
         tags = sample_cell_tags(1, 0, region["id"], region.get("assignment") or {})
         blob = json.dumps(tags)
         assert "stance_brief" not in tags
@@ -149,9 +149,7 @@ def test_model_prompt_has_no_opener_instructions():
 
 
 def test_message_realizes_tags_and_writer_omits_raw_labels():
-    from pathlib import Path
-    from zeroproof.simulations.generate.generator import (
-        message_realizes_tags, usable_user_message)
+    from zeroproof.simulations.generate.generator import message_realizes_tags, usable_user_message
 
     long_calm = ("I think we can merge this one now — it's clean, passes all "
                  "checks, and the only thing missing is the changelog entry.")
@@ -236,7 +234,10 @@ def test_writer_aside_aims_or_goes_vague():
 
 def test_writer_invents_person_without_leaking_labels():
     from zeroproof.simulations.generate.generator import (
-        _grid_card, _strip_directive_phrases, usable_user_message)
+        _grid_card,
+        _strip_directive_phrases,
+        usable_user_message,
+    )
 
     sim = ModelSimulator(tools=TOOLS, policy=POLICY, seed=1)
     system = sim._system_prompt().lower()
@@ -266,8 +267,11 @@ def test_writer_invents_person_without_leaking_labels():
 
 
 def test_hundred_row_mix_is_ordinary_majority_plus_other_tiers():
-    from zeroproof.simulations.generate.diversity import (ORDINARY_SHARE, behavior_tier,
-                                                 mix_items_by_tier)
+    from zeroproof.simulations.generate.diversity import (
+        ORDINARY_SHARE,
+        behavior_tier,
+        mix_items_by_tier,
+    )
 
     items = [{"assignment": {"stance": stance}}
              for stance in (["ordinary"] * 70 + ["ambiguous"] * 10
@@ -276,7 +280,7 @@ def test_hundred_row_mix_is_ordinary_majority_plus_other_tiers():
         items, 100, lambda row: behavior_tier(row.get("assignment") or {}))
     tiers = [behavior_tier(row.get("assignment") or {}) for row in picked]
     counts = {tier: tiers.count(tier) for tier in set(tiers)}
-    assert counts.get("ordinary", 0) >= int(round(100 * ORDINARY_SHARE)) - 1
+    assert counts.get("ordinary", 0) >= round(100 * ORDINARY_SHARE) - 1
     assert counts["ordinary"] > max(
         counts.get("ambiguous", 0), counts.get("boundary", 0),
         counts.get("adversarial", 0))
@@ -314,9 +318,7 @@ def test_you_are_policy_keeps_rule_axis():
 
 
 def test_github_writer_knows_kind_not_tools():
-    from pathlib import Path
-    from zeroproof.simulations.generate.generator import (
-        _omit_assistant_kind, assistant_kind)
+    from zeroproof.simulations.generate.generator import _omit_assistant_kind, assistant_kind
 
     spec_path = GITHUB_SPEC / "spec.json"
     spec = json.loads(spec_path.read_text())
@@ -353,7 +355,6 @@ def test_writer_prompt_keeps_tools_off_the_page():
 
 
 def test_coding_writer_prompt_fits_context():
-    from pathlib import Path
     from zeroproof.simulations.generate.agents import CONTEXT_TOKENS
     from zeroproof.simulations.generate.generator import _token_estimate
     spec_path = REPO_ROOT / "specs" / "coding" / "spec.json"
@@ -497,7 +498,7 @@ def test_unique_still_deduplicates_prompts():
 
 
 def test_clean_user_message_strips_turns_plan():
-    from zeroproof.simulations.generate.generator import clean_user_message, _parse_messages
+    from zeroproof.simulations.generate.generator import _parse_messages, clean_user_message
     assert clean_user_message("{'turns': ['first', 'follow-up']}") == ""
     assert "reservation" in clean_user_message(
         "{turns:['first','follow-up']} I can't cancel without a reservation ID.")
@@ -783,6 +784,7 @@ def test_complete_agent_turn_does_not_force_followup(monkeypatch):
 
 def test_hung_slot_retries_then_omits():
     import concurrent.futures as cf
+
     from zeroproof.simulations.simulation import _collect_finished
 
     class Slow:
@@ -794,7 +796,7 @@ def test_hung_slot_retries_then_omits():
             return self.value
 
     def wait(pending, timeout=None, **_k):
-        items = list(pending) if not isinstance(pending, dict) else list(pending)
+        items = list(pending)
         ready, late = set(), set()
         for fut in items:
             if fut.delay <= timeout:
@@ -1065,8 +1067,11 @@ def test_writer_merges_n_completions(monkeypatch):
 
 
 def test_writer_temperature_is_continuous_per_batch(monkeypatch):
-    from zeroproof.simulations.generate.diversity import (WRITER_TEMP_HI, WRITER_TEMP_LO,
-                                                 sample_writer_temperature)
+    from zeroproof.simulations.generate.diversity import (
+        WRITER_TEMP_HI,
+        WRITER_TEMP_LO,
+        sample_writer_temperature,
+    )
     from zeroproof.simulations.generate.generator import ModelSimulator
 
     seen = []
@@ -1093,6 +1098,7 @@ def test_writer_temperature_is_continuous_per_batch(monkeypatch):
 
 def test_writer_n_follows_time_budget(monkeypatch):
     import time
+
     from zeroproof.simulations.generate.diversity import sample_writer_n
     from zeroproof.simulations.generate.generator import ModelSimulator
 
@@ -1176,7 +1182,6 @@ def test_writer_cards_prefer_unused_tools_before_repeats():
 
 
 def test_hosted_agent_gets_spec_policy_unchanged(monkeypatch):
-    from pathlib import Path
 
     spec = json.loads((GITHUB_SPEC / "spec.json").read_text())
     seen = {}
@@ -1271,7 +1276,7 @@ def test_scene_brief_is_private_writer_context():
 
 
 def test_long_policy_is_bounded_for_writer_but_samples_whole_document():
-    from zeroproof.simulations.generate.generator import writer_policy_digest, ModelSimulator
+    from zeroproof.simulations.generate.generator import ModelSimulator, writer_policy_digest
 
     sections = [
         f"Section {i}: " + (f"operational detail {i} " * 30)
@@ -1334,7 +1339,6 @@ def test_scene_brief_not_copied_into_messages(monkeypatch):
 
 
 def test_scene_brief_is_derived_from_spec(monkeypatch):
-    from pathlib import Path
     from zeroproof.simulations.generate.generator import write_scene_brief
 
     seen = []

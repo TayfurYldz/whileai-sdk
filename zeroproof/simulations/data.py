@@ -3,26 +3,30 @@ entry points that operate on a finished run."""
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .export import export_training
 from .generate.adapters import AgentProfile
 from .ingest.platform import push_rows
-from .score.llm_judge import (MISSING_JUDGE_KEY, apply_llm_grade,
-                       resolve_judge_key)
-from .score.grade_llm import apply_grade_llm, require_judge_key
-from .score.quality import rank as rank_source, rank_rows, summarize as summarize_quality
-from .export import export_training
 from .schema import SCHEMA_KEY, SCHEMA_VERSION, check, stamp
+from .score.grade_llm import apply_grade_llm, require_judge_key
+from .score.llm_judge import MISSING_JUDGE_KEY, apply_llm_grade, resolve_judge_key
 from .score.optimize import select_for_sft
+from .score.quality import rank as rank_source
+from .score.quality import rank_rows
+from .score.quality import summarize as summarize_quality
 
 
-
-def _note(data: "SimulationData", stage: str) -> None:
+def note_stage(data: SimulationData, stage: str) -> None:
     if stage not in data.stages:
         data.stages.append(stage)
+
+
+_note = note_stage  # old private name, kept for imports that still use it
 
 
 def conversation(row: dict) -> list[dict]:
@@ -72,7 +76,7 @@ def conversation(row: dict) -> list[dict]:
     return messages
 
 
-def _clean_faults(plan: Any) -> dict | None:
+def clean_faults(plan: Any) -> dict | None:
     """Fault modes only. world_state, stance, and texture ride the plan
     into the runner but are row fields, never faults keys."""
     if not isinstance(plan, dict) or not plan:
@@ -81,13 +85,19 @@ def _clean_faults(plan: Any) -> dict | None:
     return out or None
 
 
-def _row_world(assignment: Any) -> str | None:
+_clean_faults = clean_faults  # old private name, kept for imports that still use it
+
+
+def row_world(assignment: Any) -> str | None:
     if not isinstance(assignment, dict):
         return None
     world = assignment.get("world_state")
     if not world or world in {"unspecified", "unknown"}:
         return None
     return str(world)
+
+
+_row_world = row_world  # old private name, kept for imports that still use it
 
 
 _CONVERSATION_FIELDS = (
@@ -97,7 +107,7 @@ _CONVERSATION_FIELDS = (
 )
 
 
-def _export_row(row: dict) -> dict:
+def export_row(row: dict) -> dict:
     """Trainer-facing JSONL row. Search and embedder bookkeeping stay in memory."""
     out: dict[str, Any] = {
         "prompt": row.get("prompt", ""),
@@ -116,7 +126,7 @@ def _export_row(row: dict) -> dict:
     world = row.get("world_state")
     if world and world not in {"unspecified", "unknown"}:
         out["world_state"] = world
-    faults = _clean_faults(row.get("faults"))
+    faults = clean_faults(row.get("faults"))
     if faults:
         out["faults"] = faults
     if row.get("fault_detected"):
@@ -150,6 +160,9 @@ def _export_row(row: dict) -> dict:
     stamp(out)
     check(out, where="export_row")
     return out
+
+
+_export_row = export_row  # old private name, kept for imports that still use it
 
 
 @dataclass
@@ -342,7 +355,7 @@ class SimulationData:
         return report
 
     def rows(self) -> list[dict]:
-        return [_export_row(t) for t in self.trajectories]
+        return [export_row(t) for t in self.trajectories]
 
     def push(self, name: str, *, api_key: str | None = None,
              parent: str | None = None) -> dict:
@@ -372,14 +385,12 @@ class SimulationData:
         try:
             with open(tmp, "w") as fh:
                 for t in self.trajectories:
-                    fh.write(json.dumps(_export_row(t), default=str) + "\n")
+                    fh.write(json.dumps(export_row(t), default=str) + "\n")
             tmp.replace(dest)
         finally:
             if tmp.exists():
-                try:
+                with contextlib.suppress(OSError):
                     tmp.unlink()
-                except OSError:
-                    pass
         if meta:
             sidecar = path[:-6] + ".meta.json" if path.endswith(".jsonl") else path + ".meta.json"
             rows_by_minute: dict[str, int] = {}
@@ -450,9 +461,9 @@ def grade_llm(source, *, spec: str | None = None, base_url: str | None = None,
         return source.grade_llm(spec=spec, base_url=base_url, model=model,
                                 concurrency=concurrency, api_key=api_key,
                                 path=path or output, limit=limit, prompt=prompt)
-    from .score.quality import _load_jsonl, _write_jsonl
+    from .score.quality import load_jsonl, write_jsonl
     if isinstance(source, (str, Path)):
-        rows = _load_jsonl(source)
+        rows = load_jsonl(source)
         src = str(source)
     else:
         rows = list(source)
@@ -463,7 +474,7 @@ def grade_llm(source, *, spec: str | None = None, base_url: str | None = None,
         api_key=api_key, prompt=prompt, concurrency=concurrency, limit=limit)
     dest = path or output or src
     if dest:
-        _write_jsonl(dest, rows)
+        write_jsonl(dest, rows)
     if isinstance(source, list):
         for dst, src_row in zip(source, rows):
             dst["reward"] = src_row.get("reward")
@@ -486,7 +497,5 @@ def rank(source, *, output: str | None = None,
     if isinstance(source, SimulationData):
         return source.rank(path=output)
     return rank_source(source, output=output, min_quality=min_quality)
-
-
 
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import json
 
-from tests.helpers import REPO_ROOT, simulate_offline
 import zeroproof.simulations as zps
+from tests.helpers import REPO_ROOT, simulate_offline
 from zeroproof.simulations.score.quality import DIMENSIONS, FAIL, score_row
 
 
