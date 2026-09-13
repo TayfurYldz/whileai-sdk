@@ -39,7 +39,7 @@ Datasets = "https://huggingface.co/datasets/zero-proof-ai/agent-simulations"
 zeroproof-simulations = "zeroproof.simulations.score.quality:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.12", "mypy>=1.16", "types-requests"]
 
 [tool.setuptools]
 include-package-data = false
@@ -60,3 +60,49 @@ namespaces = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "E501",   # long lines: the formatter owns wrapping; prose in docstrings stays
+    "RUF001", "RUF002", "RUF003",  # typographic dashes and arrows in prose
+    "RUF012",  # mutable class defaults are used deliberately as registries
+    "SIM115",  # open() without a context manager where the handle is returned
+    "B905",    # zip(strict=) everywhere reads worse than the cases it protects
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The package init re-exports the public surface; the re-exports are the point.
+"zeroproof/simulations/__init__.py" = ["F401", "E402"]
+"zeroproof/__init__.py" = ["F401"]
+# Examples and the identity generator set sys.path before importing.
+"examples/**" = ["E402"]
+"tests/**" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["zeroproof", "zeroproof_simulations", "tests"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["zeroproof"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+# Debt: these modules hang attributes on function objects at runtime
+# (the situation writer is a closure with state). They type-check once
+# the writer is a class. Tracked in CHANGELOG under hygiene.
+[[tool.mypy.overrides]]
+module = [
+    "zeroproof.simulations.generate.generator",
+    "zeroproof.simulations.generate.scenarios",
+    "zeroproof.simulations.run.engine",
+]
+ignore_errors = true

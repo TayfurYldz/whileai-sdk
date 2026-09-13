@@ -19,9 +19,10 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tomllib
 import urllib.error
 import urllib.request
+
+import tomllib
 
 PYPI = "https://pypi.org/pypi/{name}/json"
 
@@ -80,7 +81,8 @@ def main() -> int:
     prior = published(name)
     print(f"package        : {name}")
     print(f"local version  : {version}  (normalized {current})")
-    print(f"published      : {[".".join(map(str, p)) for p in prior[-5:]] or 'none'}")
+    shown = [".".join(map(str, p)) for p in prior[-5:]] or "none"
+    print(f"published      : {shown}")
 
     if not prior:
         # First release. Anything sane is fine; require it to start at x.1 or x.0.
