@@ -100,6 +100,7 @@ Pass `spec=` if you have a local tools-and-system-prompt folder. The generated d
 | `rollouts_per_request` | from mode | Repeats: reruns of one phrasing. Alias `repeats=` |
 | `fault_rate` | `0.5` | Broken tools. `0` off. Applied by the mock world, so a callable `agent=` that answers its own tool calls never sees one |
 | `simulator` | hosted Qwen | Situation writer. `False` uses the built-in template writer (no model, less variety); an `openai:`/`vllm:` spec runs it on your endpoint |
+| `logprobs` | `False` | Ask the rollout model for the log-probability of every token it generates. Each agent turn's step gets `logprob` and `n_tokens`, the row gets the totals. `"tokens"` keeps the per-token list. Model backends only |
 | `reproducible` | `False` | Same seed, same concurrency, same agent: same rows. Runs batch by batch, so uneven latency costs throughput. Needs the clock off |
 | `grade` | `False` | Rows come back ungraded; grade after with `zps.grade(...)`, or pass `grader=` (your callable) or `grade=True` (conduct score) |
 | `llm_grade` | `False` | Extra LLM judge. Needs `OPENAI_API_KEY` |
@@ -313,6 +314,8 @@ After grading, `data.pass_at` (also on the `ScoredData` from `judge=` and `evalu
 scored = data.grade(judge=my_judge)
 print(scored.pass_at)  # pass@1 0.61 | pass^8 0.32 | pass@8 0.88 | headroom 0.27 (200 groups, k=8)
 ```
+
+`simulate(logprobs=True)` records, on every agent turn, the summed log-probability of the tokens the policy generated and how many there were (`step["logprob"]`, `step["n_tokens"]`, totals on the row). A trainer that updates on these rollouts later needs that number to form the importance ratio `exp(new_logprob - logprob)`; without it the update is off-policy and nothing says so. `zps.logprob_report(rows)` says how much was captured and whether reward tracks the policy's confidence, which on a fair judge it should not. Score the same rows under a reference model, put its summed logprob in `ref_logprob`, and `zps.mean_kl(rows)` gives the sampled KL per generated token, overall and per task; `zps.calibrate(rows, ref="ref_logprob")` writes it into each row's `calibration.mean_kl`. A turn the model cut at the token cap is marked `truncated`.
 
 A judge is a reward model, so two things ride with every label. Provenance: rows graded by `zps.grade` carry `judge_name`, `judge_status`, and `judge_meta` with the model, prompt hash, temperature, and `version` (`<model>@<prompt sha>`); a rubric edit is a new judge and the row says so. `run_judge(version=...)` records the same for your own judge. Accuracy: hand-label a sample into `gold_reward` and call `zps.judge_agreement(rows)` (or `scored.agreement()`) for agreement, Cohen's kappa, the confusion counts, and `pass_when_gold_fail`, the gold failures the judge passed. Those are the rows a training run learns the failure from, so that rate matters more than the headline agreement. Pass a second scoring run as `gold` to measure the judge against itself. Fifty gold rows is the floor; the report says so below it.
 

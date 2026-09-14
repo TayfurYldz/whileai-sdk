@@ -176,7 +176,7 @@ def export_row(row: dict) -> dict:
         out["fault_detected"] = True
     # group identity: which rollout of the situation, under which weights.
     # an rl grader groups on disk, so these travel with the row.
-    for key in ("rollout_index", "model_version"):
+    for key in ("rollout_index", "model_version", "logprob", "n_tokens"):
         if row.get(key) is not None:
             out[key] = row[key]
     if row.get("reward") is not None:

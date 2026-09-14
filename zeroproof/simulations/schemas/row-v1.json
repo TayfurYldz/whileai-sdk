@@ -36,6 +36,8 @@
         "llm_reason": {"type": "string"},
         "qwen_reward": {"type": "number", "$comment": "Judgment from scorer 'qwen'"},
         "markers": {"type": "object", "additionalProperties": {"type": "number"}, "$comment": "Marker[] as name -> value"},
+        "logprob": {"type": "number", "$comment": "summed log-probability of the agent's generated tokens under the sampling policy; simulate(logprobs=True)"},
+        "n_tokens": {"type": "integer", "$comment": "generated tokens the logprob sums over"},
         "calibration": {
           "type": "object",
           "required": ["n", "pass_rate"],
@@ -62,8 +64,8 @@
       "type": "object",
       "oneOf": [
         {"required": ["user"], "properties": {"user": {"type": "string"}}},
-        {"required": ["tool"], "properties": {"tool": {"type": "string"}, "arguments": {}, "result": {}, "text": {"type": "string"}}},
-        {"required": ["text"], "properties": {"text": {"type": "string"}}}
+        {"required": ["tool"], "properties": {"tool": {"type": "string"}, "arguments": {}, "result": {}, "text": {"type": "string"}, "logprob": {"type": "number"}, "n_tokens": {"type": "integer"}, "truncated": {"type": "boolean"}}},
+        {"required": ["text"], "properties": {"text": {"type": "string"}, "logprob": {"type": "number"}, "n_tokens": {"type": "integer"}, "truncated": {"type": "boolean"}}}
       ]
     },
     "message": {

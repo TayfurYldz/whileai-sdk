@@ -97,6 +97,7 @@ from .score.judging import (
     normalize_judge_result,
     run_judge,
 )
+from .score.logprobs import logprob_report, mean_kl
 from .score.optimize import (
     DEFAULT_BAND,
     filter_rl_rows,
@@ -183,8 +184,10 @@ __all__ = [
     "llm_grade",
     "load_traces",
     "local_model",
+    "logprob_report",
     "loss_mask",
     "marker_summary",
+    "mean_kl",
     "metric_summary",
     "mine_traces",
     "near_duplicate_prompts",

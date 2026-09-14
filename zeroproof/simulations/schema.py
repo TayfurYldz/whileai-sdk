@@ -92,6 +92,8 @@ _CARRY_ROLLOUT = (
     "steering",
     "tools",
     "group_id",
+    "logprob",
+    "n_tokens",
 )
 
 #: Every key ``from_row`` consumes into a typed field. Anything else on the
@@ -145,6 +147,10 @@ class Step:
     result: Any = None
     text: str | None = None
     user: str | None = None
+    #: sampling facts of the agent turn this step opened, when captured
+    logprob: float | None = None
+    n_tokens: int | None = None
+    truncated: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -261,8 +267,9 @@ class Dataset:
 @dataclass(frozen=True)
 class Calibration:
     """Measured difficulty of one task for one student. Optional; only
-    ``calibrate`` produces it. ``mean_kl`` needs per-token logprobs, which
-    most OpenAI-compatible endpoints do not return on tool-call turns."""
+    ``calibrate`` produces it. ``mean_kl`` is the sampled KL to a reference
+    policy per generated token; ``simulate(logprobs=True)`` captures the
+    student side and ``calibrate(rows, ref=...)`` fills it in."""
 
     task_id: str
     student: PolicyRef
@@ -467,6 +474,9 @@ def _steps(raw: Any) -> list[Step]:
                 result=step.get("result"),
                 text=step.get("text"),
                 user=step.get("user"),
+                logprob=_number(step.get("logprob")),
+                n_tokens=_int(step.get("n_tokens")) or None,
+                truncated=True if step.get("truncated") else None,
             )
         )
     return out
@@ -683,6 +693,12 @@ def _step_dict(step: Step) -> dict:
         out["result"] = step.result
     if step.text is not None:
         out["text"] = step.text
+    if step.logprob is not None:
+        out["logprob"] = step.logprob
+    if step.n_tokens is not None:
+        out["n_tokens"] = step.n_tokens
+    if step.truncated:
+        out["truncated"] = True
     return out
 
 
@@ -754,6 +770,8 @@ def to_row(
         "quality_scores",
         "tools",
         "group_id",
+        "logprob",
+        "n_tokens",
     ):
         if rollout.extra.get(key) is not None:
             row[key] = rollout.extra[key]

@@ -272,7 +272,10 @@ pairs a passing and a failing rollout of the same prompt; read
 `report["warnings"]` before exporting, it flags pairs where chosen is
 usually the longer reply or where the two sides came from different models.
 For RL, use repeated groups and `select_for_rl`; keep groups whole and
-require meaningful within-group reward variation.
+require meaningful within-group reward variation. Run with `logprobs=True`
+when the rows will feed a trainer that corrects for off-policy sampling or
+measures KL: each agent step then carries `logprob` and `n_tokens`, and
+`zps.logprob_report(rows)` says what was captured.
 
 ## Deliverable
 
