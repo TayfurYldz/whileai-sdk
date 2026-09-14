@@ -45,6 +45,8 @@ from .ingest.otel import rows_from_otel
 from .ingest.platform import (
     agents,
     catalog,
+    cut,
+    cuts,
     datasets,
     delete_empty_datasets,
     hf_publish,
@@ -227,6 +229,8 @@ __all__ = [
     "connect",
     "conversation",
     "curriculum",
+    "cut",
+    "cuts",
     "dataset_report",
     "datasets",
     "decontaminate",

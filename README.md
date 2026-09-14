@@ -365,6 +365,24 @@ so editing the system prompt keeps every task except the ones for the
 clause that changed. Rewording one rule, adding one, or swapping the model
 leaves the rest of the eval paired for `compare_runs`.
 
+### Training data out of traces
+
+The platform's "Make training data" button, as one line:
+
+```python
+zps.cuts(agent="my-agent")  # what a cut would hold
+made = zps.cut(agent="my-agent", kind="rl")  # make it
+zps.pull(made["train"]["datasetId"], "train.jsonl")
+made["holdout"]["datasetId"]  # measure on this, never train on it
+```
+
+Runs of the same prompt are grouped by `zeroproof.scenario_id`. `kind="rl"` keeps the
+prompts the agent passes some of the time and not always (20% to 80% by default);
+`kind="sft"` keeps the best run of every prompt that ever passed. Either way the prompts
+are split into a train set and a held-out set. `since="7d"` narrows the window, `band=`
+and `holdout=` move the defaults, and any other keyword is a trace filter (`model=`,
+`tool=`, `evalSet=`).
+
 ### Trust the numbers
 
 Three checks that decide whether a result is believable, all report-only and all over rows you already have.
