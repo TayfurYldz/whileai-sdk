@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `training_rows` / `export_training` take `mask_mode="assistant"`
+  (default, every agent turn) or `"final"` (only the last agent turn,
+  rlhf-book ch. 4). `zps.loss_mask(messages, mode=)` builds the mask on
+  its own; the export report carries `mask_mode`, `trained_messages`,
+  `masked_messages`.
 - Purpose on every pushed dataset: `data.push(name, purpose="train")`,
   `holdout=0.2` pushes a linked holdout set split by task,
   `zps.update_dataset(id, purpose=...)`, `zps.preview(id)`. The

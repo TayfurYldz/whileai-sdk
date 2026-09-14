@@ -171,6 +171,29 @@ def _convert_messages(messages: Sequence[dict], *, system: str, strip_think: boo
     return out
 
 
+MASK_MODES = ("assistant", "final")
+
+
+def loss_mask(messages: Sequence[dict], *, mode: str = "assistant") -> list[int]:
+    """One 0/1 per message: 1 carries loss, 0 is context only.
+
+    ``"assistant"`` trains every assistant turn, the multi-turn default.
+    ``"final"`` trains only the last assistant turn, for conversations
+    whose earlier agent turns were scripted or came from another policy
+    (rlhf-book ch. 4 "Implementation Details" describes both). System,
+    user, and tool messages are always 0: tool output is the environment
+    speaking, not the policy, and training on it teaches the model to
+    invent tool results (ch. 13).
+    """
+    if mode not in MASK_MODES:
+        raise ValueError(f"mask_mode must be one of {MASK_MODES}, got {mode!r}")
+    mask = [1 if isinstance(m, dict) and m.get("role") == "assistant" else 0 for m in messages]
+    if mode == "final" and any(mask):
+        last = max(i for i, v in enumerate(mask) if v)
+        mask = [1 if i == last else 0 for i in range(len(mask))]
+    return mask
+
+
 def _resolve(source) -> tuple[list[dict], str, list, str]:
     """rows, system prompt, tools, source path (best effort)."""
     if hasattr(source, "trajectories"):
@@ -189,14 +212,18 @@ def training_rows(
     system_prompt: str | None = None,
     tools: Sequence[dict] | None = None,
     strip_think: bool = True,
+    mask_mode: str = "assistant",
 ) -> list[dict]:
     """Rows a trainer can consume directly. See the module docstring.
 
     ``source`` is a ``SimulationData`` (system prompt and tools come from
     its profile), a row list, or a JSONL path. For lists and paths, pass
     ``system_prompt=`` and ``tools=`` explicitly; a row exported without
-    its policy trains an agent that never saw its rules.
+    its policy trains an agent that never saw its rules. ``mask_mode``
+    picks which assistant turns carry loss (see ``loss_mask``).
     """
+    if mask_mode not in MASK_MODES:
+        raise ValueError(f"mask_mode must be one of {MASK_MODES}, got {mask_mode!r}")
     from zeroproof.simulations import conversation
 
     rows, system, resolved_tools, _ = _resolve(source)
@@ -235,7 +262,7 @@ def training_rows(
         # Train on the agent's turns only. Tool output is the environment's
         # text, not the policy's, and is masked from the loss (rlhf-book
         # ch. 13); system and user turns likewise. One entry per message.
-        entry["loss_mask"] = [1 if m.get("role") == "assistant" else 0 for m in entry["messages"]]
+        entry["loss_mask"] = loss_mask(entry["messages"], mode=mask_mode)
         if resolved_tools:
             entry["tools"] = list(resolved_tools)
         for key in _CARRY_KEYS:
@@ -285,6 +312,7 @@ def export_training(
     tools: Sequence[dict] | None = None,
     strip_think: bool = True,
     validate: bool = True,
+    mask_mode: str = "assistant",
 ) -> dict[str, Any]:
     """Write ``training_rows`` as JSONL. Never overwrites the source.
 
@@ -293,7 +321,13 @@ def export_training(
     calls do not round-trip to structured arguments; pass ``validate=False``
     to export anyway and read the report instead.
     """
-    rows = training_rows(source, system_prompt=system_prompt, tools=tools, strip_think=strip_think)
+    rows = training_rows(
+        source,
+        system_prompt=system_prompt,
+        tools=tools,
+        strip_think=strip_think,
+        mask_mode=mask_mode,
+    )
     roundtrip = tool_call_roundtrip(rows)
     if validate and roundtrip["invalid"]:
         raise ValueError(
@@ -316,6 +350,9 @@ def export_training(
         "with_tools": sum(1 for r in rows if r.get("tools")),
         "groups": len({r["group_id"] for r in rows if "group_id" in r}),
         "tool_call_roundtrip": roundtrip,
+        "mask_mode": mask_mode,
+        "trained_messages": sum(sum(r["loss_mask"]) for r in rows),
+        "masked_messages": sum(len(r["loss_mask"]) - sum(r["loss_mask"]) for r in rows),
     }
     if dest:
         report["path"] = write_jsonl(dest, rows)
@@ -429,9 +466,11 @@ def export_preference(
 
 
 __all__ = [
+    "MASK_MODES",
     "export_dataset",
     "export_preference",
     "export_training",
+    "loss_mask",
     "tool_call_roundtrip",
     "training_rows",
 ]

@@ -18,7 +18,13 @@ import logging as _logging
 
 from . import data, schema, simulation
 from .data import SimulationData, conversation, grade, grade_llm, llm_grade, rank
-from .export import export_dataset, export_preference, export_training, training_rows
+from .export import (
+    export_dataset,
+    export_preference,
+    export_training,
+    loss_mask,
+    training_rows,
+)
 from .generate.adapters import AgentProfile, claude_code, connect, inspect
 from .generate.agents import hosted_model, local_model
 from .generate.diversity import adaptive_allocator, allocator_slot_counts
@@ -165,6 +171,7 @@ __all__ = [
     "llm_grade",
     "load_traces",
     "local_model",
+    "loss_mask",
     "mine_traces",
     "near_duplicate_prompts",
     "normalize_judge_result",
