@@ -5,6 +5,32 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/dpo`: a second balanced round from the round-one adapter
+  made the invented-id habit worse (no-id pass@1 0.82 to 0.26 while
+  with-id rose 0.56 to 0.91); the README records it. DPO needs contrast
+  on the no-id prompts themselves, not more of them.
+- Sampling facts on every simulated row (rlhf-book ch. 6, 9):
+  `policy_version` (`<model_version>@<sha256 of the system policy>[:16]`,
+  round-tripped as `Rollout.policy.version`), `sampling` (`temperature`,
+  `logprobs`) on model-backed rollouts, and with `simulate(logprobs="tokens")`
+  the per-token `token_logprobs` list an importance-sampling ratio is built
+  from; all three ride through `training_rows` / `export_training`.
+  `zps.staleness_report(rows, base_model=)`: rows per policy version, stale
+  rows for the model about to be trained, sampling / logprob coverage,
+  with warnings (#121).
+- `argument_grounding`: a marker for tool arguments that came from
+  nowhere. `mark_grounding(rows)` stamps 1 when every string argument
+  of every tool call appears in the prompt, the user and system turns,
+  or an earlier tool result, else 0; `ungrounded_arguments(row)` and
+  `grounding_report(rows)` name the invented values by tool and key.
+  Reads `steps`, `messages` tool calls and `<tool_call>` blocks. The
+  GRPO and DPO examples guard it with `must_not_regress`, so the
+  invented-id regression fails the run instead of hiding under pass@1.
+- Hosted GRPO and DPO run on an L40S, so `zps.train(method="grpo")` on a
+  served base (`Qwen/Qwen3-4B`) trains and serves; the docs no longer say a
+  4B base does not fit.
+
+## 0.32 (2026-09-14)
 - `zps.eval_variance(run_1, run_2, ...)` (or one row list split by
   `lineage.scoring_run_id` / `by=`): the eval's own re-run standard
   deviation, `noise_band` = 2 x std, and Olmo 3's stability band in

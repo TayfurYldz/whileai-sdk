@@ -390,6 +390,10 @@ noise = zps.eval_variance(eval_run_1, eval_run_2, eval_run_3)  # re-run std of t
 zps.delta_report(
     before, after, target="pass_at_1", run_std=noise["run_std"]
 )  # inside the band = no verdict
+zps.mark_grounding(
+    rows
+)  # markers["argument_grounding"]: every tool argument came from the conversation
+zps.grounding_report(rows)  # grounded rate, and the invented values by tool and key
 ```
 
 **Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `warm_judge`) so the cold start, two to three minutes, is not counted as timeouts.
@@ -400,18 +404,15 @@ zps.delta_report(
 
 **Before and after.** `delta_report` runs `compare_runs` on pass@1 and every marker both row sets share. `target=` names the metric the training was meant to move and gives the headline; `must_not_regress=` names the behaviors whose significant drop fails the report; any other significant drop is a warning. `format_delta_report(report)` prints one line per metric. `eval_variance(run_1, run_2, run_3)` is the eval's own re-run standard deviation (three or more evaluations of the same model); passing it as `run_std=` makes any delta inside twice that band `within_noise`, and a target there reads `within_eval_noise` rather than moved, since re-running the eval moves it that much on its own (rlhf-book appendix C). `by=` names a row key, a marker, or a callable that groups rows (a prompt category, a tool, a persona); the report then carries `groups`, the target compared within each group, and `groups_down` for any group whose target dropped significantly while the headline moved. A headline over one dominant kind of prompt cannot hide the other kinds that way.
 
-**Over-optimization markers.** RL against a judge drifts toward what the judge rewards (rlhf-book ch. 14): boilerplate openers, self-reference, hedging, refusal creep, sycophancy. `behavioral_markers(rows)` gives the rate of each over the rollouts; `mark_rows(rows)` stamps them onto `row["markers"]` so `delta_report` compares them before and after training. They are the qualitative signatures KL cannot see.
+**Argument grounding.** A policy trained to call a tool learns to call it before it learns when not to; on the refund environment both GRPO and DPO learned to invent an order id on a quarter of the prompts that gave none while the headline rose. `mark_grounding(rows)` stamps `argument_grounding`: 1 when every string argument of every tool call appears in the prompt, the user and system turns, or an earlier tool result (rows with no calls count as grounded), else 0. No categories, any agent; `must_not_regress=["argument_grounding"]` fails the run that learned to invent, and `ungrounded_arguments(row)` / `grounding_report(rows)` name the values. `ignore_keys=` skips free-text arguments, `allow=` lists enums and defaults.
+
+**Over-optimization, quick read.** `behavioral_markers(rows)` gives the presence rate of each over-optimization tic (boilerplate, self-reference, hedging, refusal, sycophancy) in one call: higher means the tic shows up more.
 
 ```python
 zps.behavioral_markers(scored.rows)  # {"boilerplate": 0.31, "refusal": 0.04, ...}
-after = zps.mark_rows(evaluate(after_rows, judge=my_judge).rows)
-zps.delta_report(
-    before=zps.mark_rows(scored.rows),
-    after=after,
-    target="pass_at_1",
-    must_not_regress=["refusal", "sycophancy"],
-)
 ```
+
+For a before/after comparison use `style_markers` / `style_report` above, not these: those markers are 1.0 when the reply is clean (higher is better), which is the polarity `delta_report(must_not_regress=...)` expects. `behavioral_markers` is presence (higher is worse), so it reads a paired delta backwards. The two cover the same ch. 14 behaviors and are being consolidated onto `style`.
 
 **Benchmark across seeds.** `pass_at(rows).ci95` is the interval over which tasks you picked; it does not see that the model is stochastic and the same eval re-run gives a different number (rlhf-book ch. 16). `benchmark_report(seed_runs)` takes several graded runs of one frozen eval and reports pass@1 mean and SD across seeds, the spread, and the tasks that flip seed to seed, so you know whether a before/after delta clears the run-to-run noise. `run_benchmark(eval_set, judge=, rollout=, seeds=5)` drives the seed loop for you; pass `decontaminate_against=train_rows` to fold an 8-gram leak check into the scorecard.
 
@@ -443,7 +444,7 @@ model = zps.serve("refund-v2", run)  # adapter on an OpenAI-compatible endpoint
 zps.models()  # what the account hosts
 ```
 
-`holdout=` names the eval set (defaults to the train set's split sibling); a dataset already training returns that run. `serve` needs a finished run whose base is a served one (`Qwen/Qwen3-4B`, `microsoft/phi-4`). The trainer's default bases (Qwen2.5-0.5B for SFT, 1.5B for GRPO and DPO) train in under a minute but cannot be served, so `train` warns when a run will not reach an endpoint; SFT on Qwen3-4B fits the A10G, GRPO and DPO on a 4B base do not yet. Qwen3 answers in thinking mode by default: leave room in `max_tokens` or send `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`.
+`holdout=` names the eval set (defaults to the train set's split sibling); a dataset already training returns that run. `serve` needs a finished run whose base is a served one (`Qwen/Qwen3-4B`, `microsoft/phi-4`). The trainer's default bases (Qwen2.5-0.5B for SFT, 1.5B for GRPO and DPO) train in under a minute but cannot be served, so `train` warns when a run will not reach an endpoint; SFT runs on an A10G; GRPO and DPO run on an L40S, so a 4B base fits all three. Qwen3 answers in thinking mode by default: leave room in `max_tokens` or send `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`.
 
 Your own trainer, three ways in:
 
@@ -550,6 +551,7 @@ print(scored.pass_at)  # pass@1 0.61 | pass^8 0.32 | pass@8 0.88 | headroom 0.27
 ```
 
 `simulate(logprobs=True)` records, on every agent turn, the summed log-probability of the tokens the policy generated and how many there were (`step["logprob"]`, `step["n_tokens"]`, totals on the row). A trainer that updates on these rollouts later needs that number to form the importance ratio `exp(new_logprob - logprob)`; without it the update is off-policy and nothing says so. `zps.logprob_report(rows)` says how much was captured and whether reward tracks the policy's confidence, which on a fair judge it should not. Score the same rows under a reference model, put its summed logprob in `ref_logprob`, and `zps.mean_kl(rows)` gives the sampled KL per generated token, overall and per task; `zps.calibrate(rows, ref="ref_logprob")` writes it into each row's `calibration.mean_kl`. A turn the model cut at the token cap is marked `truncated`. Independently of `logprobs`, every agent step also records what its model call cost when the server reports it (`step["input_tokens"]`, `step["output_tokens"]`, summed into `row["usage"]`), which is what the platform counts per day.
+zps.staleness_report(rows, base_model="Qwen/Qwen3-4B")  # policy versions, stale rows, logprob coverage
 
 The default judge is not the policy. `zps.grade` grades with hosted Phi-4 (`ZEROPROOF_JUDGE` overrides; any `vllm:`/`openai:` spec or a bare URL works), while rollouts come from hosted Qwen, because a judge grading its own model's writing prefers it. When the judge and the rows' `model_version` are the same model anyway, the grade report says so (`self_judged`, `warnings`).
 

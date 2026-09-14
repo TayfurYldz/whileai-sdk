@@ -99,6 +99,12 @@ from .score.benchmark import benchmark_report, format_benchmark, run_benchmark
 from .score.curriculum import curriculum, format_curriculum, retire_solved
 from .score.delta import delta_report, format_delta_report
 from .score.grading import behavior_signature, conduct_grade
+from .score.grounding import (
+    argument_grounding,
+    grounding_report,
+    mark_grounding,
+    ungrounded_arguments,
+)
 from .score.hygiene import (
     HACK_THRESHOLD,
     dedupe_groups,
@@ -114,7 +120,7 @@ from .score.judging import (
     normalize_judge_result,
     run_judge,
 )
-from .score.logprobs import logprob_report, mean_kl
+from .score.logprobs import logprob_report, mean_kl, staleness_report
 from .score.markers import STOCK_MARKERS, behavioral_markers, format_markers, mark_rows, row_markers
 from .score.optimize import (
     DEFAULT_BAND,
@@ -190,6 +196,7 @@ __all__ = [
     "adaptive_allocator",
     "agents",
     "allocator_slot_counts",
+    "argument_grounding",
     "attach_delta",
     "behavior_signature",
     "behavioral_markers",
@@ -236,6 +243,7 @@ __all__ = [
     "get_run",
     "grade",
     "grade_llm",
+    "grounding_report",
     "group_signal",
     "hf_publish",
     "hf_publish_run",
@@ -256,6 +264,7 @@ __all__ = [
     "local_model",
     "logprob_report",
     "loss_mask",
+    "mark_grounding",
     "mark_rows",
     "marker_summary",
     "mean_kl",
@@ -303,6 +312,7 @@ __all__ = [
     "split_pseudo_production",
     "stage_of",
     "stage_report",
+    "staleness_report",
     "stamp_spec",
     "stamp_stage",
     "style_markers",
@@ -314,6 +324,7 @@ __all__ = [
     "training_run",
     "trim_out_of_band",
     "trim_unanimous_groups",
+    "ungrounded_arguments",
     "unpublish",
     "update_dataset",
     "validate",
