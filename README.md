@@ -26,7 +26,7 @@ A situation is drawn across the world axes (from the agent's tools) and the huma
 3. **Write users.** A separate writer (same hosted model, different prompt, no agent policy) samples situations across tools, stance, history, and so on.
 4. **Pick the diverse ones.** Embeddings plus a bit of noise so the batch is not 200 copies of the same prompt.
 5. **Play the agent.** It talks, calls tools, gets results, talks again. All of that is stored: user text, agent text, tool calls, tool results, `final_text`.
-6. **Grade.** Rows come back ungraded. Grade after with `zps.grade(...)`, pass your own `grader=`, or `grade=True` for the deterministic conduct score.
+6. **Grade.** Rows come back ungraded. Grade after with `data.grade()` (hosted judge), `data.grade(judge=...)` (your judge), or `zps.grade(path)`. The legacy `grade=True` flag writes deterministic conduct rewards; avoid it for the rubric workflow.
 
 Stop when the row cap or the clock hits.
 
@@ -149,7 +149,7 @@ Pass `spec=` if you have a local tools-and-system-prompt folder. The generated d
 | `simulator` | hosted Qwen | Situation writer. `False` uses the built-in template writer (no model, less variety); an `openai:`/`vllm:` spec runs it on your endpoint |
 | `logprobs` | `False` | Ask the rollout model for the log-probability of every token it generates. Each agent turn's step gets `logprob` and `n_tokens`, the row gets the totals. `"tokens"` keeps the per-token list. Model backends only |
 | `reproducible` | `False` | Same seed, same concurrency, same agent: same rows. Runs batch by batch, so uneven latency costs throughput. Needs the clock off |
-| `grade` | `False` | Rows come back ungraded; grade after with `zps.grade(...)`, or pass `grader=` (your callable) or `grade=True` (conduct score) |
+| `grade` | `False` | Legacy: `True` writes the deterministic conduct score at simulation time. Rows come back ungraded by default; grade after with `data.grade(...)` or `zps.grade(...)` |
 | `llm_grade` | `False` | Extra LLM judge. Needs `OPENAI_API_KEY` |
 | `output` | | JSONL path |
 
@@ -397,7 +397,7 @@ hosted GPU with warm replicas and burst under load.
 | `budget` | `1000` | Row cap |
 | `time_budget` | `None` | Seconds. Off by default; `None` or `0` disables |
 | `until` | `"compute"` | `"saturation"` also stops when coverage plateaus |
-| `grade` | `False` | Grade after, or pass `grader=` / `grade=True` |
+| `grade` | `False` | Legacy deterministic conduct score; grade after instead |
 | `llm_grade` | `False` | Extra LLM judge |
 | `output` | | JSONL path |
 | `advanced` | | Keys below |
