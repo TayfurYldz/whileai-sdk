@@ -36,8 +36,10 @@ Use what the developer has:
   search on their tools, faults, world states, and behaviors. About 20 graded
   or fault-bearing traces gives useful targeting; below 10, treat the result
   mostly as cold-start exploration and say so.
-- `agent=`: connect an existing callable, supported framework agent, command,
-  or OpenAI-compatible model endpoint.
+- `agent=`: who plays the target agent (their model, callable, or endpoint).
+  That is on-policy for that student. Omit `agent=` and hosted Qwen walks —
+  off-policy for them. If they have traces, load those first and pass
+  `traces=` so the covering sample aims at what already broke.
 - `spec=`: load a repository folder containing the agent specification.
 - `seeds=`: preserve specific developer-provided tasks as starting asks. Use
   repeats when the developer needs multiple attempts on the same task.

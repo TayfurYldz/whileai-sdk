@@ -100,6 +100,11 @@ def simulate(
     so held-out traces stay out of training. Without it the grid comes
     from the agent's tools and policy alone (cold start).
 
+    ``agent=`` is who *plays* the target agent (their Kimi/endpoint/callable).
+    That is on-policy for that model. Omit it and hosted Qwen walks the
+    cards — off-policy data for their student. The writer can still be
+    Qwen; who plays is what makes the row on- or off-policy.
+
     ``execute=`` is the caller's world: a function ``(tool, arguments) ->
     result`` that answers every tool call for real, against their repo,
     database, or service. Without it the mock world answers, which fits
