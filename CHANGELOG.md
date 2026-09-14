@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.28 (2026-09-14)
 
 - Judge verdicts: a complete JSON object in the reply decides on its own.
   A string-typed score, a duplicate `score` key, a `score` that disagrees
