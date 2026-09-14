@@ -190,6 +190,25 @@ zps.delete_dataset(v1["datasetId"])  # permanent
 Storage is private per account, 5 GB free. `parent=` records dataset
 lineage so iterations show as a family on the platform.
 
+### Publish a dataset as a card
+
+```python
+data.push(
+    "airline-refunds-v3",
+    agent="airline-support",
+    publish=True,
+    description="Graded refund conversations with injected tool faults.",
+)
+zps.publish("ds_...", agent="airline-support")  # or publish an existing one
+zps.catalog()  # every public card, by agent
+rows = zps.pull("ds_...")  # public sets need no key
+zps.unpublish("ds_...")
+```
+
+Cards live at https://zeroproofai.com/datasets, grouped by agent, with rows,
+size and the analyzer's numbers on each. A dataset must be finalized and
+hold rows to publish.
+
 ## Speed
 
 Two-minute airline runs using ZeroProof-hosted Qwen. Results were measured on the

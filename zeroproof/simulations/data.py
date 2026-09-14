@@ -421,15 +421,36 @@ class SimulationData:
     def rows(self) -> list[dict]:
         return [export_row(t) for t in self.trajectories]
 
-    def push(self, name: str, *, api_key: str | None = None, parent: str | None = None) -> dict:
+    def push(
+        self,
+        name: str,
+        *,
+        api_key: str | None = None,
+        parent: str | None = None,
+        agent: str | None = None,
+        publish: bool = False,
+        description: str | None = None,
+    ) -> dict:
         """Upload this run to your Zero Proof Labs account as a dataset.
 
         ``api_key`` defaults to the ``ZEROPROOF_API_KEY`` env var, then the
         key saved by ``zeroproof login``. Pass ``parent`` (a ``ds_...``
         id) when this run iterates on an existing dataset, so lineage shows
-        on the platform. Returns the registry entry with ``datasetId``.
+        on the platform. ``publish=True`` with an ``agent`` name also puts it
+        on the public catalog at zeroproofai.com/datasets as a card. Returns
+        the registry entry with ``datasetId``.
         """
-        return push_rows(self.rows(), name, api_key=api_key, parent=parent)
+        from .ingest.platform import publish as _publish
+
+        if publish and not agent:
+            raise ValueError("publish=True needs agent=..., cards are grouped by agent")
+        entry = push_rows(self.rows(), name, api_key=api_key, parent=parent)
+        if publish:
+            entry = {
+                **entry,
+                "card": _publish(entry["datasetId"], agent or "", description, api_key=api_key),
+            }
+        return entry
 
     def sft_rows(self, failures_only: bool = True) -> list[dict]:
         return [

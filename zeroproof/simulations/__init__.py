@@ -32,12 +32,15 @@ from .generate.scenarios import (
 )
 from .ingest.otel import rows_from_otel
 from .ingest.platform import (
+    catalog,
     datasets,
     issue_delegated_credential,
+    publish,
     pull,
     push_file,
     push_rows,
     refresh_delegated_credential,
+    unpublish,
 )
 from .ingest.platform import (
     delete as delete_dataset,
@@ -113,6 +116,7 @@ __all__ = [
     "behavior_signature",
     "build_dimensions",
     "build_preference_pairs",
+    "catalog",
     "classify_failure",
     "claude_code",
     "conduct_grade",
@@ -149,6 +153,7 @@ __all__ = [
     "pass_at",
     "policy_sections",
     "preflight",
+    "publish",
     "pull",
     "push_file",
     "push_rows",
@@ -170,6 +175,7 @@ __all__ = [
     "trace_report",
     "training_rows",
     "trim_unanimous_groups",
+    "unpublish",
     "validate",
     "write_scene_brief",
 ]

@@ -67,13 +67,14 @@ def _call(
     timeout: int = 120,
     auth_token: str | None = None,
     require_api_key: bool = False,
+    public: bool = False,
 ) -> Any:
     url = raw_url or (_api_url() + path)
     headers: dict[str, str] = {}
     token = str(auth_token or "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    if require_api_key or (not raw_url and not token):
+    if require_api_key or (not raw_url and not token and not public):
         headers["X-Api-Key"] = _key(api_key)
     if body is not None:
         data = json.dumps(body).encode()
@@ -278,11 +279,61 @@ def datasets(*, api_key: str | None = None) -> dict:
     return _call("GET", "/datasets", api_key)
 
 
+def publish(
+    dataset_id: str,
+    agent: str,
+    description: str | None = None,
+    *,
+    api_key: str | None = None,
+) -> dict:
+    """Publish one of your datasets as a public card on zeroproofai.com/datasets.
+
+    Cards are grouped by ``agent`` (a short name such as ``"airline-support"``).
+    The dataset must be finalized and hold rows. Returns the card. Anyone can
+    then ``pull`` it with no key.
+    """
+    body: dict = {"agent": agent}
+    if description:
+        body["description"] = description
+    return _call("POST", f"/datasets/{dataset_id}/publish", api_key, body)
+
+
+def unpublish(dataset_id: str, *, api_key: str | None = None) -> dict:
+    """Take a dataset off the public catalog. The data stays on your account."""
+    return _call("POST", f"/datasets/{dataset_id}/unpublish", api_key)
+
+
+def catalog() -> dict:
+    """The public catalog: ``{"datasets": [card, ...], "agents": [...]}``. No key needed."""
+    return _call("GET", "/catalog", None, public=True)
+
+
+def _has_key(api_key: str | None) -> bool:
+    return bool(
+        api_key
+        or os.environ.get("ZEROPROOF_DELEGATED_CREDENTIAL")
+        or os.environ.get("ZEROPROOF_API_KEY")
+        or stored_api_key()
+    )
+
+
+def _download_grant(dataset_id: str, api_key: str | None) -> dict:
+    """Your own dataset when a key is at hand, else the public catalog copy."""
+    if _has_key(api_key):
+        try:
+            return _call("GET", f"/datasets/{dataset_id}/download", api_key)
+        except PlatformError as err:
+            if "404" not in str(err):
+                raise
+    return _call("GET", f"/catalog/{dataset_id}/download", None, public=True)
+
+
 def pull(
     dataset_id: str, path: str | None = None, *, api_key: str | None = None
 ) -> str | list[dict]:
     """Download a dataset. Writes JSONL to ``path`` and returns the path,
-    or returns the parsed rows when ``path`` is omitted.
+    or returns the parsed rows when ``path`` is omitted. Public catalog
+    datasets need no key; your own need the usual one.
 
     A dataset is stored as one or more parts, and the grant lists every one
     of them. Datasets pushed with ``push_rows`` are a single part, which is
@@ -290,7 +341,7 @@ def pull(
     filled by trace ingest is one part per trace, and that path returned the
     first row of a 60-row dataset without saying so.
     """
-    grant = _call("GET", f"/datasets/{dataset_id}/download", api_key)
+    grant = _download_grant(dataset_id, api_key)
     # `downloadUrl` is parts[0], kept for older grants that predate the list.
     urls = [u for u in (grant.get("parts") or []) if isinstance(u, str)]
     if not urls:

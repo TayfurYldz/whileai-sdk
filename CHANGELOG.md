@@ -3,6 +3,13 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Public catalog: `zps.publish(id, agent=...)`, `zps.unpublish(id)`,
+  `zps.catalog()`, and `data.push(..., agent=..., publish=True)` put a
+  dataset on zeroproofai.com/datasets as a card grouped by agent.
+  `zps.pull` fetches public sets with no key.
+
 ## 0.17 (2026-09-13)
 
 - `signup` says that the key is a trial key and how to lift it.
