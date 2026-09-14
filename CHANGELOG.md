@@ -5,6 +5,10 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `training_rows(unroll=True)` / `export_training(unroll=True)`: an N-turn
+  conversation becomes N samples, the k-th ending at the k-th agent turn
+  with loss on that turn only (rlhf-book ch. 4); samples carry `unroll`
+  (`turn`, `turns`) and `lineage.unrolled_from`, and no group fields (#129).
 - `examples/dpo`: a second balanced round from the round-one adapter
   made the invented-id habit worse (no-id pass@1 0.82 to 0.26 while
   with-id rose 0.56 to 0.91); the README records it. DPO needs contrast
