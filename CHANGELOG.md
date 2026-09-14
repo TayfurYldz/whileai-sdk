@@ -3,7 +3,17 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## 0.41 (2026-09-14)
+## Unreleased
+
+- `write_rubrics(max_hard=N)`: the heaviest N hard rules a model-written
+  rubric carries stay hard, the rest become weighted principles
+  (`demoted_hard` in the report). Measured live on 72 rollouts with the
+  hosted judge: uncapped rubrics (about three hard rules each) failed 48
+  rows on a hard rule with mean reward 0.14; `max_hard=1` 42 rows, 0.26;
+  `max_hard=0` none, 0.48. Default `None` keeps what the writer wrote; use
+  0 or 1 for a training reward (#181).
+
+2026-09-14)
 
 - `zps.reference_logprobs(rows, "vllm:<model>@<url>")`: scores every agent turn
   under a reference model through `prompt_logprobs` on any vLLM-style
