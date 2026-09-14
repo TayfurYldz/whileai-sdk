@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `rubric_judge` numbers the checklist and asks for verdicts by item
+  number; `Rubric.score` also resolves a title, its slug or a paraphrase
+  that contains it, and results carry `n_unanswered`. Live on the hosted
+  judge, 10 of 32 rows had items answered under a rewritten title and
+  failed for it; now none do (#156).
 - `concurrency: 1` is round-synchronous, like `reproducible=True`: the
   batch's rollouts and their in-loop verdicts all land before the next
   round is chosen. Two same-seed serial runs in one process could draw
