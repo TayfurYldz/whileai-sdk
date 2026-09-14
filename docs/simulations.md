@@ -75,7 +75,9 @@ success declared after a failed call), and then your grader, a function
 you write, decides what good means for your agent. The SDK's job is to
 make every row worth grading; it does not get a vote on what passes.
 It does insist on two things about whichever judge you use, because a
-judge is a reward model. Every label says who made it: the hosted grader
+judge is a reward model. The hosted grader is a different model family
+from the hosted policy, because a judge grading its own writing prefers
+it. Every label says who made it: the hosted grader
 stamps its model, rubric hash, and settings on the row, and a custom
 judge can pass `version=` to do the same, so a rubric edit is visible as
 a new judge rather than a silent drift. And the judge is measured, not

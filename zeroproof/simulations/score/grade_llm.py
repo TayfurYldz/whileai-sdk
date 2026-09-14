@@ -9,7 +9,12 @@ import time
 from collections.abc import Sequence
 from typing import Any
 
-from ..generate.agents import complete, default_agent_spec, missing_hosted_key, parse_backend_spec
+from ..generate.agents import (
+    complete,
+    default_judge_spec,
+    missing_hosted_key,
+    parse_backend_spec,
+)
 
 MISSING_QWEN_KEY = "Hosted Qwen needs VLLM_API_KEY set in the environment."
 
@@ -87,22 +92,24 @@ _FAULT_NAMES = {
 def judge_spec(
     *, spec: str | None = None, base_url: str | None = None, model: str | None = None
 ) -> str:
-    """vLLM / OpenAI-compatible spec. Default is hosted Qwen."""
+    """vLLM / OpenAI-compatible spec. Default is the hosted judge
+    (``default_judge_spec``), a different model family from the policy."""
     text = str(spec or "").strip()
+    _, default_model = parse_backend_spec(default_judge_spec())
     if text:
         if text.startswith(("vllm:", "ollama:", "openai:")):
             return text
-        return "vllm:Qwen/Qwen3-4B-Instruct-2507@" + text.rstrip("/")
+        return f"vllm:{default_model}@" + text.rstrip("/")
     url = str(base_url or "").strip().rstrip("/")
     if url:
-        name = str(model or "").strip() or "Qwen/Qwen3-4B-Instruct-2507"
+        name = str(model or "").strip() or default_model
         return f"vllm:{name}@{url}"
-    return default_agent_spec()
+    return default_judge_spec()
 
 
 def hosted_judge_endpoint() -> dict[str, str]:
-    """Default Hosted Qwen URL and model for the Grade UI."""
-    spec = default_agent_spec()
+    """Default hosted judge URL and model for the Grade UI."""
+    spec = default_judge_spec()
     url, model = parse_backend_spec(spec)
     return {"spec": spec, "base_url": url, "model": model, "brain": "hosted"}
 
@@ -302,6 +309,42 @@ def _parse_binary(text: str) -> int | None:
     return score
 
 
+JUDGE_WARMUP_TIMEOUT = 600.0
+
+
+def warm_judge(
+    spec: str, *, api_key: str | None = None, timeout: float = JUDGE_WARMUP_TIMEOUT
+) -> dict:
+    """One small request before the fan-out, with a long timeout.
+
+    The hosted judge scales to zero and takes two to three minutes to load
+    its weights. Without this, every row in the first waves timed out
+    against a server that was still starting, and a whole run graded as
+    unreachable. The cold start is paid once here; the rows then see a
+    warm server. Returns ``ok``, ``seconds``, and ``error`` when it failed;
+    grading continues either way.
+    """
+    url, model = parse_backend_spec(spec)
+    started = time.monotonic()
+    try:
+        complete(
+            url,
+            model,
+            [{"role": "user", "content": "Reply with the single word: ready"}],
+            api_key=api_key,
+            temperature=0.0,
+            max_tokens=4,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        return {
+            "ok": False,
+            "seconds": round(time.monotonic() - started, 1),
+            "error": f"{type(exc).__name__}: {exc}"[:300],
+        }
+    return {"ok": True, "seconds": round(time.monotonic() - started, 1)}
+
+
 def grade_one(
     trajectory: dict,
     *,
@@ -310,10 +353,10 @@ def grade_one(
     backend_spec: str | None = None,
     api_key: str | None = None,
     prompt: str | None = None,
-    timeout: float = 45,
+    timeout: float = 120,
 ) -> dict[str, Any]:
     """Score one trajectory. Returns reward 0/1 and a one-sentence reason."""
-    spec = backend_spec or default_agent_spec()
+    spec = backend_spec or default_judge_spec()
     url, model = parse_backend_spec(spec)
     custom = str(prompt or "").strip()
     system = custom or JUDGE_SYSTEM
@@ -343,13 +386,13 @@ def audit_one(
     tools: Sequence | None = None,
     backend_spec: str | None = None,
     api_key: str | None = None,
-    timeout: float = 45,
+    timeout: float = 120,
 ) -> dict[str, Any]:
     """Fairness pass on an existing 0/1. Does not overwrite reward."""
     existing = trajectory.get("reward")
     payload = _user_message(trajectory, policy=policy, tools=tools)
     user = f'{{"existing_label": {json.dumps(existing)}}}\n{payload}'
-    spec = backend_spec or default_agent_spec()
+    spec = backend_spec or default_judge_spec()
     url, model = parse_backend_spec(spec)
     try:
         reply = complete(
@@ -383,11 +426,17 @@ def apply_grade_llm(
     concurrency: int = 16,
     limit: int | None = None,
     degraded: list[str] | None = None,
+    warmup_timeout: float = JUDGE_WARMUP_TIMEOUT,
 ) -> dict[str, Any]:
-    """Write ``reward`` 0/1 and a one-sentence ``reason``. Search does not read this."""
+    """Write ``reward`` 0/1 and a one-sentence ``reason``. Search does not read this.
+
+    The judge is warmed once (``warm_judge``) before rows fan out; the report
+    carries ``warmup`` with how long that took.
+    """
     import concurrent.futures
 
     spec = require_judge_key(api_key, spec=backend_spec, base_url=base_url, model=model)
+    _, judge_model = parse_backend_spec(spec)
     rows = list(trajectories)
     if not rows:
         return {
@@ -395,10 +444,14 @@ def apply_grade_llm(
             "graded": 0,
             "unreachable": 0,
             "backend": spec,
+            "judge_version": judge_version(spec, prompt),
             "seconds": 0.0,
             "seconds_per_row": None,
             "n0": 0,
             "n1": 0,
+            "self_judged": False,
+            "warnings": [],
+            "warmup": None,
         }
     cap = len(rows) if limit is None else max(0, min(len(rows), int(limit)))
     targets = rows[:cap]
@@ -409,7 +462,9 @@ def apply_grade_llm(
             row, policy=policy, tools=tools, backend_spec=spec, api_key=api_key, prompt=prompt
         )
 
+    warmup: dict[str, Any] | None = None
     if targets:
+        warmup = warm_judge(spec, api_key=api_key, timeout=warmup_timeout)
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(concurrency))) as pool:
             verdicts = list(pool.map(one, targets))
     else:
@@ -419,7 +474,6 @@ def apply_grade_llm(
     from ..schema import Judgment, ScorerRef, attach
     from .preflight import classify_failure
 
-    _, judge_model = parse_backend_spec(spec)
     version = judge_version(spec, prompt)
     scorer = ScorerRef(name=JUDGE_NAME, kind="judge", version=version)
     evidence = {
@@ -467,6 +521,20 @@ def apply_grade_llm(
             degraded.append(note)
 
     n_called = len(targets)
+    # A judge grading its own model's rollouts prefers them (rlhf-book
+    # ch. 5, 12). Report it; the caller may have chosen it on purpose.
+    policies = {
+        str(r.get("model_version"))
+        for r in targets
+        if isinstance(r, dict) and r.get("model_version")
+    }
+    warnings: list[str] = []
+    if judge_model in policies:
+        warnings.append(
+            f"judge {judge_model} is also the policy that produced these rows "
+            "(self-preference); set ZEROPROOF_JUDGE or pass spec= to grade with "
+            "another model"
+        )
     return {
         "status": "judged" if graded else "unreachable",
         "graded": graded,
@@ -476,6 +544,9 @@ def apply_grade_llm(
         "n1": n1,
         "backend": spec,
         "judge_version": version,
+        "self_judged": judge_model in policies,
+        "warnings": warnings,
+        "warmup": warmup,
         "seconds": round(elapsed, 3),
         "seconds_per_row": round(elapsed / n_called, 3) if n_called else None,
     }
@@ -516,6 +587,7 @@ def audit_grades(
     def one(row: dict) -> dict[str, Any]:
         return audit_one(row, policy=policy, tools=tools, backend_spec=spec, api_key=api_key)
 
+    warmup = warm_judge(spec, api_key=api_key)
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(concurrency))) as pool:
         verdicts = list(pool.map(one, targets))
 
@@ -542,6 +614,7 @@ def audit_grades(
         "agreed": agreed,
         "disagreed": disagreed,
         "backend": spec,
+        "warmup": warmup,
         "seconds": round(elapsed, 3),
         "seconds_per_row": round(elapsed / n_called, 3) if n_called else None,
     }
