@@ -97,3 +97,33 @@ def test_training_rows_carry_a_loss_mask_on_assistant_turns_only():
     schema_doc = zps.schema.load_json_schema()
     assert "loss_mask" in schema_doc["$defs"]["training_row"]["properties"]
     assert "calibration" in schema_doc["$defs"]["row"]["properties"]
+
+
+def test_final_mask_mode_trains_only_the_last_assistant_turn(tmp_path):
+    import json
+
+    from zeroproof.simulations.export import export_training, loss_mask, training_rows
+
+    row = {
+        "prompt": "look up issue 4412",
+        "reward": 1,
+        "messages": [
+            {"role": "user", "content": "look up issue 4412"},
+            {"role": "assistant", "content": "Checking."},
+            {"role": "user", "content": "thanks"},
+            {"role": "assistant", "content": "Issue 4412 is open."},
+        ],
+    }
+    default = training_rows([row], system_prompt="policy")[0]
+    assert default["loss_mask"] == [0, 0, 1, 0, 1]
+    final = training_rows([row], system_prompt="policy", mask_mode="final")[0]
+    assert final["loss_mask"] == [0, 0, 0, 0, 1]
+    assert loss_mask(final["messages"], mode="final") == final["loss_mask"]
+    with pytest.raises(ValueError, match="mask_mode"):
+        training_rows([row], mask_mode="all")
+
+    src = tmp_path / "run.jsonl"
+    src.write_text(json.dumps(row) + "\n")
+    report = export_training(str(src), system_prompt="policy", mask_mode="final")
+    assert report["mask_mode"] == "final"
+    assert (report["trained_messages"], report["masked_messages"]) == (1, 4)
