@@ -68,32 +68,39 @@ RUBRIC_FILES = ("rubric.md", "rubric.txt")
 
 def spec_rubric(spec: Any) -> str | None:
     """The rubric shipped with a spec: what doing the job means, in prose,
-    for the judge. ``rubric.md`` (or ``.txt``) next to ``spec.json``, or a
-    ``rubric`` key in the spec dict. None when the spec carries none."""
+    for the judge. ``rubric.md`` (or ``.txt``) next to the spec file the
+    loader resolves ``spec`` to (so ``spec="github"`` reads
+    ``specs/github/rubric.md``, the same shorthand ``simulate`` accepts),
+    or a ``rubric`` key in the spec dict. None when the spec carries none."""
     if isinstance(spec, dict):
         text = str(spec.get("rubric") or "").strip()
         return text or None
     if not isinstance(spec, str) or not _looks_like_spec_path(spec):
         return None
-    raw = Path(spec.strip()).expanduser()
-    roots = [Path()] if raw.is_absolute() else [Path.cwd(), Path(__file__).resolve().parents[1]]
-    for root in roots:
-        base = raw if raw.is_absolute() else root / raw
-        folder = base if base.is_dir() else base.parent
-        for name in RUBRIC_FILES:
-            candidate = folder / name
-            if candidate.is_file():
-                text = candidate.read_text(encoding="utf-8").strip()
-                return text or None
-    loaded = _spec_from_path(spec)
-    if isinstance(loaded, dict):
-        text = str(loaded.get("rubric") or "").strip()
-        return text or None
-    return None
+    found = _spec_file(spec.strip())
+    if found is None:
+        return None
+    path, loaded = found
+    for name in RUBRIC_FILES:
+        candidate = path.parent / name
+        if candidate.is_file():
+            text = candidate.read_text(encoding="utf-8").strip()
+            return text or None
+    text = str(loaded.get("rubric") or "").strip()
+    return text or None
 
 
 def _spec_from_path(text: str) -> dict | None:
     """Load tools+policy from a spec file or folder. None if it is not a path."""
+    found = _spec_file(text)
+    return found[1] if found else None
+
+
+def _spec_file(text: str) -> tuple[Path, dict] | None:
+    """The spec file ``text`` resolves to and what it holds: the path as
+    given, the same with a spec suffix, ``spec.json`` inside it as a
+    folder, or ``specs/<name>/`` for a bare name. None if none of them
+    is a readable spec."""
     raw = Path(text).expanduser()
     roots = [Path.cwd(), Path(__file__).resolve().parents[1]]
     candidates: list[Path] = []
@@ -128,7 +135,7 @@ def _spec_from_path(text: str) -> dict | None:
         except Exception:
             continue
         if isinstance(loaded, dict):
-            return loaded
+            return cand, loaded
     return None
 
 

@@ -28,6 +28,21 @@ def test_spec_rubric_reads_the_folder_or_the_dict(tmp_path):
     assert spec_rubric(None) is None
 
 
+def test_spec_rubric_follows_the_bare_name_shorthand_not_the_cwd(tmp_path, monkeypatch):
+    # spec="github" is the loader's shorthand for specs/github/spec.json;
+    # the rubric lives next to the spec it resolves to, never in the cwd
+    folder = tmp_path / "specs" / "github"
+    folder.mkdir(parents=True)
+    (folder / "spec.json").write_text(json.dumps({"tools": TOOLS, "policy": POLICY}))
+    (folder / "rubric.md").write_text("The task is the issue.")
+    (tmp_path / "rubric.md").write_text("A stray file in the working directory.")
+    monkeypatch.chdir(tmp_path)
+    assert spec_rubric("github") == "The task is the issue."
+    assert spec_rubric("specs/github") == "The task is the issue."
+    assert spec_rubric("specs/github/spec.json") == "The task is the issue."
+    assert spec_rubric("nope") is None
+
+
 def test_simulate_carries_the_spec_rubric_and_rubric_kw_wins(tmp_path):
     folder = _spec_folder(tmp_path, "From the folder.")
     data = zps.simulate(
