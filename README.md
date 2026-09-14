@@ -161,7 +161,7 @@ Depends on the use case. How each scenario is built is in [The recipe](#the-reci
 |---|---|---|
 | Many distinct situations | `explore` (default) | New situation every row |
 | Same situation, different wording | `sft` | Multiple phrasings: tone, intent, personality |
-| Same request, different agent behavior | `rl` | Multiple repeats of one phrasing |
+| Same request, different agent behavior | `rl` | Up to k repeats of one phrasing, spent where the agent is inconsistent (see below) |
 | A mix, until coverage plateaus | `adaptive` | New situations, phrasings, and repeats. Best with `until="saturation"` |
 
 ```python
@@ -170,6 +170,28 @@ zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="rl")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", until="saturation")
 ```
+
+`mode="rl"` allocates rollouts successively. Every prompt is probed with
+two rollouts, the least that can show a split. A prompt whose rollouts
+disagree is filled to k, because that is the only place a grouped update
+has a gradient. A prompt that stays unanimous gets one more rollout only
+while the chance the next one differs beats what a fresh prompt offers
+per rollout. Both sides are measured on the run: the hazard is how often a
+group unanimous after n rollouts split on its next one (1/(n+2) only as
+the prior), the fresh side is the run's mixed rate over the probe. When
+nothing fresh can be opened, unanimous groups are resumed and finished.
+Pass `grader=` and it runs beside the rollouts as they land, never in
+front of them; a prompt's decision waits for its verdict, so the
+allocation reads rewards, the signal a grouped update trains on. Without
+a grader it reads behavior signatures, which split more often than the
+judge does.
+Near the end of a `time_budget` the run stops opening groups and finishes
+the ones in flight; a group it still cut is stamped `group_cut`.
+`data.search["groups"]` reports mixed, stopped, complete, partial, and
+rollouts saved. `data.pass_at` scores stopped unanimous groups as
+unanimous. `repeat_policy="fixed"` restores k rollouts for every prompt;
+`advanced={"probe": n}` changes the probe. rlhf-book ch. 6 (dynamic
+sampling) and ch. 7 (difficulty filtering), applied at generation time.
 
 ## Examples
 
