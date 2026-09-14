@@ -5,6 +5,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Sampling facts on every simulated row (rlhf-book ch. 6, 9):
+  `policy_version` (`<model_version>@<sha256 of the system policy>[:16]`,
+  round-tripped as `Rollout.policy.version`), `sampling` (`temperature`,
+  `logprobs`) on model-backed rollouts, and with `simulate(logprobs="tokens")`
+  the per-token `token_logprobs` list an importance-sampling ratio is built
+  from; all three ride through `training_rows` / `export_training`.
+  `zps.staleness_report(rows, base_model=)`: rows per policy version, stale
+  rows for the model about to be trained, sampling / logprob coverage,
+  with warnings (#121).
 - `argument_grounding`: a marker for tool arguments that came from
   nowhere. `mark_grounding(rows)` stamps 1 when every string argument
   of every tool call appears in the prompt, the user and system turns,
