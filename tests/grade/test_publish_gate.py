@@ -176,3 +176,14 @@ def test_push_rows_gate_flag(monkeypatch):
     assert out["gate"]["ok"] and calls[0] == ("POST", "/datasets")
     with pytest.raises(PublishGateError):
         zps.push_rows([{"prompt": "a", "reward": None}] * 2, "n", api_key="k", gate=True)
+
+
+def test_calibration_task_id_prefers_scenario_id_over_prompt_text():
+    rows = _rows({"a very long prompt that should not become an id": [1, 0, 1, 1]})
+    for r in rows:
+        r["scenario_id"] = "scn_42"
+    calibrate(rows)
+    assert all(r["calibration"]["task_id"] == "scn_42" for r in rows)
+    bare = _rows({"p": [1, 0]})
+    calibrate(bare)
+    assert bare[0]["calibration"]["task_id"] == "p"

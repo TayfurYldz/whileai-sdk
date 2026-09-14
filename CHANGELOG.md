@@ -3,6 +3,14 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Platform-shaped rows count their tool calls: the reward-hack scan's
+  `tool_calls` reads `tool_trace` as well as `steps`, so a pulled
+  dataset no longer reports `None` for the tool-count correlation.
+  The calibration stamp's `task_id` is the `scenario_id` when the row
+  has one, not the prompt text.
+
 ## 0.20 (2026-09-14)
 
 - Every row `zps.grade` writes now says which judge produced it:
