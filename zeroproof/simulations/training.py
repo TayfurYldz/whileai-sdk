@@ -174,7 +174,9 @@ class TrainingRun:
         """Flush, then mark the run ``done``, ``failed``, or ``stopped``."""
         self.flush()
         body: dict[str, Any] = {"status": status}
-        merged = dict(summary or {})
+        # A second finish (an eval after the callback already finished the
+        # run) adds to what was sent, never replaces it.
+        merged = {**self._summary, **dict(summary or {})}
         if self._delta is not None:
             merged["delta"] = self._delta
         if merged:
@@ -425,9 +427,12 @@ class TrainerCallback(_callback_base()):  # type: ignore[misc]
     the run as a context manager around ``trainer.train()``.
     """
 
-    def __init__(self, run: TrainingRun):
+    def __init__(self, run: TrainingRun, *, finish: bool = True):
         super().__init__()
         self.run = run
+        #: finish the run at on_train_end. Pass False when the script
+        #: evaluates after training and calls run.finish itself.
+        self.finish_on_end = finish
 
     def on_train_begin(self, args=None, state=None, control=None, **kwargs):
         total = getattr(state, "max_steps", None)
@@ -455,7 +460,7 @@ class TrainerCallback(_callback_base()):  # type: ignore[misc]
         return control
 
     def on_train_end(self, args=None, state=None, control=None, **kwargs):
-        if self.run.status == "running":
+        if self.finish_on_end and self.run.status == "running":
             summary: dict[str, Any] = {}
             history = getattr(state, "log_history", None) or []
             for entry in reversed(history):

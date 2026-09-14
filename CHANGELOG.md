@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/grpo`: GRPO on Modal end to end. Prompts from the offline
+  template writer, a verifiable tool-discipline reward (`reward.py`,
+  unit-tested), TRL `GRPOTrainer` with LoRA on Qwen2.5-1.5B-Instruct,
+  reward and KL on the dashboard, pass@1 before and after on a
+  holdout, and `run.delta` on the run page.
 - Judge replies that break the contract stay ungraded. The binary
   verdict parser read a bare `true` as 1, `{"score": 1.5}` as 1 and
   `{"score": 0.5}` as 0; the 0-to-1 judge clamped a 2 to 1.0 and a -1

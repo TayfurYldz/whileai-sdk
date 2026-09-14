@@ -36,6 +36,7 @@ examples/*
 !examples/identity/
 !examples/schema/
 !examples/pass-at-k/
+!examples/grpo/
 !examples/character/
 !examples/hugging-face/
 examples/character/out/
