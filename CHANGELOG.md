@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.37 (2026-09-14)
 
 - `rubric_judge` numbers the checklist and asks for verdicts by item
   number; `Rubric.score` also resolves a title, its slug or a paraphrase
