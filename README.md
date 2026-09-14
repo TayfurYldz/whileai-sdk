@@ -210,10 +210,10 @@ The report also carries the reward-hack scan: `report["correlations"]` is corr(r
 ### Train, holdout, eval
 
 ```python
-data.push("airline-v3", holdout=0.2)          # train set + a linked holdout set, split by task
-data.push("airline-evals", purpose="eval")    # a set you measure with
+data.push("airline-v3", holdout=0.2)  # train set + a linked holdout set, split by task
+data.push("airline-evals", purpose="eval")  # a set you measure with
 zps.update_dataset("ds_...", purpose="holdout")
-zps.preview("ds_...")                         # three sample rows + the analyzer report
+zps.preview("ds_...")  # three sample rows + the analyzer report
 ```
 
 The Training data page groups sets by purpose (train, holdout, eval, raw)

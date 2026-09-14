@@ -9,6 +9,18 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `holdout=0.2` pushes a linked holdout set split by task,
   `zps.update_dataset(id, purpose=...)`, `zps.preview(id)`. The
   simulation mode is recorded on push.
+- Preference pairs carry what a trainer and a reviewer need to trust them
+  (rlhf-book ch. 8, 11): `chosen_score`, `rejected_score`, `margin` for a
+  margin-aware loss; `chosen_model`, `rejected_model`, `same_policy` so an
+  off-policy pair is labeled, not hidden; `length_delta` for the length
+  exploit. `build_preference_pairs(min_margin=1.0, length_match=True)`:
+  the default still pairs 1 against 0 only, `min_margin=0.5` admits
+  partial-credit rows, and each chosen row now takes the rejected row
+  closest to it in length. The report adds `mean_margin`,
+  `same_policy_pairs`, `mixed_policy_pairs`, `length.chosen_longer_frac`,
+  and `warnings` when chosen is the longer side in 75% or more of pairs
+  or when pairs mix policies. `export_preference` keeps the new fields
+  and reports `mean_margin` and `chosen_longer_frac`.
 
 ## 0.19 (2026-09-14)
 
