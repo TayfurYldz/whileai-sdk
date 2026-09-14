@@ -97,16 +97,19 @@ def _parse_score(text: str) -> tuple[float | None, str | None]:
         if isinstance(payload, dict):
             score = payload.get("score", payload.get("reward"))
             reason = payload.get("reason")
+            if isinstance(score, bool):
+                return None, None
             if score is not None:
                 value = float(score)
-                if value < 0:
-                    value = 0.0
-                if value > 1:
-                    value = 1.0
+                # Outside [0, 1] fits no lane. Clamping turned a 2 into a
+                # pass and a -1 into a fail; the row stays ungraded instead,
+                # the same contract judging.py holds a caller's judge to.
+                if not 0.0 <= value <= 1.0:
+                    return None, None
                 return value, str(reason or "").strip() or None
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
-    match = re.search(r'"(?:score|reward)"\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?|0\.5)', cleaned)
+    match = re.search(r'"(?:score|reward)"\s*:\s*(0(?:\.\d+)?|1(?:\.0+)?)\s*(?:[,}]|$)', cleaned)
     if match:
         value = float(match.group(1))
         reason_match = re.search(r'"reason"\s*:\s*"([^"]+)"', cleaned)

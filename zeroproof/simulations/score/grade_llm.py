@@ -287,12 +287,16 @@ def _parse_verdict(text: str) -> tuple[int | None, str]:
                     score = 0
                 elif value == 1.0:
                     score = 1
-        elif payload in (0, 1, 0.0, 1.0):
+        elif not isinstance(payload, bool) and payload in (0, 1, 0.0, 1.0):
+            # A bare ``true`` parses as 1 in Python; it is not a verdict.
             score = int(payload)
     except (json.JSONDecodeError, TypeError, ValueError):
         pass
     if score is None:
-        match = re.search(r'"(?:score|reward)"\s*:\s*(0|1)(?:\.0+)?\b', cleaned)
+        # Chatter around the object, or a reply cut off after the score.
+        # The digit must end the number: ``1.5`` and ``0.5`` are not 1 and
+        # 0, they are contract breaks and stay ungraded.
+        match = re.search(r'"(?:score|reward)"\s*:\s*(0|1)(?:\.0+)?\s*(?:[,}]|$)', cleaned)
         if match:
             score = int(match.group(1))
         elif cleaned in {"0", "1"}:

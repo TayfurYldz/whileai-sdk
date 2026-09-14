@@ -136,3 +136,24 @@ def test_long_trajectory_payload_keeps_faults_and_ending():
     assert "step_39" in names  # the ending kept
     assert payload["final_text"].startswith("All done")
     assert any("skipped_steps" in s for s in payload["steps"])
+
+
+def test_parse_verdict_rejects_non_binary_and_bool():
+    # ``true`` is not a verdict, and 1.5 / 0.5 are not 1 / 0. Each stays
+    # ungraded (None) instead of becoming a pass or a fail.
+    assert _parse_verdict("true") == (None, "")
+    assert _parse_verdict("false") == (None, "")
+    assert _parse_verdict('{"score": 1.5}') == (None, "")
+    assert _parse_verdict('{"score": 0.5}') == (None, "")
+    assert _parse_verdict('{"score": 2}') == (None, "")
+    assert _parse_verdict('{"score": true}') == (None, "")
+    assert _parse_verdict('verdict: {"score": 1.5}') == (None, "")
+
+
+def test_parse_verdict_still_reads_chatter_and_truncation():
+    # A well-formed object inside chatter, or a reply cut off right after
+    # the score, still grades. These are the cases the fallback exists for.
+    assert _parse_verdict('Sure. {"reason": "fine", "score": 1}') == (1, "fine")
+    assert _parse_verdict('{"reason": "no lookup", "score": 0') == (0, "no lookup")
+    assert _parse_verdict("1") == (1, "")
+    assert _parse_verdict("0") == (0, "")

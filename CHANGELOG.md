@@ -3,6 +3,16 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Judge replies that break the contract stay ungraded. The binary
+  verdict parser read a bare `true` as 1, `{"score": 1.5}` as 1 and
+  `{"score": 0.5}` as 0; the 0-to-1 judge clamped a 2 to 1.0 and a -1
+  to 0.0. All of these now return no score, the same contract
+  `judging.py` already held a caller's own judge to. Well-formed
+  verdicts inside chatter and replies cut off after the score still
+  grade.
+
 ## 0.25 (2026-09-14)
 
 - Hugging Face, both directions. `zps.hf_status()` says whether an account

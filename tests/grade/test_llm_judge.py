@@ -116,3 +116,16 @@ def test_llm_grade_rewrites_same_jsonl(monkeypatch, tmp_path):
     assert row["llm_reward"] == 0.5
     assert row["llm_reason"] == "partial compliance"
     assert "reward" not in row
+
+
+def test_parse_score_never_clamps_out_of_range():
+    from zeroproof.simulations.score.llm_judge import _parse_score
+
+    # In range, including the partial lane.
+    assert _parse_score('{"score": 0.5, "reason": "partial"}') == (0.5, "partial")
+    assert _parse_score('{"score": 1}')[0] == 1.0
+    # Out of range or boolean: ungraded, never clamped to a pass or a fail.
+    assert _parse_score('{"score": 2}') == (None, None)
+    assert _parse_score('{"score": -1}') == (None, None)
+    assert _parse_score('{"score": true}') == (None, None)
+    assert _parse_score('note {"score": 1.5}') == (None, None)

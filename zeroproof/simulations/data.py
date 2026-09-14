@@ -382,7 +382,8 @@ class SimulationData:
         limit: int | None = None,
         prompt: str | None = None,
     ):
-        """Binary 0/1 situation grade. Default brain is hosted Qwen."""
+        """Binary 0/1 situation grade. Default brain is the hosted judge
+        (Phi-4 unless ``ZEROPROOF_JUDGE`` is set), never the policy model."""
         require_judge_key(api_key, spec=spec, base_url=base_url, model=model)
         policy = str(self.profile.policy or "") if self.profile else ""
         tools = list(self.profile.tools) if self.profile else []
