@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.21 (2026-09-14)
 
 - Platform-shaped rows count their tool calls: the reward-hack scan's
   `tool_calls` reads `tool_trace` as well as `steps`, so a pulled
