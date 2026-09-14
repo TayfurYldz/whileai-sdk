@@ -276,3 +276,38 @@ def test_already_done_phrasing_is_flexible_and_multi_tool_is_judge_territory():
     }
     got = task_checklist(multi)
     assert got["reward"] == 1.0 and got["markers"]["outcome_checked"] == 0.0
+
+
+def test_unknown_verbs_count_as_writes():
+    from zeroproof.simulations.score.checklist import _is_write
+
+    assert all(
+        not _is_write(t)
+        for t in ("lookup_order", "get_issue", "find_slots", "check_balance", "search_accounts")
+    )
+    assert all(
+        _is_write(t)
+        for t in (
+            "close_issue",
+            "assign_issue",
+            "merge_pr",
+            "reset_password",
+            "grant_access",
+            "escalate",
+            "refill_rx",
+            "log_activity",
+        )
+    )
+    dims = {"tool": "close_issue", "world_state": "duplicate entity", "stance": "ordinary"}
+    blind = _row(
+        [
+            {
+                "tool": "close_issue",
+                "arguments": {"number": 88234, "comment": "resolved"},
+                "result": {"status": "ok"},
+            }
+        ],
+        "Issue #88234 has been closed.",
+        scenario_dimensions=dims,
+    )
+    assert task_checklist(blind)["reward"] == 0

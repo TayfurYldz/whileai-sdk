@@ -41,7 +41,7 @@ import re
 from typing import Any
 
 from ..world.sandbox import _READ
-from .grading import _STATE_VERB, _acks_fault, _step_faulted, conduct_grade
+from .grading import _acks_fault, _step_faulted, conduct_grade
 
 SUCCESS = {"ok", "created", "success", "done", "updated"}
 _NOT_FOUND = re.compile(
@@ -81,10 +81,20 @@ def _status(result: Any) -> str:
     return ""
 
 
+_READ_EXTRA = re.compile(
+    r"^(look_?up|check|query|retrieve|load|count|verify|validate|status|is_|has_|preview|"
+    r"compare|estimate|calculate|compute|summari[sz]e|translate|explain|whoami|ping|health|"
+    r"lookup|browse|scan|detect|classify|predict|suggest|recommend|export_report|history)",
+    re.I,
+)
+
+
 def _is_write(tool: str) -> bool:
-    """State-changing by the SDK's verb list; anything else counts as a read."""
+    """Anything that is not clearly a read. A reward that mistakes a write
+    for a read can be gamed by acting; the reverse only asks for a lookup
+    to be justified, so unknown verbs count as writes."""
     name = tool or ""
-    return bool(_STATE_VERB.match(name)) and not _READ.match(name)
+    return not (_READ.match(name) or _READ_EXTRA.match(name))
 
 
 def _calls(row: dict) -> list[dict]:
