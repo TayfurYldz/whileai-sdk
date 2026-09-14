@@ -3,6 +3,16 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `hack_scan`: a `degenerate` scan withholds the `inverted` claim as well
+  as the top feature. With two distinct rollouts per ask an endorsed
+  feature sits at rho -1 exactly when it happened to fall on the failing
+  trajectory, so "the reward punishes the endorsed behavior" there is the
+  same coin flip as naming a winner, and the report contradicted its own
+  "no hack is claimed". A varied pool still reports a genuinely inverted
+  reward.
+
 ## 0.39 (2026-09-14)
 
 - `export_training(format="trl")`, `export_preference(format="trl")` and
