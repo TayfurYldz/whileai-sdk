@@ -49,6 +49,7 @@ _CARRY_KEYS = (
     "lineage",
     "logprob",
     "n_tokens",
+    "usage",
     "tier",
     "ask_family",
     "ask",

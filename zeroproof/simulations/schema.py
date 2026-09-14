@@ -94,6 +94,7 @@ _CARRY_ROLLOUT = (
     "group_id",
     "logprob",
     "n_tokens",
+    "usage",
 )
 
 #: Every key ``from_row`` consumes into a typed field. Anything else on the
@@ -151,6 +152,9 @@ class Step:
     logprob: float | None = None
     n_tokens: int | None = None
     truncated: bool | None = None
+    #: what the model call behind this step cost, when the server reported it
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -477,6 +481,12 @@ def _steps(raw: Any) -> list[Step]:
                 logprob=_number(step.get("logprob")),
                 n_tokens=_int(step.get("n_tokens")) or None,
                 truncated=True if step.get("truncated") else None,
+                input_tokens=_int(step.get("input_tokens"))
+                if step.get("input_tokens") is not None
+                else None,
+                output_tokens=_int(step.get("output_tokens"))
+                if step.get("output_tokens") is not None
+                else None,
             )
         )
     return out
@@ -709,6 +719,10 @@ def _step_dict(step: Step) -> dict:
         out["n_tokens"] = step.n_tokens
     if step.truncated:
         out["truncated"] = True
+    if step.input_tokens is not None:
+        out["input_tokens"] = step.input_tokens
+    if step.output_tokens is not None:
+        out["output_tokens"] = step.output_tokens
     return out
 
 
@@ -782,6 +796,7 @@ def to_row(
         "group_id",
         "logprob",
         "n_tokens",
+        "usage",
     ):
         if rollout.extra.get(key) is not None:
             row[key] = rollout.extra[key]

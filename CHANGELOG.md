@@ -3,6 +3,15 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Every model call now keeps what it cost. The server's `usage` block
+  becomes `input_tokens` / `output_tokens` on the agent step and a summed
+  `usage` on the row (`rows()`, `training_rows`, the typed `Step` and
+  `to_row` all carry it). Before this no row said how many tokens it
+  used, so a trace built from one had no `gen_ai.usage.*` and the
+  platform's per-day usage counted zero for every simulation.
+
 ## 0.24 (2026-09-14)
 
 - Character training example (`examples/character`): the OpenAI Model
