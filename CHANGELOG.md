@@ -13,9 +13,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `no_filler` guarded. The spec's labeled replies grade the judge
   (`judge_agreement`). Offline by default; `--model-url` for a live model.
   How-to in `docs/character-training.md`.
-- Rows carry `privileged` (`principle`, `hidden_state`, `reference`):
-  `from_row` fills `Task.privileged` from it and `to_row` writes it back.
-  The engine leaves it empty; character and rubric pipelines write it.
+- A row's `privileged` block (`principle`, `hidden_state`, `reference`)
+  now reads into `Task.privileged` in `from_row`. `to_row` still never
+  projects it (it is the teacher's context, one step from a training
+  file); a source row's block rides back out as passthrough. The engine
+  leaves it empty; character and rubric pipelines write it.
 
 ## 0.23 (2026-09-14)
 

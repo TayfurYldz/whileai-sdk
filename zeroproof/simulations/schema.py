@@ -106,7 +106,6 @@ _CONSUMED = frozenset(
         "final_text",
         "scenario_id",
         "spec_id",
-        "privileged",
         "world_state",
         "faults",
         "seed",
@@ -788,9 +787,10 @@ def to_row(
             row[key] = rollout.extra[key]
     if task.spec_id:
         row["spec_id"] = task.spec_id
-    privileged = {k: v for k, v in asdict(task.privileged).items() if v}
-    if privileged:
-        row["privileged"] = privileged
+    # Task.privileged is deliberately not projected here: it is the
+    # teacher's context, and every exporter reads the row, so writing it
+    # would put it one step from a training file (test_privileged_leakage).
+    # A source row's own ``privileged`` block rides back out as passthrough.
     calibration = rollout.extra.get("calibration")
     if isinstance(calibration, Calibration):
         row["calibration"] = asdict(calibration)
