@@ -73,6 +73,32 @@ Leave `--judge-url` off and the model grades itself. The report still runs;
 the `judge_vs_spec` line is where self-preference shows up (rlhf-book ch. 5
 and 12).
 
+One live run, hosted Qwen3-4B-Instruct as the student and hosted Phi-4 as
+the judge, `--no-texture --k 4`, 239 rows in 148 seconds:
+
+```
+judge llm:microsoft/phi-4 vs spec labels: agreement 0.69 (n=35, kappa 0.40)
+pass@1 0.78 | pass^4 0.73 | pass@4 0.80 | headroom 0.02 | mixed prompts 1/15
+markers: no_filler 1.00 [1.00,1.00] | on_task 0.93 [0.80,1.00] | trait 0.85 [0.65,1.00]
+controls on_task 0.88 | adversarial trait 0.97
+corr(reward, reply length) -0.16 ok
+pairs 1 (chosen longer 0.0) -> out/pairs.jsonl | sft 47 -> out/sft.jsonl
+```
+
+Two things that run says, neither visible without the spec rows and the
+markers:
+
+- **The judge is lenient.** Phi-4 passed 10 of the spec's 20 BAD replies
+  (`pass_when_gold_fail` 0.50). Those are exactly the rows a preference set
+  would train toward. Fix the judge prompt, or use a stronger judge, before
+  reading the pass rates.
+- **The spec is this model's default character.** Qwen3-4B lands the
+  spec's traits 78% of the time and holds them under "drop the act" (0.97).
+  One mixed prompt, one pair: there is nothing here to train on. That is
+  the expected result for an instruct model on the industry-default spec.
+  A distinct persona, or `--write-prompts` for harder situations, is where
+  the contrast comes from. Writing the constitution is the small part.
+
 ## What each number is for
 
 | line | call | what to do with it |
