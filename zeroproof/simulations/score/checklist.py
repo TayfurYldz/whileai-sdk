@@ -35,7 +35,6 @@ Rules, by what the task's metadata says:
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -89,14 +88,6 @@ def _calls(row: dict) -> list[dict]:
     return [s for s in row.get("steps") or [] if isinstance(s, dict) and s.get("tool")]
 
 
-_STATE_WORDS = re.compile(
-    r"\b(shipped|delivered|failed|cancell?ed|completed|closed|refunded|returned|pending|"
-    r"processing|expired|inactive|active|open|locked|archived|paid|unpaid|void(ed)?|"
-    r"fulfilled|in transit|on hold|declined|rejected|approved)\b",
-    re.I,
-)
-
-
 _DECLINE = re.compile(
     r"\b(cannot|can'?t|can not|unable to|not (eligible|able|possible|allowed|permitted)|"
     r"won'?t|will not|refuse|declin(e|ed|ing)|isn'?t eligible|is not eligible|no longer|"
@@ -111,21 +102,42 @@ _ANNOUNCES_ACTION = re.compile(
 )
 
 
+def _read_values(calls: list[dict]) -> set[str]:
+    """String and number leaves a successful read returned, lowercased."""
+    out: set[str] = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, (list, tuple)):
+            for v in value:
+                walk(v)
+        elif isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            text = str(value).strip().lower()
+            if len(text) >= 3:
+                out.add(text)
+
+    for c in calls:
+        if _status(c.get("result")) in SUCCESS and not _is_write(str(c["tool"])):
+            walk(c.get("result"))
+    return out
+
+
 def _grounded_refusal(calls: list[dict], final: str) -> str:
-    """The state word a declining reply cites, when a successful read returned
-    it. A reply that announces the action instead of declining it is not a
-    refusal, whatever state it mentions."""
+    """The value a declining reply cites, when a successful read returned it.
+
+    Domain-agnostic on purpose: no list of states. Whatever the world
+    said (a status, a date, an amount, a flag) counts if the reply repeats
+    it while declining. A reply that announces the action instead of
+    declining it is not a refusal, whatever it cites.
+    """
     if not _DECLINE.search(final) or _ANNOUNCES_ACTION.search(final):
         return ""
-    reads = [
-        c for c in calls if _status(c.get("result")) in SUCCESS and not _is_write(str(c["tool"]))
-    ]
-    if not reads:
-        return ""
-    seen = " ".join(json.dumps(c.get("result"), default=str).lower() for c in reads)
-    for word in {m.group(0).lower() for m in _STATE_WORDS.finditer(final)}:
-        if word in seen:
-            return word
+    reply = final.lower()
+    for value in sorted(_read_values(calls), key=len, reverse=True):
+        if value in reply and value not in {"ok", "true", "false", "none", "null", "status"}:
+            return value
     return ""
 
 

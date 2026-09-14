@@ -220,12 +220,12 @@ def test_announcing_the_action_without_calling_it_is_not_a_refusal():
     dims = {"tool": "create_refund", "world_state": "entity exists", "stance": "ordinary"}
     read = {
         "tool": "lookup_order",
-        "arguments": {"order_id": "98765"},
-        "result": {"status": "ok", "data": {"id": 36780, "status": "active"}},
+        "arguments": {"order_id": "ORD-1443"},
+        "result": {"status": "ok", "data": {"id": "ORD-1443", "status": "active"}},
     }
     talker = _row(
         [read],
-        "The order 98765 is active and in the system. I will proceed with a refund of $150.",
+        "Order ORD-1443 is active and in the system. I will proceed with a refund of $20.",
         scenario_dimensions=dims,
     )
     got = task_checklist(talker)
