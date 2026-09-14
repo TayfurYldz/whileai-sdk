@@ -471,8 +471,8 @@ class SimulationData:
     ) -> dict:
         """Upload this run to your Zero Proof Labs account as a dataset.
 
-        ``purpose`` is the section it lands in on the Training data page
-        (``"train"`` by default; ``"holdout"``, ``"eval"`` or ``"raw"``).
+        ``purpose`` is the section it lands in on the Datasets page
+        (``"train"`` by default; ``"holdout"`` or ``"eval"``).
         ``holdout=0.2`` keeps a fifth of the tasks (by ``scenario_id``) out
         of the training set and pushes them as a second, linked dataset
         with purpose ``"holdout"``; the entry carries it as ``["holdout"]``.

@@ -217,8 +217,9 @@ zps.preview("ds_...")  # three sample rows + the analyzer report
 zps.profile("ds_...")  # pass rate, support, mixed tasks, tool use, per task
 ```
 
-The Training data page groups sets by purpose (train, holdout, eval, raw)
-and records the simulation mode on each. Holdout is split by
+The Datasets page groups sets by purpose (train, holdout, eval) and
+records the simulation mode on each. A push is train unless it says
+otherwise; ingested traces are eval until training data is cut from them. Holdout is split by
 `scenario_id`, so a task is wholly on one side, and the same task lands
 on the same side every run.
 

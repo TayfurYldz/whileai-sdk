@@ -221,7 +221,7 @@ def push_to_studio(
     return json.loads(payload) if payload else {}
 
 
-PURPOSES = ("train", "holdout", "eval", "raw")
+PURPOSES = ("train", "holdout", "eval")
 MODES = ("explore", "sft", "rl", "adaptive")
 
 
@@ -261,9 +261,8 @@ def push_rows(
     Returns the registry entry, including ``datasetId``. Pass ``parent`` (a
     ``ds_...`` id) when this dataset is an iteration of an existing one, so
     lineage shows on the platform. ``purpose`` is what the set is for on the
-    Training data page: ``"train"``, ``"holdout"``, ``"eval"`` or ``"raw"``
-    (the default when unset); ``mode`` is the simulation mode that made it,
-    and is also recorded. ``gate=True`` runs ``publish_gate``
+    Datasets page: ``"train"`` (the default), ``"holdout"`` or ``"eval"``;
+    ``mode`` is the simulation mode that made it, and is also recorded. ``gate=True`` runs ``publish_gate``
     first (calibration stamp; RL-shaped rows refused when ungraded or
     without a mixed group) and returns its report as ``entry["gate"]``.
     ``SimulationData.push`` gates by default; this row-level entry point
