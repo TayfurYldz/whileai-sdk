@@ -160,6 +160,7 @@ zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", un
 | [`examples/schema`](examples/schema) | One row file in, six training targets out: eval, SFT, preference, GRPO prompts, OPSD hints, OPD. Migrates any legacy file first. Offline, no key. |
 | [`examples/pass-at-k`](examples/pass-at-k) | pass@1, pass^k and pass@k for one agent, with the per-ask histogram the mean hides and what each number tells you to do next. Offline, no key. |
 | [`examples/identity`](examples/identity) | Builds a leak-free SFT set that teaches a model a new name and maker, with Modal scripts to train a LoRA and evaluate it. No model calls to generate. |
+| [`examples/character`](examples/character) | Character training from a constitution: the OpenAI Model Spec's style traits become graded rows, preference pairs and SFT rows, with the judge checked against the spec's own labels and a before/after measurement. Offline by default. How-to: [docs/character-training.md](docs/character-training.md). |
 
 ## Sign in
 

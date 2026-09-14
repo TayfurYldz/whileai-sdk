@@ -106,6 +106,7 @@ _CONSUMED = frozenset(
         "final_text",
         "scenario_id",
         "spec_id",
+        "privileged",
         "world_state",
         "faults",
         "seed",
@@ -610,11 +611,21 @@ def from_row(row: dict) -> tuple[Task, Rollout, list[Judgment], list[Marker]]:
     task_id = str(raw.get("scenario_id") or "") or "task_" + _short_hash(prompt)
     axes = {k: raw[k] for k in AXES if k in raw and raw[k] is not None}
     faults = raw.get("faults") if isinstance(raw.get("faults"), dict) else {}
+    # What the judge saw and the policy did not: a constitution principle,
+    # a hidden world state, a reference answer. Written by character and
+    # rubric pipelines; the engine leaves it empty.
+    priv_raw = raw.get("privileged")
+    priv: dict = priv_raw if isinstance(priv_raw, dict) else {}
     task = Task(
         task_id=task_id,
         spec_id=str(raw.get("spec_id") or ""),
         prompt=prompt,
         world=World(seed=raw.get("seed"), state=raw.get("world_state"), faults=dict(faults or {})),
+        privileged=Privileged(
+            principle=priv.get("principle"),
+            hidden_state=dict(priv.get("hidden_state") or {}),
+            reference=priv.get("reference"),
+        ),
         axes=axes,
     )
     index = _int(raw.get("rollout_index"))
@@ -777,6 +788,9 @@ def to_row(
             row[key] = rollout.extra[key]
     if task.spec_id:
         row["spec_id"] = task.spec_id
+    privileged = {k: v for k, v in asdict(task.privileged).items() if v}
+    if privileged:
+        row["privileged"] = privileged
     calibration = rollout.extra.get("calibration")
     if isinstance(calibration, Calibration):
         row["calibration"] = asdict(calibration)
