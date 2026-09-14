@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.32 (2026-09-14)
 
 - A policy edit keeps the task grid (#98). The covering array is built in
   layers: a rule-free block over tools and situation axes, then one block
