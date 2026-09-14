@@ -277,6 +277,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
+# Exports often live inside a repo that ignores data files; the wheel carries them anyway.
+ignore-vcs = true
 include = ["{name}/**", "pyproject.toml", "README.md"]
 
 [tool.hatch.build.targets.wheel]
