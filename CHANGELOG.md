@@ -5,6 +5,13 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## 0.30 (2026-09-14)
 
+- `examples/grpo`: a model-written prompt set. `prompts.py` (writer chat
+  per template seed, array parsing, category and near-duplicate filter
+  through `case_for`, loader) and `write_prompts_modal.py` (Qwen2.5-7B-
+  Instruct on an A10G) produce `prompts.jsonl`, 707 prompts from 67
+  situations, checked in; both the GRPO and DPO scripts take
+  `--prompts-file`, so the holdout is over a hundred prompts instead of
+  fourteen and pass@1 intervals shrink accordingly.
 - `zps.train(dataset_id, method="sft"|"grpo"|"dpo", steps=, epochs=,
   holdout=, base_model=, wait=)` starts a hosted run on the platform's
   trainer and returns the `TrainingRun` the dashboard draws; `run.refresh()`

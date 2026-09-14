@@ -3,6 +3,7 @@
     modal run examples/dpo/train_modal.py                        # on-policy pairs, 60 steps, A10G
     modal run examples/dpo/train_modal.py --pairs pairs.jsonl    # pairs from zps.export_preference
     modal run examples/dpo/train_modal.py --loss-type ipo --beta 0.1
+    modal run examples/dpo/train_modal.py --prompts-file examples/grpo/prompts.jsonl   # model-written set
 
 What happens:
 
@@ -212,13 +213,17 @@ def train(
     dpo = DPOConfig(
         output_dir=os.path.join(out_dir, "checkpoints"),
         max_steps=steps,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=2,
+        # 2 pairs a device, 4 accumulated: 8 pairs a step. Chosen and rejected
+        # both run through the policy and the reference, so a pair costs four
+        # sequences; checkpointing keeps a 1.5B model inside an A10G.
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=4,
+        gradient_checkpointing=True,
         learning_rate=learning_rate,
         beta=beta,
         loss_type=loss_type,
-        max_length=1024,
-        max_prompt_length=768,
+        max_length=896,
+        max_prompt_length=704,
         bf16=True,
         logging_steps=1,
         save_strategy="no",
@@ -323,11 +328,19 @@ def main(
     loss_type: str = "sigmoid",
     base_model: str = BASE_MODEL,
     seed: int = 0,
+    prompts_file: str = "",
 ):
     from pairs import load_export
     from reward import SYSTEM, build_prompts, split_holdout
 
-    items = build_prompts(prompts, seed=seed)
+    if prompts_file:
+        sys.path.insert(0, str(HERE.parent / "grpo"))
+        from prompts import load_prompts
+
+        items = load_prompts(prompts_file)
+        print(f"{len(items)} model-written prompts from {prompts_file}")
+    else:
+        items = build_prompts(prompts, seed=seed)
     train_items, held = split_holdout(items, holdout)
     print(f"{len(items)} prompts: {len(train_items)} train, {len(held)} holdout")
     pair_rows = load_export(pairs, system=SYSTEM) if pairs else None
