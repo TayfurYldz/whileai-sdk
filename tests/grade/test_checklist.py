@@ -214,3 +214,19 @@ def test_grounded_refusal_counts_as_the_outcome_on_a_write_target():
         scenario_dimensions=dims,
     )
     assert task_checklist(ungrounded)["reward"] == 0  # "returned" is not in the read
+
+
+def test_announcing_the_action_without_calling_it_is_not_a_refusal():
+    dims = {"tool": "create_refund", "world_state": "entity exists", "stance": "ordinary"}
+    read = {
+        "tool": "lookup_order",
+        "arguments": {"order_id": "98765"},
+        "result": {"status": "ok", "data": {"id": 36780, "status": "active"}},
+    }
+    talker = _row(
+        [read],
+        "The order 98765 is active and in the system. I will proceed with a refund of $150.",
+        scenario_dimensions=dims,
+    )
+    got = task_checklist(talker)
+    assert got["reward"] == 0 and "never called create_refund" in got["reason"]

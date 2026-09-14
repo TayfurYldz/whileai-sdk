@@ -97,8 +97,26 @@ _STATE_WORDS = re.compile(
 )
 
 
+_DECLINE = re.compile(
+    r"\b(cannot|can'?t|can not|unable to|not (eligible|able|possible|allowed|permitted)|"
+    r"won'?t|will not|refuse|declin(e|ed|ing)|isn'?t eligible|is not eligible|no longer|"
+    r"only (possible|available|allowed) (for|on|when))\b",
+    re.I,
+)
+_ANNOUNCES_ACTION = re.compile(
+    r"\b(i will|i'll|i can proceed|proceed(ing)? (with|to)|processing (a|the|your)|"
+    r"refunding|cancell?ing|has been (refunded|cancell?ed|processed|issued)|"
+    r"(refund|cancellation) (is|has been) (issued|processed|complete))\b",
+    re.I,
+)
+
+
 def _grounded_refusal(calls: list[dict], final: str) -> str:
-    """The state word the reply cites, when a successful read returned it."""
+    """The state word a declining reply cites, when a successful read returned
+    it. A reply that announces the action instead of declining it is not a
+    refusal, whatever state it mentions."""
+    if not _DECLINE.search(final) or _ANNOUNCES_ACTION.search(final):
+        return ""
     reads = [
         c for c in calls if _status(c.get("result")) in SUCCESS and not _is_write(str(c["tool"]))
     ]
