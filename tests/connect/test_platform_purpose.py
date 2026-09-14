@@ -67,6 +67,19 @@ def test_update_dataset_and_preview(monkeypatch):
     assert rec.calls[-1][:2] == ("GET", "/datasets/ds_9/preview")
 
 
+def test_profile_unwraps_and_can_force(monkeypatch):
+    calls = []
+
+    def fake_call(method, path, api_key, body=None, **kw):
+        calls.append(path)
+        return {"datasetId": "ds_9", "profile": {"rows": 3, "pass_rate": 0.5}}
+
+    monkeypatch.setattr(platform, "_call", fake_call)
+    assert zps.profile("ds_9") == {"rows": 3, "pass_rate": 0.5}
+    zps.profile("ds_9", force=True)
+    assert calls == ["/datasets/ds_9/profile", "/datasets/ds_9/profile?force=1"]
+
+
 def test_split_holdout_is_by_task_and_deterministic():
     rows = [{"scenario_id": f"s{i % 10}", "prompt": f"p{i}"} for i in range(100)]
     train, held = data_mod._split_holdout(rows, 0.3)

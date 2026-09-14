@@ -214,6 +214,7 @@ data.push("airline-v3", holdout=0.2)  # train set + a linked holdout set, split 
 data.push("airline-evals", purpose="eval")  # a set you measure with
 zps.update_dataset("ds_...", purpose="holdout")
 zps.preview("ds_...")  # three sample rows + the analyzer report
+zps.profile("ds_...")  # pass rate, support, mixed tasks, tool use, per task
 ```
 
 The Training data page groups sets by purpose (train, holdout, eval, raw)

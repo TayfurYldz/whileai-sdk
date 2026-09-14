@@ -27,7 +27,8 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 - Purpose on every pushed dataset: `data.push(name, purpose="train")`,
   `holdout=0.2` pushes a linked holdout set split by task,
   `zps.update_dataset(id, purpose=...)`, `zps.preview(id)`. The
-  simulation mode is recorded on push.
+  simulation mode is recorded on push. `zps.profile(id)` returns the
+  trainer's numbers (pass rate, support, mixed tasks, tool use, per task).
 - Preference pairs carry what a trainer and a reviewer need to trust them
   (rlhf-book ch. 8, 11): `chosen_score`, `rejected_score`, `margin` for a
   margin-aware loss; `chosen_model`, `rejected_model`, `same_policy` so an

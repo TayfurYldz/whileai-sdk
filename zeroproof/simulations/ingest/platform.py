@@ -397,6 +397,16 @@ def preview(dataset_id: str, *, api_key: str | None = None) -> dict:
     return _call("GET", f"/datasets/{dataset_id}/preview", api_key)
 
 
+def profile(dataset_id: str, *, force: bool = False, api_key: str | None = None) -> dict:
+    """The trainer's numbers for one of your datasets: pass rate, gradient
+    support, tasks with both a pass and a fail, tool use, tokens, per-task
+    pass rates. Cached on the platform until the set changes; ``force=True``
+    recomputes.
+    """
+    path = f"/datasets/{dataset_id}/profile" + ("?force=1" if force else "")
+    return _call("GET", path, api_key)["profile"]
+
+
 def unpublish(dataset_id: str, *, api_key: str | None = None) -> dict:
     """Take a dataset off the public catalog. The data stays on your account."""
     return _call("POST", f"/datasets/{dataset_id}/unpublish", api_key)
