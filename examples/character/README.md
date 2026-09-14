@@ -86,7 +86,7 @@ pairs 1 (chosen longer 0.0) -> out/pairs.jsonl | sft 47 -> out/sft.jsonl
 ```
 
 The rows from that run are on Hugging Face as
-[jaweiss2305/character-training-model-spec](https://huggingface.co/datasets/jaweiss2305/character-training-model-spec)
+[zeroproofai/character-training-model-spec](https://huggingface.co/datasets/zeroproofai/character-training-model-spec)
 (splits `train`, `holdout`, `eval`; the `eval` split is the spec's labeled replies
 with `gold_reward`) and on the [platform catalog](https://www.zeroproofai.com/datasets).
 
