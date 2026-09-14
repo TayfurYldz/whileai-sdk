@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
 import pytest
 
@@ -142,14 +143,27 @@ def test_export_environment_writes_an_installable_package(tmp_path):
     assert "2 train / 1 holdout" in readme or "1 train / 2 holdout" in readme
     vendored = (pkg / "_zp_env.py").read_text()
     assert "from zeroproof.simulations.export import _resolve" in vendored
-    assert "from ." not in vendored.replace("from ._", "")
+    assert not re.search(r"^\s*from \.", vendored, re.M)  # no relative import survives
 
 
-def test_export_without_reward_warns_about_process_reward(tmp_path):
-    report = zps.export_environment(_rows(), tmp_path / "env", tools=TOOLS, system_prompt=POLICY)
-    assert report["reward"].endswith(":conduct_grade")
-    assert any("process reward" in w for w in report["warnings"])
-    assert "process reward" in (tmp_path / "env" / "README.md").read_text()
+def test_export_without_reward_defaults_to_the_checklist_and_warns_without_metadata(tmp_path):
+    rows = _rows()
+    for r in rows:  # the writer's assignment names the target tool
+        r["scenario_dimensions"] = {"tool": "lookup_order", "stance": "ordinary"}
+    report = zps.export_environment(rows, tmp_path / "env", tools=TOOLS, system_prompt=POLICY)
+    assert report["reward"].endswith(":task_checklist")
+    assert report["outcome_checkable"] == report["tasks"] and report["warnings"] == []
+    task = json.loads(
+        (tmp_path / "env" / "env" / "data" / "train.jsonl").read_text().splitlines()[0]
+    )
+    assert task["info"]["scenario_dimensions"]["tool"] == "lookup_order"
+    bare = [{"prompt": f"p{i}", "steps": [], "final_text": ""} for i in range(4)]
+    report = zps.export_environment(
+        bare, tmp_path / "bare", tools=TOOLS, system_prompt=POLICY, holdout=0.5
+    )
+    assert report["outcome_checkable"] == 0
+    assert any("conduct_grade" in w and "call nothing" in w for w in report["warnings"])
+    assert "call nothing" in (tmp_path / "bare" / "README.md").read_text()
 
 
 def test_export_needs_tools(tmp_path):
@@ -217,6 +231,7 @@ def test_load_environment_world_is_seeded_per_task(tmp_path):
     zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
     env = zps.load_environment(out / "env" / "spec.json")
     spec = json.loads((out / "env" / "spec.json").read_text())
+    assert env.reward.__name__ == "task_checklist"
     faulty = next(
         json.loads(line)
         for line in (out / "env" / "data" / "train.jsonl").read_text().splitlines()
@@ -267,3 +282,20 @@ def test_vendored_module_loads_standalone(tmp_path):
     spec.loader.exec_module(module)
     env = module.load_environment(out / "env" / "spec.json")
     assert [t.name for t in env.tool_defs] == ["lookup_order", "create_refund"]
+
+
+def test_default_reward_falls_back_to_the_vendored_checklist(tmp_path, monkeypatch):
+    """An SDK without score.checklist still loads the exported default reward."""
+    import sys
+
+    out = tmp_path / "env"
+    zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
+    pkg = out / "env"
+    assert (pkg / "_zp_checklist.py").exists()
+    vendored = (pkg / "_zp_checklist.py").read_text()
+    assert "from zeroproof.simulations.world.sandbox import" in vendored
+    assert "from zeroproof.simulations.score.grading import" in vendored
+    monkeypatch.setitem(sys.modules, "zeroproof.simulations.score.checklist", None)
+    env = zps.load_environment(pkg / "spec.json")
+    assert env.reward.__name__ == "task_checklist"
+    assert env.reward.__module__ == "_zp_checklist"

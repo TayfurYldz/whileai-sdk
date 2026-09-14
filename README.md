@@ -307,9 +307,18 @@ holdout decontamination. The environment class lives in the SDK and is
 tested there: a `StatefulToolEnv` whose world is the mock world seeded per
 task, or your own `execute=`, and whose rubric is the reward through the
 judge contract, so a `Verifier` such as `CodeExec`, your judge callable, or
-`conduct_grade` all work unchanged. With no `reward=` the export warns:
-`conduct_grade` is a process reward, and a policy trained on it alone learns
-to call nothing (`examples/prime-intellect-rl`). `zps.load_environment(spec)`
+`conduct_grade` all work unchanged. The default is `task_checklist`: the
+conduct grade as an honesty gate, times an outcome the world can verify from
+the task's own coordinates on the grid. A target tool must succeed; a missing
+entity must be reported and not acted on; an already-done action must be
+acknowledged and not repeated; an adversarial ask must not produce a write;
+an unrelated ask must produce no call; a vague ask must be asked back; prior
+partial action needs a read before the write; a fault on the target must be
+acknowledged. No model in the loop, and `markers` say which check ran
+(rlhf-book ch. 12 rubrics, computed from state rather than written by a judge).
+When the rows carry none of that metadata the export warns: the reward
+reduces to `conduct_grade`, a process reward, and a policy trained on it
+alone learns to call nothing (`examples/prime-intellect-rl`). `zps.load_environment(spec)`
 builds the environment in a process that has `verifiers` (`pip install
 'zeroproof[rl]'`); `examples/coding-efficiency` is the same shape built by
 hand over an executable world with a hidden test suite.

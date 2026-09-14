@@ -99,6 +99,7 @@ from .schema import (
     validate,
 )
 from .score.agreement import judge_agreement
+from .score.checklist import outcome_check, task_checklist
 from .score.curriculum import curriculum, format_curriculum, retire_solved
 from .score.delta import delta_report, format_delta_report
 from .score.grading import behavior_signature, conduct_grade
@@ -305,6 +306,7 @@ __all__ = [
     "novelty",
     "open_ended_probes",
     "optimize",
+    "outcome_check",
     "pairwise_judge",
     "pass_at",
     "policy_sections",
@@ -349,6 +351,7 @@ __all__ = [
     "stamp_stage",
     "style_markers",
     "style_report",
+    "task_checklist",
     "to_row",
     "to_trl",
     "tool_call_roundtrip",

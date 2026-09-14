@@ -55,8 +55,18 @@ from .score.judging import normalize_judge_result
 from .score.stats import decontaminate
 
 SPEC_FILE = "spec.json"
-DEFAULT_REWARD = "zeroproof.simulations.score.grading:conduct_grade"
+DEFAULT_REWARD = "zeroproof.simulations.score.checklist:task_checklist"
 DEFAULT_BAND = (0.2, 0.8)
+_TASK_META = (
+    "scenario_dimensions",
+    "stance",
+    "tier",
+    "history",
+    "tool_condition",
+    "ask_family",
+    "intent_known",
+    "tool_known",
+)
 _MODULE_NAME = re.compile(r"[^a-z0-9_]+")
 
 __all__ = [
@@ -149,6 +159,24 @@ def _binary(value: Any) -> int | None:
     return int(value) if float(value) in (0.0, 1.0) else None
 
 
+def _has_outcome_rule(info: dict) -> bool:
+    """Whether task_checklist has an outcome rule for this task's metadata."""
+    raw_dims = info.get("scenario_dimensions")
+    dims: dict = raw_dims if isinstance(raw_dims, dict) else {}
+    tool = str(dims.get("tool") or "")
+    stance = str(dims.get("stance") or info.get("stance") or info.get("tier") or "").lower()
+    world = str(dims.get("world_state") or info.get("world_state") or "").lower()
+    history = str(dims.get("history") or info.get("history") or "").lower()
+    return bool(
+        (tool and tool not in {"multi_tool", "unspecified"})
+        or stance == "adversarial"
+        or info.get("intent_known") is False
+        or str(info.get("ask_family") or "") in {"vague", "tool"}
+        or world in {"entity missing", "missing", "entity already acted on", "already_done"}
+        or history in {"prior_partial_action", "partially completed"}
+    )
+
+
 def build_tasks(
     rows: Sequence[dict],
     *,
@@ -198,6 +226,11 @@ def build_tasks(
             "world_state": first.get("world_state") or "",
             "faults": first.get("faults") or {},
         }
+        # The situation's coordinates on the grid. The checklist reward reads
+        # them to know which outcome the task can be checked against.
+        for meta_key in _TASK_META:
+            if first.get(meta_key) is not None:
+                info[meta_key] = first[meta_key]
         privileged = first.get("privileged")
         if isinstance(privileged, dict) and privileged:
             info["privileged"] = privileged
@@ -313,6 +346,16 @@ def _vendored_source() -> str:
     return re.sub(r"^(\s*)from \.", r"\1from zeroproof.simulations.", source, flags=re.M)
 
 
+def _vendored_checklist() -> str:
+    """``score/checklist.py`` with its imports made absolute, so the default
+    reward loads on an SDK release that predates it."""
+    from .score import checklist as _checklist
+
+    source = Path(_checklist.__file__).read_text(encoding="utf-8")
+    source = source.replace("from ..world.sandbox", "from zeroproof.simulations.world.sandbox")
+    return source.replace("from .grading", "from zeroproof.simulations.score.grading")
+
+
 def _readme(name: str, spec: dict, report: dict) -> str:
     decon = report.get("decontamination") or {}
     dist = name.replace("_", "-")
@@ -413,18 +456,26 @@ def export_environment(
     out_dir = Path(out)
     name = _MODULE_NAME.sub("_", (name or out_dir.name).lower()).strip("_") or "zeroproof_env"
     warnings: list[str] = []
-    if reward is None:
-        reward_ref = DEFAULT_REWARD
-        warnings.append(
-            "reward is conduct_grade, a process reward with no outcome term; a policy "
-            "trained on it alone learns to call nothing. Pass reward= (a Verifier or "
-            "your judge) before training."
-        )
-    else:
-        reward_ref = _ref_of(reward)
+    reward_ref = DEFAULT_REWARD if reward is None else _ref_of(reward)
     execute_ref = _ref_of(execute) if execute is not None else None
 
     train, held, report = build_tasks(rows, holdout=holdout, band=band)
+    if reward is None:
+        checkable = sum(1 for t in train + held if _has_outcome_rule(t["info"]))
+        report["outcome_checkable"] = checkable
+        if not checkable:
+            warnings.append(
+                "no task carries grid metadata (target tool, stance, world state, "
+                "history), so the default reward reduces to conduct_grade, a process "
+                "reward with no outcome term; a policy trained on it alone learns to "
+                "call nothing. Simulate with the writer, or pass reward= (a Verifier "
+                "or your judge) before training."
+            )
+        elif checkable < len(train + held):
+            warnings.append(
+                f"only {checkable} of {len(train + held)} tasks carry a checkable "
+                "outcome; the rest are scored on conduct alone."
+            )
     if not train:
         raise ValueError("no train tasks: every prompt fell outside the band or into the holdout")
     if max_turns is None:
@@ -448,6 +499,7 @@ def export_environment(
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text(_PACKAGE_INIT.format(name=name), encoding="utf-8")
     (pkg / "_zp_env.py").write_text(_vendored_source(), encoding="utf-8")
+    (pkg / "_zp_checklist.py").write_text(_vendored_checklist(), encoding="utf-8")
     (pkg / SPEC_FILE).write_text(json.dumps(spec, indent=2, default=str), encoding="utf-8")
     _write_jsonl(pkg / "data" / "train.jsonl", train)
     _write_jsonl(pkg / "data" / "holdout.jsonl", held)
@@ -498,6 +550,9 @@ def _row_from_state(state: dict, info: dict) -> dict[str, Any]:
     }
     if info.get("privileged"):
         row["privileged"] = info["privileged"]
+    for meta_key in _TASK_META:
+        if info.get(meta_key) is not None:
+            row[meta_key] = info[meta_key]
     return row
 
 
@@ -609,6 +664,27 @@ def _make_env_class() -> type:
     return ZeroProofEnv
 
 
+def _resolve_reward(ref: str, base: Path) -> Any:
+    """The spec's reward, or the copy written at export time when the
+    installed SDK predates ``score.checklist``."""
+    try:
+        return resolve_ref(ref)
+    except ImportError:
+        if ref != DEFAULT_REWARD:
+            raise
+        import importlib.util
+
+        vendored = base / "_zp_checklist.py"
+        if not vendored.exists():
+            raise
+        loader_spec = importlib.util.spec_from_file_location("_zp_checklist", vendored)
+        if loader_spec is None or loader_spec.loader is None:  # pragma: no cover
+            raise
+        module = importlib.util.module_from_spec(loader_spec)
+        loader_spec.loader.exec_module(module)
+        return module.task_checklist
+
+
 def load_environment(
     spec: str | Path | dict,
     *,
@@ -665,7 +741,7 @@ def load_environment(
         raise ValueError(f"no tasks for split {split!r} under {base}")
     reward_obj = resolve_ref(reward) if isinstance(reward, str) else reward
     if reward_obj is None:
-        reward_obj = resolve_ref(str(spec_dict.get("reward") or DEFAULT_REWARD))
+        reward_obj = _resolve_reward(str(spec_dict.get("reward") or DEFAULT_REWARD), base)
     execute_obj = resolve_ref(execute) if isinstance(execute, str) else execute
     if execute_obj is None and spec_dict.get("execute"):
         execute_obj = resolve_ref(str(spec_dict["execute"]))
