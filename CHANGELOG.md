@@ -13,6 +13,18 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   rejects control characters in tracked text files, which is how a
   `## 0.32` heading in this file read as a bare date for a day. Coverage
   floor raised to match what the suite measures.
+- `export_environment`: the package no longer carries a copy of the
+  environment module and the checklist (`_zp_env.py`, `_zp_checklist.py`).
+  The copy existed so an export loaded on an SDK release without them,
+  but the generated `pyproject.toml` pins `zeroproof>=` the exporting SDK,
+  and 0.42 ships both, so the fallback could never run. A task's id now
+  hashes the scenario and the prompt (prompts drawn from one situation
+  shared an id; the split still keeps them on one side), and partial
+  credit counts toward a prompt's solve rate (a 0.5 was dropped as
+  ungraded, which exempted the prompt from the band and the contrast count).
+
+## 0.42 (2026-09-14)
+
 - `task_checklist(row)`: a reward with an outcome term the world can verify.
   The conduct grade gates it; the outcome comes from the task's grid
   coordinates (target tool, world state, stance, history, ask family): the

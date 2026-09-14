@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import json
-import re
 
 import pytest
 
@@ -95,6 +94,33 @@ def test_build_tasks_applies_band_split_and_decontamination():
     assert {t["example_id"] for t in tasks} == {t["info"]["task_id"] for t in tasks}
 
 
+def test_partial_credit_counts_toward_the_band_and_the_contrast():
+    # the checklist scores 0.5 when conduct is half; a prompt graded
+    # [0.5, 0.5, 0.5, 1] used to get no calibration at all and skip the band
+    rows = _rows()
+    for r in rows:
+        if r["prompt"] == "refund ORD-1 please":
+            r["reward"] = 1 if r["rollout_index"] == 3 else 0.5
+        if r["prompt"] == "refund ORD-2 please":
+            r["reward"] = 0.5
+    train, held, report = build_tasks(rows, holdout=0.5, band=(0.2, 0.8))
+    tasks = {t["prompt"]: t for t in train + held}
+    assert tasks["refund ORD-1 please"]["info"]["calibration"] == {"pass_rate": 0.625, "n": 4}
+    assert tasks["refund ORD-2 please"]["info"]["calibration"] == {"pass_rate": 0.5, "n": 4}
+    assert report["band_dropped"] == 0 and report["graded_prompts"] == 4
+    assert report["graded_mixed"] == 3  # ORD-2 at a flat 0.5 has no contrast
+
+
+def test_prompts_from_one_scenario_get_their_own_task_id_and_one_split():
+    rows = _rows()
+    for r in rows:
+        r["scenario_id"] = "shared"
+    train, held, _ = build_tasks(rows, holdout=0.5, band=None)
+    tasks = train + held
+    assert len({t["example_id"] for t in tasks}) == len(tasks) == 5
+    assert len({t["info"]["split"] for t in tasks}) == 1
+
+
 def test_build_tasks_explicit_holdout_and_no_band():
     train, held, _ = build_tasks(_rows(), holdout=["where is ORD-3"], band=None)
     assert [t["prompt"] for t in held] == ["where is ORD-3"]
@@ -153,9 +179,8 @@ def test_export_environment_writes_an_installable_package(tmp_path):
     readme = (out / "README.md").read_text()
     assert ":outcome_reward" in readme and "prime eval run refund-agent" in readme
     assert "2 train / 1 holdout" in readme or "1 train / 2 holdout" in readme
-    vendored = (pkg / "_zp_env.py").read_text()
-    assert "from zeroproof.simulations.export import _resolve" in vendored
-    assert not re.search(r"^\s*from \.", vendored, re.M)  # no relative import survives
+    assert "zeroproof>=" in pyproject  # the SDK carries the environment module
+    assert not (pkg / "_zp_env.py").exists() and not (pkg / "_zp_checklist.py").exists()
 
 
 def test_export_without_reward_defaults_to_the_checklist_and_warns_without_metadata(tmp_path):
@@ -286,42 +311,6 @@ def test_load_environment_with_a_live_world(tmp_path):
     msg = asyncio.run(env.call_tool("lookup_order", args, "c1"))
     assert json.loads(msg.content) == {"status": "ok", "order": "ORD-1"}
     assert calls == [("lookup_order", {"order_id": "ORD-1"})]
-
-
-@needs_verifiers
-def test_vendored_module_loads_standalone(tmp_path):
-    """The copy in the package works when the installed SDK predates the
-    environment module: import it from its file, not from the package."""
-    import importlib.util
-
-    out = tmp_path / "env"
-    zps.export_environment(
-        _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
-    )
-    path = out / "env" / "_zp_env.py"
-    spec = importlib.util.spec_from_file_location("zp_env_vendored", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    env = module.load_environment(out / "env" / "spec.json")
-    assert [t.name for t in env.tool_defs] == ["lookup_order", "create_refund"]
-
-
-@needs_verifiers
-def test_default_reward_falls_back_to_the_vendored_checklist(tmp_path, monkeypatch):
-    """An SDK without score.checklist still loads the exported default reward."""
-    import sys
-
-    out = tmp_path / "env"
-    zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
-    pkg = out / "env"
-    assert (pkg / "_zp_checklist.py").exists()
-    vendored = (pkg / "_zp_checklist.py").read_text()
-    assert "from zeroproof.simulations.world.sandbox import" in vendored
-    assert "from zeroproof.simulations.score.grading import" in vendored
-    monkeypatch.setitem(sys.modules, "zeroproof.simulations.score.checklist", None)
-    env = zps.load_environment(pkg / "spec.json")
-    assert env.reward.__name__ == "task_checklist"
-    assert env.reward.__module__ == "_zp_checklist"
 
 
 @needs_verifiers
