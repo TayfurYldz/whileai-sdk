@@ -4,12 +4,17 @@ Input is a system prompt, tools, or both. The SDK sets a world from that
 spec, writes human requests across a grid (simple, complex, vague, ordinary,
 malicious), and rolls the agent. Grade 0/1 later. Optimize for post-training.
 
+Five calls, spec to gated dataset:
+
     import zeroproof.simulations as zps
-    data = zps.simulate(system_prompt=policy)          # prompt-only agent
-    data = zps.simulate(tools=tools, system_prompt=policy)
-    data.save("rollout.jsonl")
-    zps.grade("rollout.jsonl")                         # hosted Qwen 0/1
-    zps.optimize("rollout.jsonl", output="train.jsonl")
+    data = zps.simulate(agent="openai:gpt-4.1-mini", spec="specs/github",
+                        mode="rl", situations=200, repeats=8)      # generate
+    scored = data.grade(judge=my_judge)                             # grade 0/1
+    print(scored.pass_at); zps.judge_trust(scored.rows, judge=my_judge)  # trust
+    rows, report = zps.optimize(scored, mode="rl")                  # prune
+    zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")       # publish, gated
+
+Everything else exported here is one layer down from those five.
 """
 
 from __future__ import annotations

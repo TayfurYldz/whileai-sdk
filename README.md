@@ -56,6 +56,33 @@ data = zps.simulate(
 )
 ```
 
+## Five calls
+
+Spec to gated dataset. Everything else in this README is one layer down.
+
+```python
+import zeroproof.simulations as zps
+
+data = zps.simulate(
+    agent="openai:gpt-4.1-mini", spec="specs/github", mode="rl", situations=200, repeats=8
+)  # 1 generate
+scored = data.grade(judge=my_judge)  # 2 grade (0/1 per rollout)
+print(scored.pass_at)
+zps.judge_trust(scored.rows, judge=my_judge)  # 3 trust the numbers
+rows, report = zps.optimize(scored, mode="rl")  # 4 prune to what carries gradient
+entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
+```
+
+After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`.
+
+| Call | What it decides | Reads |
+|---|---|---|
+| `simulate` | the situations, the users, the world, k rollouts per ask | your spec or tools + system prompt |
+| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or a `VLLM_API_KEY` |
+| `pass_at` / `judge_trust` | pass@1 with an interval, headroom for RL, whether the judge can be trusted | graded rows, 30 to 100 hand labels as `gold_reward` |
+| `optimize(mode="rl")` | drops junk, duplicates, dead groups, out-of-band asks; flags reward hacks | graded rows |
+| `push_rows(gate=True)` | refuses ungraded or gradient-free RL data; stamps calibration | pruned rows |
+
 Or use ZeroProof-hosted Qwen, which is the default when no `agent=` is given.
 Ask us for a `VLLM_API_KEY`; the endpoint is shared and rate limited.
 
