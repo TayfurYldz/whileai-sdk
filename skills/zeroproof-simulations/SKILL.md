@@ -261,8 +261,12 @@ report = data.training_set("train.jsonl", target=1000, validate=True)
 This selects diverse passing demonstrations and applies the tool-call
 round-trip export gate. For a judge-contract result returned as `ScoredData`,
 use `scored.select_for_sft()` and `zps.export_dataset(...)` with the run's
-policy and tools. For RL, use repeated groups and `select_for_rl`; keep groups
-whole and require meaningful within-group reward variation.
+policy and tools. For preference training, `scored.select_for_preference()`
+pairs a passing and a failing rollout of the same prompt; read
+`report["warnings"]` before exporting, it flags pairs where chosen is
+usually the longer reply or where the two sides came from different models.
+For RL, use repeated groups and `select_for_rl`; keep groups whole and
+require meaningful within-group reward variation.
 
 ## Deliverable
 

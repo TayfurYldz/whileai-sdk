@@ -194,10 +194,15 @@ class ScoredData:
         return select_for_sft(self.rows, target=target)
 
     def select_for_preference(
-        self, *, max_pairs_per_prompt: int = 1
+        self, *, max_pairs_per_prompt: int = 1, min_margin: float = 1.0, length_match: bool = True
     ) -> tuple[list[dict], dict[str, Any]]:
         """Chosen/rejected pairs from same-task contrast. Failures earn here."""
-        return build_preference_pairs(self.rows, max_pairs_per_prompt=max_pairs_per_prompt)
+        return build_preference_pairs(
+            self.rows,
+            max_pairs_per_prompt=max_pairs_per_prompt,
+            min_margin=min_margin,
+            length_match=length_match,
+        )
 
     def select_for_rl(
         self, *, target: int = 1000, lo: float = 0.3, hi: float = 0.7, has_tools: bool = True
@@ -373,41 +378,107 @@ def _pair_key(row: dict) -> str:
     return " ".join(str(row.get("prompt") or "").lower().split())
 
 
+def _score(row: dict) -> float | None:
+    reward = row.get("reward")
+    if isinstance(reward, bool) or not isinstance(reward, (int, float)):
+        return None
+    value = float(reward)
+    return value if 0.0 <= value <= 1.0 else None
+
+
+def _model_of(row: dict) -> str | None:
+    model = row.get("model_version")
+    return str(model) if model else None
+
+
 def build_preference_pairs(
-    rows: Sequence[dict], *, max_pairs_per_prompt: int = 1
+    rows: Sequence[dict],
+    *,
+    max_pairs_per_prompt: int = 1,
+    min_margin: float = 1.0,
+    length_match: bool = True,
 ) -> tuple[list[dict], dict[str, Any]]:
     """Same-task chosen/rejected pairs for preference training (DPO-style).
 
-    A pair exists only where the same prompt has both a 1-labeled and a
-    0-labeled trajectory — the contrast is the training signal, so
-    failures are supply here, not waste. Rows without a valid judge result
-    never pair. Returns (pairs, report); each pair carries both parents'
-    lineage.
+    A pair exists only where the same prompt has two trajectories whose
+    rewards differ by at least ``min_margin`` — the contrast is the
+    training signal, so failures are supply here, not waste. The default
+    ``1.0`` pairs 1-labeled with 0-labeled rows only; ``0.5`` also admits
+    partial-credit rows against a full pass or fail. Rows without a valid
+    judge result never pair.
+
+    Each pair keeps what the trainer and the reviewer need to trust it:
+
+    * ``chosen_score`` / ``rejected_score`` / ``margin``: the raw scores
+      and their gap, so a margin-aware loss (Llama 2 style) can use them
+      and a reviewer can see how far apart the two really are.
+    * ``chosen_model`` / ``rejected_model`` / ``same_policy``: which policy
+      produced each side. Preference data works best when both sides come
+      from the policy being trained (Tulu 3, rlhf-book ch. 11); a mixed
+      pair is still a pair, but it is labeled as off-policy.
+    * ``length_delta``: chosen reply chars minus rejected. DPO exploits a
+      length gap faster than it learns the behavior (rlhf-book ch. 8), so
+      with ``length_match=True`` each chosen row takes the rejected row
+      closest to it in length, and the report says how often chosen is
+      still the longer side.
+
+    Returns (pairs, report); each pair carries both parents' lineage.
     """
-    groups: dict[str, dict[str, list[dict]]] = {}
+    if min_margin <= 0:
+        raise ValueError("min_margin must be positive; equal scores carry no preference")
+    groups: dict[str, list[dict]] = {}
     for row in rows:
         if not isinstance(row, dict) or row.get("judge_status", "ok") != "ok":
             continue
-        if row.get("reward") not in (0, 1):
+        if _score(row) is None:
             continue
         key = _pair_key(row)
         if not key:
             continue
-        slot = groups.setdefault(key, {"pass": [], "fail": []})
-        slot["pass" if row["reward"] == 1 else "fail"].append(row)
+        groups.setdefault(key, []).append(row)
+
+    from .hygiene import reply_length
+
     pairs: list[dict] = []
     contrast_prompts = 0
-    for slot in groups.values():
-        if not slot["pass"] or not slot["fail"]:
-            continue
-        contrast_prompts += 1
-        for i in range(min(max_pairs_per_prompt, len(slot["pass"]), len(slot["fail"]))):
-            chosen, rejected = slot["pass"][i], slot["fail"][i]
+    for members in groups.values():
+        ranked = sorted(members, key=lambda r: -(_score(r) or 0.0))
+        used: set[int] = set()
+        made = 0
+        for ci, chosen in enumerate(ranked):
+            if made >= max_pairs_per_prompt:
+                break
+            if ci in used:
+                continue
+            c_score = _score(chosen) or 0.0
+            candidates = [
+                (ri, r)
+                for ri, r in enumerate(ranked)
+                if ri not in used and ri != ci and c_score - (_score(r) or 0.0) >= min_margin
+            ]
+            if not candidates:
+                continue
+            if length_match:
+                c_len = reply_length(chosen)
+                ri, rejected = min(candidates, key=lambda c: abs(reply_length(c[1]) - c_len))
+            else:
+                ri, rejected = candidates[0]
+            used.update({ci, ri})
+            made += 1
+            r_score = _score(rejected) or 0.0
+            c_model, r_model = _model_of(chosen), _model_of(rejected)
             pairs.append(
                 {
                     "prompt": chosen.get("prompt"),
                     "chosen": chosen,
                     "rejected": rejected,
+                    "chosen_score": c_score,
+                    "rejected_score": r_score,
+                    "margin": round(c_score - r_score, 6),
+                    "chosen_model": c_model,
+                    "rejected_model": r_model,
+                    "same_policy": (c_model == r_model) if c_model and r_model else None,
+                    "length_delta": reply_length(chosen) - reply_length(rejected),
                     "chosen_reason": str(chosen.get("reason") or ""),
                     "rejected_reason": str(rejected.get("reason") or ""),
                     "rejected_failure_class": rejected.get("failure_class"),
@@ -417,14 +488,49 @@ def build_preference_pairs(
                     },
                 }
             )
+        if made:
+            contrast_prompts += 1
+
+    n = len(pairs)
+    deltas = sorted(p["length_delta"] for p in pairs)
+    chosen_longer = sum(1 for d in deltas if d > 0)
+    same_policy = sum(1 for p in pairs if p["same_policy"] is True)
+    mixed_policy = sum(1 for p in pairs if p["same_policy"] is False)
+    partial = sum(
+        1
+        for p in pairs
+        if p["chosen_score"] not in (0.0, 1.0) or p["rejected_score"] not in (0.0, 1.0)
+    )
+    warnings: list[str] = []
+    if n >= 8 and chosen_longer / n >= 0.75:
+        warnings.append(
+            f"chosen is the longer reply in {chosen_longer}/{n} pairs; a preference "
+            "trainer learns length before behavior (rlhf-book ch. 8)"
+        )
+    if mixed_policy:
+        warnings.append(
+            f"{mixed_policy}/{n} pairs mix policies (chosen and rejected from different "
+            "models); on-policy pairs train better (rlhf-book ch. 11)"
+        )
     report = {
-        "pairs": len(pairs),
+        "pairs": n,
         "prompts_seen": len(groups),
         "prompts_with_contrast": contrast_prompts,
+        "min_margin": min_margin,
+        "mean_margin": round(sum(p["margin"] for p in pairs) / n, 4) if n else None,
+        "partial_score_pairs": partial,
+        "same_policy_pairs": same_policy,
+        "mixed_policy_pairs": mixed_policy,
+        "length": {
+            "median_delta": deltas[n // 2] if n else None,
+            "chosen_longer": chosen_longer,
+            "chosen_longer_frac": round(chosen_longer / n, 3) if n else None,
+        },
+        "warnings": warnings,
         "note": (
-            "pairs require the same prompt to have both a pass "
-            "and a fail; raise rollouts_per_request to create "
-            "contrast"
+            "pairs require the same prompt to have two rollouts whose "
+            f"rewards differ by at least {min_margin}; raise "
+            "rollouts_per_request to create contrast"
             if not pairs
             else ""
         ),

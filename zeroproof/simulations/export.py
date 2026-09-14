@@ -328,6 +328,24 @@ def export_training(
 export_dataset = export_training
 
 
+# Pair metadata that survives export. Scores and margin feed a margin-aware
+# loss; the two model names and same_policy tell a reviewer whether the pair
+# is on-policy; length_delta is the length-exploit check (rlhf-book ch. 8).
+_PAIR_KEYS = (
+    "chosen_score",
+    "rejected_score",
+    "margin",
+    "chosen_model",
+    "rejected_model",
+    "same_policy",
+    "length_delta",
+    "chosen_reason",
+    "rejected_reason",
+    "rejected_failure_class",
+    "lineage",
+)
+
+
 def export_preference(
     pairs: Sequence[dict],
     output: str | None = None,
@@ -371,7 +389,7 @@ def export_preference(
             entry[side] = _convert_messages(messages, system=system, strip_think=strip_think)
         if tools:
             entry["tools"] = list(tools)
-        for key in ("chosen_reason", "rejected_reason", "rejected_failure_class", "lineage"):
+        for key in _PAIR_KEYS:
             if pair.get(key) is not None:
                 entry[key] = pair[key]
         out_rows.append(stamp(entry))
@@ -386,6 +404,12 @@ def export_preference(
             "validate=False."
         )
     report: dict[str, Any] = {"pairs": len(out_rows), "tool_call_roundtrip": roundtrip}
+    deltas = [r["length_delta"] for r in out_rows if isinstance(r.get("length_delta"), int)]
+    if deltas:
+        report["chosen_longer_frac"] = round(sum(1 for d in deltas if d > 0) / len(deltas), 3)
+    margins = [r["margin"] for r in out_rows if isinstance(r.get("margin"), (int, float))]
+    if margins:
+        report["mean_margin"] = round(sum(margins) / len(margins), 4)
     # A 0-byte JSONL is not an empty dataset, it is a crash downstream:
     # datasets raises a bare StopIteration on it and pyarrow refuses the
     # file. No pairs means no file, loudly.
