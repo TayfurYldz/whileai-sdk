@@ -429,6 +429,16 @@ def decontaminate(
     its ``fields`` shares an n-gram, or, for text shorter than ``n`` words,
     matches an evaluation prompt exactly after normalization. Returns the
     clean rows and a report with the first offenders.
+
+    ``report["by_field"]`` counts how many rows each field flagged, so a
+    high ``contamination_rate`` says which field caused it. That matters
+    because the default includes ``final_text``, the agent's own reply:
+    two runs of one policy share reply phrasing by construction, and
+    generated prompts share the writer's stock phrasing the same way, so
+    comparing two runs of the same simulator can report near-100%
+    contamination without a single reused evaluation prompt. When
+    ``by_field`` shows the rate is driven by generated text rather than by
+    real prompt reuse, raise ``n`` or narrow ``fields``.
     """
     sources = (
         against
@@ -448,6 +458,7 @@ def decontaminate(
                     eval_exact.add(_norm(text))
     kept: list[dict] = []
     flagged: list[dict[str, Any]] = []
+    by_field: dict[str, int] = {str(field): 0 for field in fields}
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
             continue
@@ -457,16 +468,22 @@ def decontaminate(
             words = _words(text)
             if not words:
                 continue
+            match: str | None = None
             if len(words) < n:
                 if _norm(text) in eval_exact:
-                    hit = (field, "exact")
+                    match = "exact"
             else:
-                grams = _ngrams(words, n)
-                shared = grams & eval_ngrams
+                shared = _ngrams(words, n) & eval_ngrams
                 if shared:
-                    hit = (field, " ".join(next(iter(shared))))
-            if hit:
-                break
+                    match = " ".join(next(iter(shared)))
+            if match is None:
+                continue
+            # Every matching field is counted, not just the first, so
+            # by_field says which field drove the rate. hit stays the
+            # first match, which is what examples reports.
+            by_field[str(field)] += 1
+            if hit is None:
+                hit = (field, match)
         if hit:
             flagged.append({"index": i, "field": hit[0], "match": hit[1][:120]})
         else:
@@ -480,6 +497,7 @@ def decontaminate(
         "n_eval_rows": n_eval,
         "ngram": n,
         "fields": list(fields),
+        "by_field": by_field,
         "examples": flagged[:20],
     }
 

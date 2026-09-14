@@ -155,6 +155,49 @@ def test_decontaminate_by_ngram_and_exact_match(tmp_path):
     assert zps.decontaminate(rows, evals)[1]["n"] == 5
 
 
+def test_decontaminate_by_field_names_what_drove_the_rate():
+    """A 100% rate is unreadable without knowing which field matched.
+
+    ``final_text`` is the agent's own reply, so two runs of one policy
+    share it by construction; generated prompts share the writer's stock
+    phrasing the same way. ``by_field`` is what separates that from real
+    evaluation-prompt reuse.
+    """
+    evals = [{"prompt": "please look up order ORD-4017 and say whether the refund has been issued"}]
+    # One row reuses the eval prompt; three only share the canned reply.
+    reply = "I checked the account and the refund has not been issued yet, sorry."
+    rows = [
+        _row(
+            "please look up order ORD-4017 and say whether the refund has been issued", final=reply
+        ),
+        _row("a totally different question about billing", final=reply),
+        _row("another unrelated question about shipping", final=reply),
+    ]
+    _kept, report = decontaminate(rows, evals)
+    assert report["by_field"] == {"prompt": 1, "final_text": 0}
+    assert report["n_contaminated"] == 1
+
+    # Now the eval set carries an answer the replies quote: final_text bites,
+    # and by_field says so rather than leaving a bare rate of 1.0.
+    with_answer = [{"prompt": "unrelated eval ask", "answer": reply}]
+    _kept2, report2 = decontaminate(rows, with_answer)
+    assert report2["contamination_rate"] == 1.0
+    assert report2["by_field"] == {"prompt": 0, "final_text": 3}
+
+    # Counted per field, not per row: a row matching on both shows in both.
+    both = [{"prompt": "a totally different question about billing", "answer": reply}]
+    _kept3, report3 = decontaminate(rows, both, n=5)
+    assert report3["by_field"]["prompt"] == 1
+    assert report3["by_field"]["final_text"] == 3
+    # The row that matched on both is still one contaminated row, and
+    # examples still reports the first matching field.
+    assert report3["n_contaminated"] == 3
+    assert report3["examples"][1]["field"] == "prompt"
+
+    # Narrowing fields narrows the keys: no phantom zero for an unused field.
+    assert decontaminate(rows, evals, fields=("prompt",))[1]["by_field"] == {"prompt": 1}
+
+
 # ---------------------------------------------------------------- delta report
 
 
