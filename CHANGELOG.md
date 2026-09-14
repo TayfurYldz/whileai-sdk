@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.24 (2026-09-14)
 
 - Character training example (`examples/character`): the OpenAI Model
   Spec's style section parsed into a constitution with its GOOD/BAD
