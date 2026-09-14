@@ -26,7 +26,7 @@ import logging
 import threading
 import time
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from .ingest.platform import _call
@@ -34,6 +34,19 @@ from .ingest.platform import _call
 log = logging.getLogger("zeroproof.simulations")
 
 SITE_URL = "https://www.zeroproofai.com"
+
+
+def _json_safe(value: Any) -> Any:
+    """Tuples to lists, NaN/inf to None, so a report survives JSON."""
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, float) and (value != value or value in (float("inf"), float("-inf"))):
+        return None
+    return value
+
+
 FLUSH_EVERY = 25
 FLUSH_SECONDS = 15.0
 MAX_BATCH = 500
@@ -73,6 +86,8 @@ class TrainingRun:
         self._last_flush = time.monotonic()
         self._lock = threading.Lock()
         self._warned = False
+        self._delta: dict[str, Any] | None = None
+        self._summary: dict[str, Any] = {}
 
     @property
     def url(self) -> str:
@@ -159,8 +174,12 @@ class TrainingRun:
         """Flush, then mark the run ``done``, ``failed``, or ``stopped``."""
         self.flush()
         body: dict[str, Any] = {"status": status}
-        if summary:
-            body["summary"] = dict(summary)
+        merged = dict(summary or {})
+        if self._delta is not None:
+            merged["delta"] = self._delta
+        if merged:
+            body["summary"] = _json_safe(merged)
+            self._summary = dict(merged)
         if adapter:
             body["adapter"] = str(adapter)
         if error:
@@ -176,6 +195,38 @@ class TrainingRun:
 
     def fail(self, error: str) -> dict[str, Any]:
         return self.finish("failed", error=error)
+
+    def delta(
+        self,
+        before: Sequence[dict],
+        after: Sequence[dict],
+        *,
+        target: str | None = "pass_at_1",
+        must_not_regress: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        """Did the training move the behavior? ``delta_report`` over the
+        rollouts before and after, kept on the run and sent with
+        ``finish`` under ``summary["delta"]`` (sent right away when the run
+        is already finished). The run page draws it."""
+        from .score.delta import delta_report
+
+        report = delta_report(before, after, target=target, must_not_regress=list(must_not_regress))
+        self._delta = _json_safe(report)
+        if self.status != "running":
+            self._send_delta()
+        return report
+
+    def _send_delta(self) -> None:
+        try:
+            self._call(
+                "POST",
+                f"/runs/{self.run_id}/finish",
+                self._api_key,
+                {"status": self.status, "summary": {**self._summary, "delta": self._delta}},
+            )
+        except Exception as exc:
+            self.errors += 1
+            warnings.warn(f"training run {self.run_id}: could not send delta ({exc})", stacklevel=2)
 
     def __enter__(self) -> TrainingRun:
         return self
@@ -258,6 +309,30 @@ def delete_run(run_id: str, *, api_key: str | None = None) -> dict[str, Any]:
     return _call("DELETE", f"/runs/{run_id}", api_key)
 
 
+def attach_delta(
+    run_id: str,
+    before: Sequence[dict],
+    after: Sequence[dict],
+    *,
+    target: str | None = "pass_at_1",
+    must_not_regress: Sequence[str] = (),
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """Compute ``delta_report`` for a finished run and put it on the run
+    page: the summary is re-sent with ``delta`` added, status unchanged."""
+    from .score.delta import delta_report
+
+    run = _call("GET", f"/runs/{run_id}", api_key)
+    report = delta_report(before, after, target=target, must_not_regress=list(must_not_regress))
+    summary = dict(run.get("summary") or {})
+    summary["delta"] = _json_safe(report)
+    status = str(run.get("status") or "done")
+    if status == "running":
+        status = "done"
+    _call("POST", f"/runs/{run_id}/finish", api_key, {"status": status, "summary": summary})
+    return report
+
+
 # ---------------------------------------------------------------- Transformers / TRL
 
 
@@ -321,6 +396,21 @@ _LOG_KEYS = {
     "mean_token_accuracy": "token_accuracy",
     "eval_mean_token_accuracy": "eval_token_accuracy",
     "num_tokens": "tokens",
+    # TRL RL trainers (GRPO, PPO, RLOO, online DPO): the curves an RL run is
+    # read by. Any ``rewards/<name>`` key is kept under ``reward_<name>``.
+    "reward": "reward",
+    "reward_std": "reward_std",
+    "kl": "kl",
+    "objective/kl": "kl",
+    "objective/rlhf_reward": "reward",
+    "objective/scores": "score",
+    "objective/entropy": "entropy",
+    "entropy": "entropy",
+    "completion_length": "completion_length",
+    "completions/mean_length": "completion_length",
+    "clip_ratio": "clip_ratio",
+    "policy_loss": "policy_loss",
+    "value_loss": "value_loss",
 }
 
 
@@ -353,6 +443,8 @@ class TrainerCallback(_callback_base()):  # type: ignore[misc]
             if key in _SKIP_KEYS:
                 continue
             name = _LOG_KEYS.get(key)
+            if name is None and key.startswith("rewards/"):
+                name = "reward_" + key[len("rewards/") :].replace("/", "_")
             if name is None and key.startswith("eval_") and isinstance(value, (int, float)):
                 name = key
             if name is not None:
@@ -377,6 +469,7 @@ class TrainerCallback(_callback_base()):  # type: ignore[misc]
 __all__ = [
     "TrainerCallback",
     "TrainingRun",
+    "attach_delta",
     "delete_run",
     "get_run",
     "list_runs",

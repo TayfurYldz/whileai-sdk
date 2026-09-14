@@ -128,3 +128,76 @@ def test_package_exports_and_repr():
     assert "run_1" in repr(run) and run.status == "running"
     for name in ("list_runs", "get_run", "delete_run"):
         assert name in zps.__all__
+
+
+def test_trainer_callback_maps_rl_keys():
+    t = Transport()
+    run = training_run("grpo", api_key="k", flush_every=100, transport=t)
+    cb = TrainerCallback(run)
+    state = types.SimpleNamespace(max_steps=10, global_step=3, log_history=[])
+    cb.on_log(
+        None,
+        state,
+        None,
+        logs={
+            "reward": 0.42,
+            "reward_std": 0.1,
+            "kl": 0.02,
+            "completions/mean_length": 180.0,
+            "rewards/format_reward/mean": 0.9,
+            "rewards/accuracy": 0.3,
+            "epoch": 0.5,
+        },
+    )
+    run.flush()
+    point = t.calls[-1][2]["points"][-1]
+    assert point["reward"] == 0.42 and point["kl"] == 0.02 and point["completion_length"] == 180.0
+    assert point["reward_format_reward_mean"] == 0.9 and point["reward_accuracy"] == 0.3
+
+
+def _graded(prompt, rewards):
+    return [
+        {
+            "prompt": prompt,
+            "reward": r,
+            "final_text": f"Issue {i} is open.",
+            "steps": [],
+            "messages": [],
+        }
+        for i, r in enumerate(rewards)
+    ]
+
+
+def test_delta_rides_on_finish_and_attach_delta_resends():
+    t = Transport()
+    run = training_run("sft", api_key="k", transport=t)
+    before = [row for p in range(12) for row in _graded(f"t{p}", [1, 0, 0, 0])]
+    after = [row for p in range(12) for row in _graded(f"t{p}", [1, 1, 1, 0])]
+    report = run.delta(before, after, target="pass_at_1")
+    assert report["target_verdict"] == "moved"
+    run.finish("done", summary={"final_loss": 0.9})
+    sent = t.calls[-1][2]["summary"]
+    assert sent["final_loss"] == 0.9 and sent["delta"]["target_verdict"] == "moved"
+    assert isinstance(sent["delta"]["metrics"]["pass_at_1"]["ci95"], list)
+
+    # After the fact: fetch, merge, re-send with the status kept.
+    calls = []
+
+    def transport(method, path, api_key=None, body=None, **kw):
+        calls.append((method, path, body))
+        if method == "GET":
+            return {"runId": "run_x", "status": "done", "summary": {"final_loss": 0.9}}
+        return {"runId": "run_x", "status": "done"}
+
+    import zeroproof.simulations.training as tr
+
+    monkey = tr._call
+    tr._call = transport
+    try:
+        out = tr.attach_delta("run_x", before, after)
+    finally:
+        tr._call = monkey
+    assert out["target_verdict"] == "moved"
+    assert calls[-1][1] == "/runs/run_x/finish"
+    assert calls[-1][2]["status"] == "done" and calls[-1][2]["summary"]["final_loss"] == 0.9
+    assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved"
