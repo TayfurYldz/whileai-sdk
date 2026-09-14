@@ -201,3 +201,19 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
     assert calls[-1][1] == "/runs/run_x/finish"
     assert calls[-1][2]["status"] == "done" and calls[-1][2]["summary"]["final_loss"] == 0.9
     assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved"
+
+
+def test_callback_finish_false_and_second_finish_merges_summary():
+    t = Transport()
+    run = training_run("eval-after", api_key="k", flush_every=100, transport=t)
+    cb = TrainerCallback(run, finish=False)
+    state = types.SimpleNamespace(max_steps=4, global_step=4, log_history=[{"train_loss": 0.5}])
+    cb.on_train_end(None, state, None)
+    assert run.status == "running" and not any(c[1].endswith("/finish") for c in t.calls)
+    run.finish("done", summary={"train_loss": 0.5})
+    run.finish("done", summary={"pass_at_1_after": 0.3}, adapter="vol:/a")
+    last = t.calls[-1][2]
+    assert (
+        last["summary"] == {"train_loss": 0.5, "pass_at_1_after": 0.3}
+        and last["adapter"] == "vol:/a"
+    )

@@ -230,7 +230,8 @@ def train(
         peft_config=lora,
     )
     if run is not None:
-        trainer.add_callback(zps.TrainerCallback(run))
+        # finish=False: the holdout eval and the delta come after training.
+        trainer.add_callback(zps.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -270,8 +271,7 @@ def train(
         delta = run.delta(
             before_rows, after_rows, target="pass_at_1", must_not_regress=["well_formed"]
         )
-        if run.status == "running":
-            run.finish("done", summary=summary, adapter=f"zeroproof-grpo-runs:/{run_name}/adapter")
+        run.finish("done", summary=summary, adapter=f"zeroproof-grpo-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     else:
         delta = zps.delta_report(
