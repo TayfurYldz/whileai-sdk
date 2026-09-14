@@ -74,6 +74,15 @@ action claimed without a tool call, an identifier the person never gave,
 success declared after a failed call), and then your grader, a function
 you write, decides what good means for your agent. The SDK's job is to
 make every row worth grading; it does not get a vote on what passes.
+It does insist on two things about whichever judge you use, because a
+judge is a reward model. Every label says who made it: the hosted grader
+stamps its model, rubric hash, and settings on the row, and a custom
+judge can pass `version=` to do the same, so a rubric edit is visible as
+a new judge rather than a silent drift. And the judge is measured, not
+trusted: hand-label a sample into `gold_reward` and `judge_agreement`
+reports agreement, kappa, and the rate at which the judge passed a row
+you failed, which is the number that decides whether training on its
+labels teaches the behavior or the judge's blind spot.
 
 **Failure is loud.** If the writer, the world, or a judge cannot do its
 job, the run says so. Template fallbacks are never quietly substituted for
@@ -87,7 +96,17 @@ row carrying its situation (which axes, which world state, which faults
 were scheduled), its persona tags, and, once graded, its reward and the
 reason. From there: `training_set()` for supervised fine-tuning,
 preference pairs and repeated groups for reinforcement learning, and a
-leakage check against any evaluation you care about. The default check
+leakage check against any evaluation you care about. Each export carries
+what the training recipe needs and a reviewer would ask for. Supervised
+rows carry a `loss_mask`, one flag per message, so the trainer learns the
+agent's turns and never the tool output or the user (`mask_mode="final"`
+keeps only the last agent turn). Preference pairs carry the raw scores
+and their margin, which model produced each side and whether the two
+match, and the length gap between chosen and rejected, with a warning
+when the chosen side is usually the longer one, because a preference
+trainer learns length before it learns behavior. RL groups carry
+`group_id`, the group size, and the 0/1 counts, plus the calibration
+stamp the publish gate writes. The default check
 is lexical: word and bigram overlap with numbers collapsed, so it drops
 near-copies and copies that differ only in an id, and it does not catch
 a paraphrase. Pass a semantic `embedder=` to the leakage functions when

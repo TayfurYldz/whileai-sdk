@@ -216,10 +216,16 @@ def developer_judge(row: dict):
     return {"reward": 1 if developer_passes(row) else 0, "reason": developer_reason(row)}
 
 
-scored = data.grade(judge=developer_judge)
+scored = data.grade(judge=developer_judge, version="developer_judge@v3")
 scored.save("simulations/scored.jsonl")
 print(scored.report(tools=tools, system_prompt=policy))
 ```
+
+Pass `version=` so every scored row names the judge that labeled it (the
+hosted `zps.grade` stamps its model and rubric hash itself). When the developer
+has hand-labeled rows, write the label into `gold_reward` and report
+`scored.agreement()`: agreement, kappa, and `pass_when_gold_fail`, the gold
+failures the judge passed. Below 50 gold rows the estimate is coarse; say so.
 
 Use `grade=True` only for ZeroProof's deterministic structural/conduct screen;
 it is not the developer's semantic authority. Hosted or BYOK LLM grading is

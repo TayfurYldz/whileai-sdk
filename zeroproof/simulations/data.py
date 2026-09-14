@@ -282,6 +282,7 @@ class SimulationData:
         path: str | None = None,
         concurrency: int = 32,
         llm_concurrency: int = 16,
+        version: str | None = None,
     ):
         """Grade after simulation with hosted Qwen or a custom callable.
 
@@ -294,12 +295,18 @@ class SimulationData:
         ``ScoredData`` of copies — trajectories here stay unmodified, judge
         errors are marked per-row instead of coerced to 0 — and its output
         feeds ``export_training`` and ``simulate(traces=...)`` directly.
+        ``version=`` names the judge's version (model, rubric hash) and is
+        recorded on every scored row; the hosted grader stamps its own.
         """
         if judge is not None:
             from .score.judging import run_judge
 
             return run_judge(
-                self.trajectories, judge, source="grade", concurrency=min(int(concurrency), 32)
+                self.trajectories,
+                judge,
+                source="grade",
+                concurrency=min(int(concurrency), 32),
+                version=version,
             )
         if llm:
             return self.llm_grade(
