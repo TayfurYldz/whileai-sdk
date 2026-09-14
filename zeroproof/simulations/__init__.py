@@ -23,6 +23,7 @@ import logging as _logging
 
 from . import data, schema, simulation, verify
 from .data import SimulationData, conversation, grade, grade_llm, llm_grade, rank
+from .environment import build_tasks, export_environment, load_environment
 from .export import (
     export_dataset,
     export_preference,
@@ -98,6 +99,7 @@ from .schema import (
     validate,
 )
 from .score.agreement import judge_agreement
+from .score.checklist import outcome_check, task_checklist
 from .score.curriculum import curriculum, format_curriculum, retire_solved
 from .score.delta import delta_report, format_delta_report
 from .score.grading import behavior_signature, conduct_grade
@@ -223,6 +225,7 @@ __all__ = [
     "behavioral_markers",
     "build_dimensions",
     "build_preference_pairs",
+    "build_tasks",
     "calibrate",
     "calibration_of",
     "catalog",
@@ -248,6 +251,7 @@ __all__ = [
     "eval_variance",
     "evaluate",
     "export_dataset",
+    "export_environment",
     "export_preference",
     "export_training",
     "filter_rl_rows",
@@ -284,6 +288,7 @@ __all__ = [
     "length_report",
     "list_runs",
     "llm_grade",
+    "load_environment",
     "load_spec",
     "load_traces",
     "local_model",
@@ -301,6 +306,7 @@ __all__ = [
     "novelty",
     "open_ended_probes",
     "optimize",
+    "outcome_check",
     "pairwise_judge",
     "pass_at",
     "policy_sections",
@@ -345,6 +351,7 @@ __all__ = [
     "stamp_stage",
     "style_markers",
     "style_report",
+    "task_checklist",
     "to_row",
     "to_trl",
     "tool_call_roundtrip",

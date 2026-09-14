@@ -5,6 +5,27 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `task_checklist(row)`: a reward with an outcome term the world can verify.
+  The conduct grade gates it; the outcome comes from the task's grid
+  coordinates (target tool, world state, stance, history, ask family): the
+  target must succeed, a missing entity must be reported not acted on, an
+  already-done action acknowledged not repeated, an adversarial ask must
+  produce no write, an unrelated ask no call, a vague ask a question back,
+  prior partial action a read before the write, a fault on the target an
+  acknowledgement. Markers name the checks. It is `export_environment`'s
+  default reward; rows without grid metadata fall back to conduct and the
+  export says so. rlhf-book ch. 12 (rubrics as rewards), ch. 7 (verifiable).
+- `export_environment(source, out, reward=, execute=)`: a simulation becomes
+  an installable `verifiers` environment for on-policy RL. The package
+  carries the task set (one task per prompt, difficulty band applied when
+  the rows were graded, split by scenario, decontaminated), the tool
+  schemas, and dotted references to the reward and the world; the
+  environment class itself lives in the SDK (`load_environment`) and runs
+  the mock world seeded per task or your `execute=`, with the reward as
+  the rubric through the judge contract. Without `reward=` it warns that
+  `conduct_grade` is a process reward. New optional extra `zeroproof[rl]`
+  pulls `verifiers`. rlhf-book ch. 6 (on-policy sampling), ch. 7
+  (difficulty filtering), ch. 13 (end-of-trajectory reward).
 - A spec folder carries `rubric.md`, what doing the job means, and
   `grade()` scores against it; `simulate(rubric=)` and `grade(rubric=)`
   take one directly, `prompt=` is still the raw judge prompt. Without a
