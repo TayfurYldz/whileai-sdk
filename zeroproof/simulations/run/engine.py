@@ -365,6 +365,7 @@ class Run:
     def _build_runner(self) -> None:
         c = self.c
         self.fault_plans: dict = {}
+        self.execution_fault_plans: dict = {}
         kind = self.profile.transport
         self.turns = (
             default_max_turns(n_tools=len(self.tools))
@@ -389,7 +390,7 @@ class Run:
                 ("explicit" if opening_req == "user" else "default"),
             )
         runner_kw: dict[str, Any] = {
-            "fault_plans": self.fault_plans,
+            "fault_plans": self.execution_fault_plans,
             "max_turns": self.turns,
             "avg_turns": float(c.avg_turns),
             "min_user_turns": c.min_user_turns,
@@ -413,7 +414,7 @@ class Run:
                 **runner_kw,
             )
             self.simulator = self.simulator if self.simulator is not None else spec_backend
-        elif c.agent is None or kind not in {"callable", "backend_spec", "http"}:
+        elif c.agent is None:
             self.runner = hosted_model(
                 self.tools,
                 system=self.gen_policy,
@@ -426,7 +427,7 @@ class Run:
             self.runner, kind = resolve(
                 c.agent,
                 tools=self.tools,
-                policy=self.policy,
+                policy=self.gen_policy,
                 opening_rate=self.opening_rate,
                 result_shapes=self.shape_box,
                 timeout=c.rollout_timeout,
@@ -539,7 +540,7 @@ class Run:
         return plan
 
     @staticmethod
-    def _realized_dims(steps: list, faults: list) -> dict:
+    def _realized_dims(steps: list) -> dict:
         # Rows without a grid cell (seeds, open-ended, behavior cards)
         # still get auditable coordinates - realized from what actually
         # happened, marked so audits can tell assigned from observed.
@@ -553,12 +554,6 @@ class Run:
             if status and status not in ("ok", "success"):
                 condition = status
                 break
-        else:
-            for plan in faults or []:
-                kind = str((plan or {}).get("fault") or "")
-                if kind:
-                    condition = kind
-                    break
         return {
             "tool": tools_called[0] if tools_called else "unrelated",
             "tool_condition": condition,
@@ -582,6 +577,8 @@ class Run:
         faults = self._scaled(
             self.generator.fault_plans.get(prompt) or self.fault_plans.get(prompt), prompt
         )
+        # Execution and row provenance use the same rate-filtered plan.
+        self.execution_fault_plans[prompt] = dict(faults or {})
         # the caller's execute= world reads this to know which rollout it answers
         current_rollout.prompt = prompt
         current_rollout.rollout_index = rollout
@@ -592,7 +589,7 @@ class Run:
             raw = {"steps": [], "final_text": f"<agent error: {public_llm_error(exc)}>"}
         raw = raw if isinstance(raw, dict) else {"steps": [], "final_text": str(raw)}
         if not assignment:
-            assignment = self._realized_dims(raw.get("steps") or [], clean_faults(faults))
+            assignment = self._realized_dims(raw.get("steps") or [])
         semantic = self.data.semantic
         t = {
             # Born stamped: the streamed file and a later save() must agree.
@@ -1510,6 +1507,10 @@ class Run:
             and self.cap_lifted["lost"] > 0
             and len(self.used_situations) >= c.n_situations_target
         ):
+            if c.seeds and len(set(self.seed_prompts)) >= c.n_situations_target:
+                data.stopped_because = "seed_rollouts_failed"
+                data.degraded.append("seed_rollout_shortfall")
+                return "break"
             self.cap_lifted["lifted"] = True
             self.empty_streak = 0
             note_stage(data, "situation cap lifted to fill lost rollouts")
@@ -2110,25 +2111,17 @@ class Run:
                 "partials": len(scored.partials()),
                 "unjudged": len(scored.unjudged()),
             }
-        if c.grade and c.grader is None and not c.llm_grade and data.trajectories:
-            # grade=True shipped a release as an accepted-and-ignored flag: the
-            # advertised one-call path returned ungraded rows, and select_for_rl
-            # then had nothing to select. It now applies the documented default:
-            # the deterministic conduct grade, offline and free. The hosted or
-            # LLM judges stay where they were: llm_grade=True, grader=, or
-            # grade() afterwards.
+        if c.grade and data.trajectories:
+            # Conduct checks annotate behavior; only the caller's grader assigns
+            # rewards. Diagnostics must not replace or manufacture judge labels.
             declared = {
                 str((t.get("function") or t).get("name") or "")
                 for t in (data.profile.tools or [])
                 if isinstance(t, dict)
             }
             for row in data.trajectories:
-                if row.get("reward") is not None:
-                    continue
                 verdict = conduct_grade(row, declared or None)
-                row["reward"] = verdict.get("reward")
-                # the row template pre-seeds reason=None, so setdefault kept
-                # every conduct reason off the export
-                if verdict.get("reason") is not None and not row.get("reason"):
-                    row["reason"] = verdict["reason"]
-                row["label_source"] = "conduct"
+                row["conduct_flags"] = {
+                    "flagged": verdict.get("reward") != 1,
+                    "reason": verdict.get("reason"),
+                }

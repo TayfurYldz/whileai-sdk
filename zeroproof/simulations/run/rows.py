@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import re
 from typing import Any
 
 from ..data import SimulationData
@@ -23,27 +22,26 @@ from ..score.grading import as_dict
 _SEARCH_ARMS = dict(SEARCH_ARMS)
 
 
-_RAW_TOOL_MARKUP = re.compile(r"</?tool_call>", re.I)
-
-
-_TOOL_SCHEMA_DUMP = re.compile(
-    r'"name"\s*:\s*"[^"]+".{0,500}"description"\s*:'
-    r'.{0,500}"parameters"\s*:',
-    re.I | re.S,
-)
-
-
 def _usable_rollout(row: dict) -> bool:
-    """Infrastructure and parser failures are not training trajectories."""
+    """Keep actual conversation evidence; exclude only empty/error stubs.
+
+    Malformed model text and incomplete tool interactions are agent behavior.
+    Training selection and the caller's grader decide how to use them later.
+    """
     final = str((row or {}).get("final_text") or "").strip()
-    if not final or final.lower().startswith("<agent error"):
-        return False
-    assistant_text = [final]
-    for step in (row or {}).get("steps") or []:
-        if isinstance(step, dict) and step.get("text") is not None:
-            assistant_text.append(str(step["text"]))
-    visible = "\n".join(assistant_text)
-    return not (_RAW_TOOL_MARKUP.search(visible) or _TOOL_SCHEMA_DUMP.search(visible))
+    if final and not final.lower().startswith("<agent error"):
+        return True
+    return any(
+        isinstance(step, dict)
+        and (
+            step.get("tool")
+            or (
+                str(step.get("text") or "").strip()
+                and not str(step["text"]).strip().lower().startswith("<agent error")
+            )
+        )
+        for step in (row or {}).get("steps") or []
+    )
 
 
 def _collect_finished(pending: dict, wait_s: float, *, retry: bool = False):

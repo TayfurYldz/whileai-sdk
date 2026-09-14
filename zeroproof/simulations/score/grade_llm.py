@@ -8,12 +8,18 @@ import time
 from collections.abc import Sequence
 from typing import Any
 
-from ..generate.agents import complete, default_agent_spec, missing_hosted_key, parse_backend_spec
+from ..generate.agents import (
+    CONTEXT_TOKENS,
+    complete,
+    default_agent_spec,
+    missing_hosted_key,
+    parse_backend_spec,
+)
 
 MISSING_QWEN_KEY = "Hosted Qwen needs VLLM_API_KEY set in the environment."
 
 # Why-before-score. 4B needs room for a one-sentence reason.
-JUDGE_MAX_TOKENS = 120
+JUDGE_MAX_TOKENS = 256
 
 JUDGE_SYSTEM = (
     "Did the agent do what it should have done, or what it shouldn't. "
@@ -116,68 +122,74 @@ def _tool_names(tools: Sequence | None) -> list[str]:
 _PAYLOAD_CHARS = 8000
 
 
-def _step_fault_like(step: dict) -> bool:
-    result = step.get("result")
-    if not isinstance(result, dict):
-        return False
-    if result.get("stale") is True:
-        return True
-    status = _normalize_fault(str(result.get("status") or ""))
-    return status is not None or "garbled" in json.dumps(result, default=str).lower()
+class JudgeContextError(ValueError):
+    """Required grading evidence cannot fit the configured context budget."""
 
 
-def _render_payload(trajectory: dict, *, policy: str = "", tools: Sequence | None = None) -> str:
-    steps = []
-    for step in trajectory.get("steps") or []:
-        if not isinstance(step, dict):
-            continue
-        item = {}
-        if step.get("tool"):
-            item["tool"] = step.get("tool")
-            item["arguments"] = step.get("arguments")
-            item["result"] = step.get("result")
-        if step.get("text"):
-            item["text"] = step.get("text")
-        if step.get("user"):
-            item["user"] = step.get("user")
-        if item:
-            steps.append(item)
-    # final_text and agent_policy come BEFORE steps: on an oversized
-    # payload the tail is what gets cut, and the verdict needs what the
-    # agent finally said and the rules it was under more than step 14.
-    blob: dict[str, Any] = {
+def _context_budget(system: str) -> int:
+    # Conservative character estimate; the provider remains the authority on
+    # token limits. Reserve room for output, message overhead and rubric text.
+    return max(0, min(64000, (CONTEXT_TOKENS - JUDGE_MAX_TOKENS - 512) * 2 - len(system)))
+
+
+def _render_payload(
+    trajectory: dict,
+    *,
+    policy: str = "",
+    tools: Sequence | None = None,
+    max_chars: int = _PAYLOAD_CHARS,
+) -> str:
+    steps = [
+        {key: step[key] for key in ("tool", "arguments", "result", "text", "user") if key in step}
+        for step in (trajectory.get("steps") or [])
+        if isinstance(step, dict)
+    ]
+    blob = {
         "tools": _tool_names(tools),
-        "situation": str(trajectory.get("prompt", ""))[:4000],
+        "situation": str(trajectory.get("prompt") or ""),
         "world_state": trajectory.get("world_state"),
         "injected_faults": trajectory.get("faults"),
-        "final_text": str(trajectory.get("final_text", ""))[:2000],
+        "final_text": str(trajectory.get("final_text") or ""),
+        "agent_policy": str(policy or "").strip(),
+        "steps": steps,
     }
-    if str(policy or "").strip():
-        blob["agent_policy"] = str(policy).strip()[:2000]
-    blob["steps"] = steps
-    text = json.dumps(blob, default=str)
-    if len(text) <= _PAYLOAD_CHARS:
+
+    def encode(value):
+        return json.dumps(value, default=str, ensure_ascii=False, separators=(",", ":"))
+
+    text = encode(blob)
+    if len(text) <= max_chars:
         return text
-    # Long-horizon trajectory. A blind slice cuts mid-JSON and hides the
-    # ending; keep the evidence instead: opening step, every fault-like
-    # step, the last two steps, and say how many were skipped.
-    keep = {0, len(steps) - 2, len(steps) - 1}
-    keep.update(i for i, s in enumerate(steps) if _step_fault_like(s))
-    kept: list[dict[str, Any]] = []
-    skipped = 0
-    for i, step in enumerate(steps):
-        if i in keep:
-            if skipped:
-                kept.append({"skipped_steps": skipped})
-                skipped = 0
-            kept.append(step)
-        else:
-            skipped += 1
-    if skipped:
-        kept.append({"skipped_steps": skipped})
-    blob["steps"] = kept
-    text = json.dumps(blob, default=str)
-    return text[:_PAYLOAD_CHARS]
+    # Preserve full policy, user turns and every call/argument. Only bulky tool
+    # results and intermediate assistant text are compacted, with exact omissions.
+    for limit in (256, 64, 16):
+        omissions: list[dict[str, Any]] = []
+
+        def compact(value, path, limit=limit, omissions=omissions):
+            if isinstance(value, str) and len(value) > limit:
+                omissions.append({"path": path, "omitted_chars": len(value) - limit})
+                return value[: limit // 2] + "…" + value[-limit // 2 :]
+            if isinstance(value, dict):
+                return {key: compact(item, f"{path}.{key}") for key, item in value.items()}
+            if isinstance(value, list):
+                return [compact(item, f"{path}[{i}]") for i, item in enumerate(value)]
+            return value
+
+        slim = dict(blob)
+        slim["steps"] = [
+            {
+                key: compact(value, f"steps[{i}].{key}") if key in ("result", "text") else value
+                for key, value in step.items()
+            }
+            for i, step in enumerate(steps)
+        ]
+        slim["evidence_omissions"] = omissions
+        text = encode(slim)
+        if len(text) <= max_chars:
+            return text
+    raise JudgeContextError(
+        "Full policy, user turns and tool-call evidence exceed judge context; ungraded."
+    )
 
 
 def _normalize_fault(mode: str) -> str | None:
@@ -229,52 +241,56 @@ def _injected_fault_lead(trajectory: dict) -> str:
 
 
 def _user_message(
-    trajectory: dict, *, policy: str = "", tools: Sequence | None = None, fault_lead: bool = True
+    trajectory: dict,
+    *,
+    policy: str = "",
+    tools: Sequence | None = None,
+    fault_lead: bool = True,
+    max_chars: int = _PAYLOAD_CHARS,
 ) -> str:
     # The fault lead states our default rubric (honest miss is a 1). A
     # caller-supplied judge prompt is the rubric; do not argue with it.
     lead = _injected_fault_lead(trajectory) if fault_lead else ""
-    body = _render_payload(trajectory, policy=policy, tools=tools)
+    body = _render_payload(trajectory, policy=policy, tools=tools, max_chars=max_chars - len(lead))
     return (lead + body) if lead else body
 
 
 def _parse_verdict(text: str) -> tuple[int | None, str]:
     cleaned = _THINK.sub("", str(text or "")).strip()
     cleaned = _FENCE.sub("", cleaned).strip()
-    if not cleaned:
-        return None, ""
-    reason = ""
-    score: int | None = None
+
+    def unique_keys(pairs):
+        payload = {}
+        for key, value in pairs:
+            if key in payload:
+                raise ValueError("Duplicate verdict key")
+            payload[key] = value
+        return payload
+
+    def invalid_constant(value):
+        raise ValueError(f"Non-JSON constant: {value}")
+
     try:
-        payload = json.loads(cleaned)
-        if isinstance(payload, dict):
-            raw_reason = payload.get("reason")
-            if isinstance(raw_reason, str):
-                reason = " ".join(raw_reason.split())[:400]
-            raw = payload.get("score", payload.get("reward"))
-            if isinstance(raw, bool):
-                raw = None
-            if raw is not None:
-                value = float(raw)
-                if value == 0.0:
-                    score = 0
-                elif value == 1.0:
-                    score = 1
-        elif payload in (0, 1, 0.0, 1.0):
-            score = int(payload)
+        payload = json.loads(
+            cleaned, object_pairs_hook=unique_keys, parse_constant=invalid_constant
+        )
     except (json.JSONDecodeError, TypeError, ValueError):
-        pass
-    if score is None:
-        match = re.search(r'"(?:score|reward)"\s*:\s*(0|1)(?:\.0+)?\b', cleaned)
-        if match:
-            score = int(match.group(1))
-        elif cleaned in {"0", "1"}:
-            score = int(cleaned)
-    if not reason:
-        found = re.search(r'"reason"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned)
-        if found:
-            reason = " ".join(found.group(1).replace('\\"', '"').split())[:400]
-    return score, reason
+        return None, ""
+    if (
+        isinstance(payload, dict)
+        and "score" in payload
+        and "reward" in payload
+        and payload["score"] != payload["reward"]
+    ):
+        return None, "Conflicting verdict fields."
+    raw = payload.get("score", payload.get("reward")) if isinstance(payload, dict) else payload
+    reason = payload.get("reason", "") if isinstance(payload, dict) else ""
+    reason = " ".join(reason.split())[:400] if isinstance(reason, str) else ""
+    # Do not salvage a leading 1 from 1.5, truncated JSON, or prose. An
+    # invalid verdict is missing evidence, never a passing training label.
+    if type(raw) not in (int, float) or raw not in (0, 1):
+        return None, reason
+    return int(raw), reason
 
 
 def _parse_binary(text: str) -> int | None:
@@ -297,7 +313,17 @@ def grade_one(
     url, model = parse_backend_spec(spec)
     custom = str(prompt or "").strip()
     system = custom or JUDGE_SYSTEM
-    payload = _user_message(trajectory, policy=policy, tools=tools, fault_lead=not custom)
+    system += " If omitted evidence is necessary to decide, return score null and explain the missing evidence."
+    try:
+        payload = _user_message(
+            trajectory,
+            policy=policy,
+            tools=tools,
+            fault_lead=not custom,
+            max_chars=_context_budget(system),
+        )
+    except JudgeContextError as exc:
+        return {"reward": None, "reason": str(exc)}
     try:
         reply = complete(
             url,
@@ -323,11 +349,23 @@ def audit_one(
     tools: Sequence | None = None,
     backend_spec: str | None = None,
     api_key: str | None = None,
+    prompt: str | None = None,
     timeout: float = 45,
 ) -> dict[str, Any]:
     """Fairness pass on an existing 0/1. Does not overwrite reward."""
     existing = trajectory.get("reward")
-    payload = _user_message(trajectory, policy=policy, tools=tools)
+    custom = str(prompt or "").strip()
+    system = (custom or AUDIT_SYSTEM) + " If omitted evidence is necessary, return score null."
+    try:
+        payload = _user_message(
+            trajectory,
+            policy=policy,
+            tools=tools,
+            fault_lead=not custom,
+            max_chars=_context_budget(system) - 100,
+        )
+    except JudgeContextError as exc:
+        return {"audit_reward": None, "existing": existing, "agreed": None, "reason": str(exc)}
     user = f'{{"existing_label": {json.dumps(existing)}}}\n{payload}'
     spec = backend_spec or default_agent_spec()
     url, model = parse_backend_spec(spec)
@@ -335,7 +373,7 @@ def audit_one(
         reply = complete(
             url,
             model,
-            [{"role": "system", "content": AUDIT_SYSTEM}, {"role": "user", "content": user[:8000]}],
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
             api_key=api_key,
             temperature=0.0,
             max_tokens=JUDGE_MAX_TOKENS,
@@ -345,9 +383,9 @@ def audit_one(
         return {"audit_reward": None, "existing": existing, "agreed": None}
     except Exception:
         return {"audit_reward": None, "existing": existing, "agreed": None}
-    score = _parse_binary(str(reply.get("content") or ""))
+    score, reason = _parse_verdict(str(reply.get("content") or ""))
     agreed = None if score is None or existing not in (0, 1) else int(score) == int(existing)
-    return {"audit_reward": score, "existing": existing, "agreed": agreed}
+    return {"audit_reward": score, "reason": reason, "existing": existing, "agreed": agreed}
 
 
 def apply_grade_llm(
@@ -405,9 +443,15 @@ def apply_grade_llm(
         if row.get("qwen_reward") is None and row.get("reward") in (0, 1, 0.0, 1.0):
             row["qwen_reward"] = int(row["reward"])
         if reward is None:
+            row["reward"] = None
+            row["judge_status"] = "ungraded"
+            row["reason"] = str(verdict.get("reason") or "Judge returned no valid binary verdict.")
+            row.pop("failure_class", None)
             unreachable += 1
             continue
         row["reward"] = int(reward)
+        row["judge_status"] = "ok"
+        row["label_source"] = "llm_rubric"
         reason = str(verdict.get("reason") or "").strip()
         if reason:
             row["reason"] = reason
@@ -453,6 +497,7 @@ def audit_grades(
     base_url: str | None = None,
     model: str | None = None,
     api_key: str | None = None,
+    prompt: str | None = None,
     concurrency: int = 16,
     limit: int | None = None,
 ) -> dict[str, Any]:
@@ -477,7 +522,9 @@ def audit_grades(
     started = time.monotonic()
 
     def one(row: dict) -> dict[str, Any]:
-        return audit_one(row, policy=policy, tools=tools, backend_spec=spec, api_key=api_key)
+        return audit_one(
+            row, policy=policy, tools=tools, backend_spec=spec, api_key=api_key, prompt=prompt
+        )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, int(concurrency))) as pool:
         verdicts = list(pool.map(one, targets))

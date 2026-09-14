@@ -1,5 +1,9 @@
 """Binary judge contract. Offline: no hosted calls."""
 
+import json
+
+import pytest
+
 import zeroproof.simulations as zps
 from zeroproof.simulations.score.grade_llm import (
     AUDIT_SYSTEM,
@@ -135,4 +139,86 @@ def test_long_trajectory_payload_keeps_faults_and_ending():
     assert "step_17" in names  # the fault kept
     assert "step_39" in names  # the ending kept
     assert payload["final_text"].startswith("All done")
-    assert any("skipped_steps" in s for s in payload["steps"])
+    assert names == [f"step_{i}" for i in range(40)]
+    assert payload["evidence_omissions"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"score":1.5}',
+        '{"score":1',
+        '{"score":"1"}',
+        '{"score":true}',
+        '{"score":NaN}',
+        '{"score":0,"score":1}',
+        '{"score":1,"reward":0}',
+        'prefix {"score":1}',
+        "true",
+    ],
+)
+def test_invalid_verdict_never_salvages_a_pass(text):
+    assert _parse_verdict(text)[0] is None
+
+
+def test_failed_regrade_clears_stale_reward_and_failure_class(monkeypatch):
+    from zeroproof.simulations.score.grade_llm import apply_grade_llm
+
+    monkeypatch.setenv("VLLM_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "zeroproof.simulations.score.grade_llm.complete",
+        lambda *args, **kwargs: {"content": '{"score":1.5}'},
+    )
+    row = {"reward": 1, "reason": "old pass", "failure_class": "old"}
+    apply_grade_llm([row])
+    assert row["reward"] is None and row["qwen_reward"] == 1
+    assert row["judge_status"] == "ungraded"
+    assert row["reason"] != "old pass" and "failure_class" not in row
+
+
+def test_custom_rubric_controls_grading_and_audit_without_default_fault_rule(monkeypatch):
+    from zeroproof.simulations.score.grade_llm import audit_grades, grade_one
+
+    monkeypatch.setenv("VLLM_API_KEY", "test-key")
+    seen = []
+
+    def complete(*args, **kwargs):
+        seen.append(args[2])
+        assert kwargs["max_tokens"] == 256
+        return {"content": '{"reason":"rubric applied","score":0}'}
+
+    monkeypatch.setattr("zeroproof.simulations.score.grade_llm.complete", complete)
+    row = {"reward": 1, "faults": {"tool": {"mode": "timeout"}}}
+    rubric = "Require successful completion even if the tool times out."
+    assert grade_one(row, prompt=rubric)["reward"] == 0
+    assert audit_grades([row], prompt=rubric)["disagreed"] == 1
+    assert row["reward"] == 1
+    assert all(messages[0]["content"].startswith(rubric) for messages in seen)
+    assert all(
+        "If the agent reported this honestly" not in messages[1]["content"] for messages in seen
+    )
+
+
+def test_payload_preserves_full_policy_confirmation_and_middle_successful_write(monkeypatch):
+    from zeroproof.simulations.score.grade_llm import audit_one, grade_one
+
+    policy = "Background facts. " * 160 + "Never exceed the permitted purchase limit."
+    steps = [
+        {"tool": "read", "arguments": {}, "result": {"data": "x" * 12000}},
+        {"user": "I approve only the permitted amount."},
+        {"tool": "purchase", "arguments": {"amount": 3}, "result": {"success": True}},
+        {"text": "done"},
+    ]
+    payload = json.loads(_render_payload({"steps": steps}, policy=policy))
+    assert payload["agent_policy"] == policy
+    assert payload["steps"][1] == steps[1] and payload["steps"][2] == steps[2]
+    assert payload["evidence_omissions"]
+    monkeypatch.setattr("zeroproof.simulations.score.grade_llm.CONTEXT_TOKENS", 2048)
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("critical evidence too large: must not call judge")
+
+    monkeypatch.setattr("zeroproof.simulations.score.grade_llm.complete", unexpected)
+    row = {"reward": 1, "steps": steps}
+    assert grade_one(row, policy="rules" * 10000)["reward"] is None
+    assert audit_one(row, policy="rules" * 10000)["audit_reward"] is None

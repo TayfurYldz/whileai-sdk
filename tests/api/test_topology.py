@@ -463,7 +463,8 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
         time_budget=None,
         advanced={"per_round": 6, "mutate_failures": False},
     )
-    assert all(isinstance(t.get("reward"), (int, float)) for t in graded.trajectories)
+    assert all(t.get("reward") is None for t in graded.trajectories)
+    assert all("conduct_flags" in t for t in graded.trajectories)
     assert all(t.get("reward") is None for t in raw.trajectories)
 
     scored = zps.simulate(
@@ -481,6 +482,7 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
         advanced={"per_round": 6, "mutate_failures": False},
     )
     assert all(t["reward"] == 0.25 for t in scored.trajectories)
+    assert all("conduct_flags" in t for t in scored.trajectories)
 
     tiny = {
         "tool": ["lookup_order"],

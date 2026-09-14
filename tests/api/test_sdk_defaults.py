@@ -275,9 +275,9 @@ def test_github_example_spec_works():
     assert {"search_issues", "get_pr"} <= names
     row = data.rows()[0]
     assert {"prompt", "messages", "steps", "final_text", "scenario_id"} <= set(row)
-    # grade=True applies the deterministic conduct grade at return.
-    assert isinstance(row.get("reward"), (int, float))
-    assert row.get("label_source") == "conduct"
+    # Conduct checks are diagnostics, not judge labels.
+    assert row.get("reward") is None
+    assert "conduct_flags" in row
     assert row["messages"][0] == {"role": "user", "content": row["prompt"]}
     assert "selection_reason" not in row
     assert "arm" not in row
@@ -649,10 +649,12 @@ def test_conduct_grade_reason_reaches_the_row(tmp_path):
     import json
 
     data = simulate_offline(grade=True, budget=16)
-    fails = [r for r in data.trajectories if r.get("reward") == 0]
-    assert fails, "the scripted agent invents ids and claims success; some rows must fail"
-    assert all(r.get("reason") for r in fails)
+    fails = [r for r in data.trajectories if r.get("conduct_flags", {}).get("flagged")]
+    assert fails, "the scripted agent invents ids and claims success; some rows must be flagged"
+    assert all(r["conduct_flags"].get("reason") for r in fails)
+    assert all(r.get("reward") is None for r in data.trajectories)
     out = tmp_path / "rows.jsonl"
     data.save(str(out))
     saved = [json.loads(line) for line in out.read_text().splitlines()]
-    assert all(r.get("reason") for r in saved if r.get("reward") == 0)
+    assert all("conduct_flags" in r for r in saved)
+    assert all(r.get("reward") is None for r in saved)

@@ -151,7 +151,7 @@ def export_row(row: dict) -> dict:
     for key in ("rollout_index", "model_version"):
         if row.get(key) is not None:
             out[key] = row[key]
-    if row.get("reward") is not None:
+    if "reward" in row:
         out["reward"] = row["reward"]
         reason = row.get("grader_reason") or row.get("reason")
         if reason:
@@ -160,6 +160,10 @@ def export_row(row: dict) -> dict:
         # and a human override must stay distinguishable on disk.
         if row.get("label_source"):
             out["label_source"] = row["label_source"]
+    if "conduct_flags" in row:
+        out["conduct_flags"] = row["conduct_flags"]
+    if "judge_status" in row:
+        out["judge_status"] = row["judge_status"]
     if row.get("qwen_reward") is not None:
         out["qwen_reward"] = row["qwen_reward"]
     if "llm_reward" in row:
@@ -282,31 +286,16 @@ class SimulationData:
                 spec=llm_spec, concurrency=llm_concurrency, api_key=api_key, path=path
             )
 
-        def score(t):
-            out = grader(t)
-            flagged = bool(t.get("faults"))
-            if isinstance(out, dict):
-                return (
-                    float(out.get("reward", 0.0)),
-                    str(out.get("reason", "")),
-                    flagged or bool(out.get("fault_detected")),
-                )
-            return float(out), "graded", flagged
+        from .score.judging import run_judge
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
-            for t, (reward, reason, flagged) in zip(
-                self.trajectories, pool.map(score, self.trajectories)
-            ):
-                t["reward"], t["grader_reason"], t["reason"] = reward, reason, reason
-                if flagged:
-                    t["fault_detected"] = True
-                else:
-                    t.pop("fault_detected", None)
+        scored = run_judge(self.trajectories, grader, source="grade", concurrency=concurrency)
+        for target, graded in zip(self.trajectories, scored.rows):
+            target.update(graded)
         self.arm_yield = {}
-        for t in self.trajectories:
-            slot = self.arm_yield.setdefault(t["arm"], {"executed": 0, "failing": 0})
+        for row in self.trajectories:
+            slot = self.arm_yield.setdefault(row.get("arm", "unattributed"), {"executed": 0, "failing": 0})
             slot["executed"] += 1
-            slot["failing"] += t["reward"] < 1.0
+            slot["failing"] += row.get("reward") is not None and row["reward"] < 1.0
         self._rewrite(path)
         return self
 
