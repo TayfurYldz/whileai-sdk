@@ -3,7 +3,16 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## 0.33 (2026-09-14)
+## Unreleased
+
+- `data.grade(use_privileged=True)` / `grade_llm(use_privileged=)`: the
+  hosted judge reads the row's `privileged` block (principle, reference,
+  hidden state) as `judge_only` in its payload, with a prompt line on how
+  to use it (rlhf-book ch. 12, constitutional AI). Folded into the judge
+  version and stamped `judge_meta.privileged`; exports still never carry
+  `privileged` (#134).
+
+2026-09-14)
 
 - Rubrics as objects (rlhf-book ch. 12): `Rubric` / `Criterion` (hard rule,
   principle, pitfall; positive weights; a content hash as `version`) on the
