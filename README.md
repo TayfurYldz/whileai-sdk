@@ -248,6 +248,17 @@ zps.agents()  # every agent: traces, sets by purpose, public cards
 zps.register_agent("airline-support", description="Refunds and rebooking")
 ```
 
+### Clean up
+
+```bash
+zeroproof purge --agent demo-agent --dry-run   # count its traces, datasets, record
+zeroproof purge --agent demo-agent             # delete them, after a y/N
+zeroproof purge --empty --max-rows 2           # datasets with no bytes, or 2 rows or fewer
+```
+
+Python: `zps.purge_agent("demo-agent")`, `zps.delete_empty_datasets(max_rows=2)`.
+Both take `dry_run=True`.
+
 ### Train, holdout, eval
 
 ```python

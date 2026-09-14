@@ -12,6 +12,10 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   are buffered and sent in batches and logging never raises into the
   training loop. The platform draws the loss curve and progress bar at
   /platform/training.
+- `zeroproof purge --agent <slug>` and `--empty`: an agent with its traces,
+  datasets and record, or datasets with no bytes (or few rows), gone in
+  one command after a y/N; `--dry-run` counts. Python `zps.purge_agent`,
+  `zps.delete_empty_datasets`.
 - Agents: `zps.agents()`, `zps.register_agent(name, tools=, system_prompt=)`;
   `data.push(name, agent=...)` registers the agent and attaches the run's
   tools and system prompt to its record.

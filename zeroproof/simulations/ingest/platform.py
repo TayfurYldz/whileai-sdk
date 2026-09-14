@@ -500,3 +500,55 @@ def pull(
 def delete(dataset_id: str, *, api_key: str | None = None) -> dict:
     """Permanently delete a dataset from your account."""
     return _call("DELETE", f"/datasets/{dataset_id}", api_key)
+
+
+def _agent_trace_ids(slug: str, api_key: str | None) -> list[str]:
+    ids: list[str] = []
+    page = 1
+    while True:
+        d = _call("GET", f"/traces?agent={slug}&from=all&limit=200&page={page}", api_key)
+        rows = d.get("traces") or []
+        ids.extend(str(t["traceId"]) for t in rows if t.get("traceId"))
+        if not rows or page >= int(d.get("pages") or 1):
+            break
+        page += 1
+    return ids
+
+
+def purge_agent(agent: str, *, dry_run: bool = False, api_key: str | None = None) -> dict:
+    """Remove an agent and everything under it: its traces, its datasets,
+    and its registry record. Permanent. ``dry_run=True`` only counts.
+
+    Returns ``{"agent", "traces", "datasets", "deleted"}``.
+    """
+    slug = str(agent or "").strip().lower()
+    if not slug:
+        raise ValueError("pass the agent slug")
+    trace_ids = _agent_trace_ids(slug, api_key)
+    sets = [d for d in datasets(api_key=api_key)["datasets"] if d.get("agent") == slug]
+    out = {"agent": slug, "traces": len(trace_ids), "datasets": len(sets), "deleted": not dry_run}
+    if dry_run:
+        return out
+    for tid in trace_ids:
+        _call("DELETE", f"/traces/{tid}", api_key)
+    for d in sets:
+        _call("DELETE", f"/datasets/{d['datasetId']}", api_key)
+    _call("DELETE", f"/agents/{slug}", api_key)
+    return out
+
+
+def delete_empty_datasets(
+    *, max_rows: int = 0, dry_run: bool = False, api_key: str | None = None
+) -> dict:
+    """Delete datasets with no stored bytes, or with ``max_rows`` rows or
+    fewer when that is set (smoke runs). Permanent. Returns the ids."""
+    victims = []
+    for d in datasets(api_key=api_key)["datasets"]:
+        size = int(d.get("sizeBytes") or 0)
+        rows = d.get("rows")
+        if size == 0 or (max_rows > 0 and rows is not None and int(rows) <= max_rows):
+            victims.append(d["datasetId"])
+    if not dry_run:
+        for did in victims:
+            _call("DELETE", f"/datasets/{did}", api_key)
+    return {"datasets": victims, "deleted": not dry_run}

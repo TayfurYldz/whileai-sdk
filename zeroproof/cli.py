@@ -33,6 +33,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("logout", help="delete the saved key")
     sub.add_parser("status", help="show which key the SDK will use")
 
+    p_purge = sub.add_parser(
+        "purge", help="delete an agent's traces, datasets and record, or empty datasets"
+    )
+    p_purge.add_argument("--agent", help="agent slug to remove with everything under it")
+    p_purge.add_argument(
+        "--empty", action="store_true", help="delete datasets with no stored bytes"
+    )
+    p_purge.add_argument(
+        "--max-rows",
+        type=int,
+        default=0,
+        help="with --empty: also delete sets with this many rows or fewer",
+    )
+    p_purge.add_argument("--dry-run", action="store_true", help="count, delete nothing")
+    p_purge.add_argument("--yes", action="store_true", help="skip the confirmation")
+
     args = parser.parse_args(argv)
 
     if args.command == "login":
@@ -62,6 +78,33 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "status":
         print(json.dumps(auth.status(), indent=2))
+        return 0
+
+    if args.command == "purge":
+        from .simulations.ingest.platform import delete_empty_datasets, purge_agent
+
+        if not args.agent and not args.empty:
+            print("error: pass --agent <slug> and/or --empty", file=sys.stderr)
+            return 1
+        plan: dict = {}
+        if args.agent:
+            plan["agent"] = purge_agent(args.agent, dry_run=True)
+        if args.empty:
+            plan["empty"] = delete_empty_datasets(max_rows=args.max_rows, dry_run=True)
+        print(json.dumps(plan, indent=2))
+        if args.dry_run:
+            return 0
+        if not args.yes:
+            answer = input("Delete all of the above? This cannot be undone. [y/N] ").strip().lower()
+            if answer not in ("y", "yes"):
+                print("Nothing deleted.")
+                return 2
+        done: dict = {}
+        if args.agent:
+            done["agent"] = purge_agent(args.agent)
+        if args.empty:
+            done["empty"] = delete_empty_datasets(max_rows=args.max_rows)
+        print(json.dumps(done, indent=2))
         return 0
 
     return 1
