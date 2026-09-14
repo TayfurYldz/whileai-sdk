@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.18 (2026-09-13)
 
 - Public catalog: `zps.publish(id, agent=...)`, `zps.unpublish(id)`,
   `zps.catalog()`, and `data.push(..., agent=..., publish=True)` put a
