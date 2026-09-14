@@ -279,6 +279,70 @@ the Environments Hub installs a pushed env with plain pip, so a `[tool.uv.source
 git pin resolves locally and then fails on their runtime with a
 `ModuleNotFoundError`.
 
+### Export an RL environment
+
+On-policy RL (GRPO, RLOO, PPO) samples its own rollouts from the policy
+under training, so what it needs is not rows but what the rows came from:
+the task set, the world that answers tool calls, and the reward that
+grades a finished trajectory. `export_environment` writes those three as an
+installable `verifiers` package, the shape Prime Intellect and TRL read.
+
+```python
+data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+scored = data.grade()
+zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+# pip install -e envs/github-agent
+# vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
+```
+
+The package holds `spec.json` (system prompt, the tool schemas verbatim,
+the turn cap, and dotted references to the reward and the world),
+`data/train.jsonl` and `data/holdout.jsonl` (one task per prompt in the
+verifiers shape, with the task's fault plan, world state, privileged
+reference and calibration in `info`, read on the server and never in the
+prompt), and a README with the gate: the difficulty band applied when the
+rows were graded (prompts the policy always or never solved carry no
+advantage and are dropped), the split by scenario, and the train-against-
+holdout decontamination. The environment class lives in the SDK and is
+tested there: a `StatefulToolEnv` whose world is the mock world seeded per
+task, or your own `execute=`, and whose rubric is the reward through the
+judge contract, so a `Verifier` such as `CodeExec`, your judge callable, or
+`conduct_grade` all work unchanged. The default is `task_checklist`: the
+conduct grade as an honesty gate, times an outcome the world can verify from
+the task's own coordinates on the grid. A target tool must succeed; a missing
+entity must be reported and not acted on; an already-done action must be
+acknowledged and not repeated; an adversarial ask must not produce a write;
+an unrelated ask must produce no call; a vague ask must be asked back; prior
+partial action needs a read before the write; a fault on the target must be
+acknowledged. No model in the loop, and `markers` say which check ran
+(rlhf-book ch. 12 rubrics, computed from state rather than written by a judge).
+When the rows carry none of that metadata the export warns: the reward
+reduces to `conduct_grade`, a process reward, and a policy trained on it
+alone learns to call nothing (`examples/prime-intellect-rl`). `zps.load_environment(spec)`
+builds the environment in a process that has `verifiers` (`pip install
+'zeroproof[rl]'`); `examples/coding-efficiency` is the same shape built by
+hand over an executable world with a hidden test suite.
+
+Training notes, each with the chapter of rlhfbook.com behind it. Calibrate
+difficulty with 8 to 16 rollouts per task before exporting so the band is
+a measurement, not a guess (ch. 7); the export report's `graded_mixed` is
+the number of tasks that carry an advantage at all (ch. 6). Sample at
+temperature near 1.0 with 8 or more generations per prompt, since
+within-group contrast is what the update learns from (ch. 6). A rollout cut
+at the turn or token cap scores 0 and is logged as `truncated` (ch. 6).
+Use per-token loss aggregation rather than per-sequence so long rollouts
+are not favoured or punished by length alone (ch. 6). Keep a small KL to
+the reference or, if the recipe drops it, watch KL drift on the dashboard
+(ch. 15). `n_calls`, `judge_ok`, `truncated` and `trace_clean` are logged
+at weight 0: they are the over-optimization symptoms to watch, never the
+objective (ch. 14). Retire tasks the policy now always solves and re-export
+between rounds (`curriculum`, `retire_solved`; ch. 7). If `reward=` is a
+judge rather than a program, validate it first with `judge_trust` and
+`judge_agreement`, and keep it in a different model family from the policy
+(ch. 5, 12). Measure the held-out set before and after with `delta_report`
+and a `must_not_regress` list, and report pass^k alongside pass@1 for
+reliability (ch. 13, 16).
+
 ```python
 import zeroproof.simulations as zps
 

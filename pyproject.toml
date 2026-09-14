@@ -42,6 +42,7 @@ zeroproof-simulations = "zeroproof.simulations.score.quality:main"
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.12", "mypy>=1.16",
        "types-requests"]
+rl = ["verifiers>=0.3; python_version >= '3.11' and python_version < '3.14'"]
 
 [tool.setuptools]
 include-package-data = false
