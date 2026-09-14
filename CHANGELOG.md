@@ -3,6 +3,16 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- The default judge is no longer the policy model. `zps.grade` uses
+  `default_judge_spec()`: hosted `microsoft/phi-4` on its own vLLM app
+  (`ZEROPROOF_JUDGE` overrides), while rollouts stay on hosted Qwen3-4B.
+  A judge grading its own model's writing prefers it (rlhf-book ch. 5,
+  12). The grade report carries `self_judged` and a warning when the
+  judge model equals the rows' `model_version`. `judge_spec` with a bare
+  URL now defaults the model name from the judge spec.
+
 ## 0.21 (2026-09-14)
 
 - Platform-shaped rows count their tool calls: the reward-hack scan's

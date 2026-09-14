@@ -21,6 +21,10 @@ DEFAULT_AGENT = (
     "vllm:Qwen/Qwen3-4B-Instruct-2507@https://zeroproofai--stressd-vllm-serve.modal.run/v1"
 )
 DEFAULT_SIMULATOR = DEFAULT_AGENT
+# The judge is a different model family from the policy on purpose: a
+# judge grading its own writing prefers it (rlhf-book ch. 5, 12). Phi-4
+# on its own vLLM app in the same Modal workspace, same VLLM_API_KEY.
+DEFAULT_JUDGE = "vllm:microsoft/phi-4@https://zeroproofai--zeroproof-judge-serve.modal.run/v1"
 _tls = threading.local()
 
 
@@ -59,6 +63,12 @@ def parse_backend_spec(spec: str) -> tuple[str, str]:
 def default_agent_spec() -> str:
     """Tool-using rollout model. Hosted Qwen unless ZEROPROOF_AGENT is set."""
     return os.environ.get("ZEROPROOF_AGENT") or DEFAULT_AGENT
+
+
+def default_judge_spec() -> str:
+    """Grader model. Hosted Phi-4 unless ZEROPROOF_JUDGE is set. Never the
+    policy model by default: see DEFAULT_JUDGE."""
+    return os.environ.get("ZEROPROOF_JUDGE") or DEFAULT_JUDGE
 
 
 def default_simulator_spec() -> str:
