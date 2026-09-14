@@ -3,6 +3,14 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- With `grader=`, every mode judges rows as they land, on the judge pool
+  beside the rollouts; only the tail is judged after the clock. Before this
+  explore and sft judged everything in one pass after the run, which on a
+  120 s run added about a minute past the budget. `data.search["grader"]`
+  now says how many rows were judged in the loop and how many after.
+
 ## 0.30 (2026-09-14)
 
 - `examples/grpo`: a model-written prompt set. `prompts.py` (writer chat
