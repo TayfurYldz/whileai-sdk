@@ -80,6 +80,7 @@ from .schema import (
     validate,
 )
 from .score.agreement import judge_agreement
+from .score.delta import delta_report, format_delta_report
 from .score.grading import behavior_signature, conduct_grade
 from .score.hygiene import (
     HACK_THRESHOLD,
@@ -88,6 +89,7 @@ from .score.hygiene import (
     near_duplicate_prompts,
     reward_correlations,
 )
+from .score.judge_trust import format_judge_trust, judge_trust
 from .score.judging import (
     ScoredData,
     build_preference_pairs,
@@ -110,6 +112,7 @@ from .score.passat import PassAt, pass_at
 from .score.preflight import FAILURE_CLASSES, classify_failure, dataset_report, preflight
 from .score.publish_gate import PublishGateError, calibrate, publish_gate
 from .score.quality import rank_rows, score_row
+from .score.stats import compare_runs, decontaminate, marker_summary, metric_summary
 from .simulation import resolve_topology, simulate
 from .world.sandbox import MockEnvironment
 
@@ -145,13 +148,16 @@ __all__ = [
     "catalog",
     "classify_failure",
     "claude_code",
+    "compare_runs",
     "conduct_grade",
     "connect",
     "conversation",
     "dataset_report",
     "datasets",
+    "decontaminate",
     "dedupe_groups",
     "delete_dataset",
+    "delta_report",
     "dimensions_from_traces",
     "drop_leaky_rows",
     "evaluate",
@@ -160,6 +166,8 @@ __all__ = [
     "export_training",
     "filter_rl_rows",
     "flaw_rows",
+    "format_delta_report",
+    "format_judge_trust",
     "format_trace_report",
     "from_row",
     "grade",
@@ -169,12 +177,15 @@ __all__ = [
     "inspect",
     "issue_delegated_credential",
     "judge_agreement",
+    "judge_trust",
     "leakage_report",
     "length_report",
     "llm_grade",
     "load_traces",
     "local_model",
     "loss_mask",
+    "marker_summary",
+    "metric_summary",
     "mine_traces",
     "near_duplicate_prompts",
     "normalize_judge_result",
