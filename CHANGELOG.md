@@ -5,6 +5,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `training_rows(max_tool_output_chars=)` / `export_training(...)`: each
+  tool message over the cap is cut with a `[... N chars of tool output
+  truncated]` marker and counted on the row (`tool_output_truncated`,
+  `tool_output_chars_cut`) and in the report (rlhf-book ch. 13). The Claude
+  Code adapter's 2000-character cut is now `CLAUDE_CODE_RESULT_CHARS` and a
+  cut step carries `result_truncated` and `result_chars` (#146).
 - `examples/dpo`: constructed negatives are one pair per distinct prompt
   and capped at `constructed_share` (0.3) of the sampled pairs. Uncapped,
   the balance repeats multiplied them past the sampled pairs and the
