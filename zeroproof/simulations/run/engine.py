@@ -641,6 +641,17 @@ class Run:
         if lp_steps:
             t["logprob"] = round(sum(float(s["logprob"]) for s in lp_steps), 6)
             t["n_tokens"] = sum(int(s.get("n_tokens") or 0) for s in lp_steps)
+        # Token usage rolls up the same way, so a row says what it cost and a
+        # trace built from it can carry gen_ai.usage.* on every model turn.
+        used = [
+            s for s in t["steps"] if isinstance(s, dict) and isinstance(s.get("input_tokens"), int)
+        ]
+        if used:
+            t["usage"] = {
+                "input_tokens": sum(int(s.get("input_tokens") or 0) for s in used),
+                "output_tokens": sum(int(s.get("output_tokens") or 0) for s in used),
+            }
+
         return t
 
     @staticmethod

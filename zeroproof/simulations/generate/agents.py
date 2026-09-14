@@ -347,7 +347,7 @@ def _logprob_summary(choice: dict, *, tokens: bool) -> dict | None:
 
 
 def _turn_meta(reply: dict) -> dict:
-    """Step fields an agent turn carries: logprob, n_tokens, truncated."""
+    """Step fields an agent turn carries: logprob, n_tokens, truncated, tokens used."""
     meta: dict[str, Any] = {}
     lp = reply.get("_logprobs") if isinstance(reply, dict) else None
     if isinstance(lp, dict):
@@ -357,6 +357,11 @@ def _turn_meta(reply: dict) -> dict:
             meta["token_logprobs"] = list(lp["tokens"])
     if isinstance(reply, dict) and reply.get("_finish_reason") == "length":
         meta["truncated"] = True
+    usage = reply.get("_usage") if isinstance(reply, dict) else None
+    if isinstance(usage, dict):
+        meta["input_tokens"] = int(usage.get("input_tokens") or 0)
+        meta["output_tokens"] = int(usage.get("output_tokens") or 0)
+
     return meta
 
 
@@ -474,7 +479,8 @@ def complete(
                 if _transient_http(resp.status, err):
                     raise RuntimeError(_TRANSIENT_RETRY)
                 raise RuntimeError(f"{parsed.hostname} returned {resp.status}: {err}")
-            choices = json.loads(raw).get("choices") or []
+            data = json.loads(raw)
+            choices = data.get("choices") or []
             if not choices:
                 raise RuntimeError(f"{parsed.hostname} returned no choices")
             for c in choices:
@@ -485,6 +491,15 @@ def complete(
                 first["_all"] = extras
             if choices[0].get("finish_reason"):
                 first["_finish_reason"] = str(choices[0]["finish_reason"])
+            usage = data.get("usage")
+            if isinstance(usage, dict) and (
+                usage.get("prompt_tokens") is not None or usage.get("completion_tokens") is not None
+            ):
+                first["_usage"] = {
+                    "input_tokens": int(usage.get("prompt_tokens") or 0),
+                    "output_tokens": int(usage.get("completion_tokens") or 0),
+                }
+
             if payload.get("logprobs"):
                 summary = _logprob_summary(choices[0], tokens=logprobs == "tokens")
                 if summary:
