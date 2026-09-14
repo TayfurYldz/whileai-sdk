@@ -323,6 +323,26 @@ builds the environment in a process that has `verifiers` (`pip install
 'zeroproof[rl]'`); `examples/coding-efficiency` is the same shape built by
 hand over an executable world with a hidden test suite.
 
+Training notes, each with the chapter of rlhfbook.com behind it. Calibrate
+difficulty with 8 to 16 rollouts per task before exporting so the band is
+a measurement, not a guess (ch. 7); the export report's `graded_mixed` is
+the number of tasks that carry an advantage at all (ch. 6). Sample at
+temperature near 1.0 with 8 or more generations per prompt, since
+within-group contrast is what the update learns from (ch. 6). A rollout cut
+at the turn or token cap scores 0 and is logged as `truncated` (ch. 6).
+Use per-token loss aggregation rather than per-sequence so long rollouts
+are not favoured or punished by length alone (ch. 6). Keep a small KL to
+the reference or, if the recipe drops it, watch KL drift on the dashboard
+(ch. 15). `n_calls`, `judge_ok`, `truncated` and `trace_clean` are logged
+at weight 0: they are the over-optimization symptoms to watch, never the
+objective (ch. 14). Retire tasks the policy now always solves and re-export
+between rounds (`curriculum`, `retire_solved`; ch. 7). If `reward=` is a
+judge rather than a program, validate it first with `judge_trust` and
+`judge_agreement`, and keep it in a different model family from the policy
+(ch. 5, 12). Measure the held-out set before and after with `delta_report`
+and a `must_not_regress` list, and report pass^k alongside pass@1 for
+reliability (ch. 13, 16).
+
 ```python
 import zeroproof.simulations as zps
 

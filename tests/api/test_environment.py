@@ -299,3 +299,29 @@ def test_default_reward_falls_back_to_the_vendored_checklist(tmp_path, monkeypat
     env = zps.load_environment(pkg / "spec.json")
     assert env.reward.__name__ == "task_checklist"
     assert env.reward.__module__ == "_zp_checklist"
+
+
+def test_truncated_rollouts_score_zero_and_trace_monitor_runs(tmp_path):
+    out = tmp_path / "env"
+    zps.export_environment(
+        _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
+    )
+    env = zps.load_environment(out / "env" / "spec.json")
+    spec = json.loads((out / "env" / "spec.json").read_text())
+    task = json.loads((out / "env" / "data" / "train.jsonl").read_text().splitlines()[0])
+    state = asyncio.run(env.setup_state(_fake_state(task, spec)))
+    args = env.update_tool_args("lookup_order", {"order_id": "ORD-9"}, [], state)
+    asyncio.run(env.call_tool("lookup_order", args, "c1"))
+    state["completion"] = [{"role": "assistant", "content": "Looked it up."}]
+    assert env.reward_func(state) == 1.0 and env.truncated(state) == 0.0
+    state["stop_condition"] = "max_turns_reached"
+    assert env.reward_func(state) == 0.0 and env.truncated(state) == 1.0
+    assert env.trace_clean(state) in (0.0, 1.0)
+    rubrics = getattr(env.rubric, "rubrics", None) or [env.rubric]
+    names = {f.__name__ for r in rubrics for f in getattr(r, "funcs", [])}
+    assert {"truncated", "trace_clean"} <= names
+
+
+def test_build_tasks_counts_mixed_groups():
+    _, _, report = build_tasks(_rows(), holdout=0.5, band=None)
+    assert report["graded_mixed"] == 2  # ORD-3 and ORD-4 were both solved and failed

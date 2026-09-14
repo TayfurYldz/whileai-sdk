@@ -213,6 +213,7 @@ def build_tasks(
 
     tasks: list[dict] = []
     dropped_band = 0
+    mixed = 0
     for prompt, members in by_prompt.items():
         first = members[0]
         scenario = str(first.get("scenario_id") or "")
@@ -237,6 +238,8 @@ def build_tasks(
         if len(labels) >= 2:
             rate = sum(labels) / len(labels)
             info["calibration"] = {"pass_rate": round(rate, 4), "n": len(labels)}
+            if 0 < sum(labels) < len(labels):
+                mixed += 1
             if band is not None and not (band[0] <= rate <= band[1]):
                 dropped_band += 1
                 continue
@@ -269,6 +272,8 @@ def build_tasks(
         "graded_prompts": sum(1 for t in tasks if "calibration" in t["info"]) + dropped_band,
         "band": list(band) if band is not None else None,
         "band_dropped": dropped_band,
+        # prompts the policy both solved and failed: the ones with an advantage
+        "graded_mixed": mixed,
         "decontamination": decon,
     }
     return train, held, report
@@ -578,8 +583,14 @@ def _make_env_class() -> type:
             self.execute = execute
             self._tool_defs_raw = list(spec.get("tools") or [])
             rubric = vf.Rubric(
-                funcs=[self.reward_func, self.n_calls, self.judge_ok],
-                weights=[1.0, 0.0, 0.0],
+                funcs=[
+                    self.reward_func,
+                    self.n_calls,
+                    self.judge_ok,
+                    self.truncated,
+                    self.trace_clean,
+                ],
+                weights=[1.0, 0.0, 0.0, 0.0, 0.0],
             )
             kwargs.setdefault("rubric", rubric)
             super().__init__(tools=[], max_turns=int(spec.get("max_turns") or 10), **kwargs)
@@ -651,9 +662,38 @@ def _make_env_class() -> type:
                 state["zp_verdict"] = cached
             return cached
 
+        @staticmethod
+        def _was_truncated(state: dict) -> bool:
+            # A rollout cut at the turn cap or the token cap never finished
+            # the task; scoring it would reward whatever it was doing when
+            # the clock ran out (rlhf-book ch. 6: score only completions
+            # that end on their own).
+            return bool(state.get("is_truncated")) or str(
+                state.get("stop_condition") or ""
+            ).startswith("max_turns")
+
         def reward_func(self, state: dict, **kwargs: Any) -> float:
+            if self._was_truncated(state):
+                return 0.0
             value = self._verdict(state).get("reward")
             return float(value) if isinstance(value, (int, float)) else 0.0
+
+        def truncated(self, state: dict, **kwargs: Any) -> float:
+            return 1.0 if self._was_truncated(state) else 0.0
+
+        def trace_clean(self, state: dict, **kwargs: Any) -> float:
+            """1.0 when none of the SDK's trace flags fired (fabricated test
+            claims, phantom edits, test tampering, ...). Logged, not
+            trained on: a monitor for over-optimization symptoms
+            (rlhf-book ch. 14). Absent on SDKs without ``trace_flags``."""
+            try:
+                from .score.trace import trace_flags
+            except ImportError:  # older SDK under the vendored copy
+                return 1.0
+            row = _row_from_state(state, state.get("zp_info") or {})
+            flags = trace_flags(row) or {}
+            state["zp_trace_flags"] = flags
+            return 0.0 if any(str(k).startswith(("lie.", "hack.")) for k in flags) else 1.0
 
         def n_calls(self, state: dict, **kwargs: Any) -> float:
             return float(len(state.get("zp_steps") or []))
