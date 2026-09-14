@@ -26,7 +26,7 @@ the end only.
 
 ## Where the pairs come from
 
-**On-policy (default).** The base policy is sampled 4 times per train
+**On-policy (default).** The base policy is sampled 8 times per train
 prompt. Every reply is scored by the rule in `../grpo/reward.py`, and
 `zps.build_preference_pairs` pairs a higher-scoring reply with a lower one
 from the same prompt, taking the rejected reply closest in length to the
@@ -70,9 +70,19 @@ format is called out.
 | `--steps` | 60 | optimizer steps (4 pairs a device, 2 accumulated) |
 | `--beta` | 0.1 | how far from the reference the policy may move |
 | `--loss-type` | sigmoid | any `DPOConfig.loss_type`: `ipo`, `hinge`, `robust`, ... |
-| `--pair-samples` | 4 | replies per prompt when building on-policy pairs |
+| `--pair-samples` | 8 | replies per prompt when building on-policy pairs; a policy that rarely passes needs more |
 | `--learning-rate` | 5e-6 | LoRA learning rate |
 | `--pairs` | | an `export_preference` JSONL instead of on-policy sampling |
+
+## A run
+
+400 situations gave 72 unique prompts, 58 train and 14 holdout. The base
+policy passed 9% of holdout attempts; 4 samples per prompt found contrast
+on 8 prompts, 9 pairs, chosen the longer side in 5 of 9. Sixty steps on 9
+pairs is thirty epochs, and the holdout still read pass@1 0.09 to 0.66,
++0.57 [+0.38, +0.75], `moved`, with `well_formed` flat at 1.0. Few pairs is
+the usual DPO problem, hence the default of 8 samples per prompt now, and
+the `pair_report` in the summary says how many prompts had contrast.
 
 One round of on-policy pairs is what this example does. The pairs go stale
 as the policy moves; for more, sample again from the adapter and run a

@@ -10,7 +10,7 @@ What happens:
    by scenario into train and holdout; the rule in ``../grpo/reward.py`` is
    the grader. The holdout is sampled 4 times per prompt and scored: pass@1
    before.
-2. Pairs. By default the base policy is sampled 4 times per train prompt,
+2. Pairs. By default the base policy is sampled 8 times per train prompt,
    every reply is scored, and ``zps.build_preference_pairs`` pairs a pass
    with a fail of similar length (on-policy, length-matched). ``--pairs``
    takes a ``zps.export_preference`` file instead, from any graded set.
@@ -124,7 +124,7 @@ def train(
     pair_rows: list[dict] | None = None,
     base_model: str = BASE_MODEL,
     steps: int = 60,
-    pair_samples: int = 4,
+    pair_samples: int = 8,
     learning_rate: float = 5e-6,
     beta: float = 0.1,
     loss_type: str = "sigmoid",
@@ -317,7 +317,7 @@ def main(
     holdout: float = 0.2,
     pairs: str = "",
     steps: int = 60,
-    pair_samples: int = 4,
+    pair_samples: int = 8,
     learning_rate: float = 5e-6,
     beta: float = 0.1,
     loss_type: str = "sigmoid",
