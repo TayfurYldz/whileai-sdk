@@ -219,3 +219,22 @@ def test_judge_trust_report_with_a_length_reading_judge():
     bare = zps.judge_trust([_row("a", 1)])
     assert bare["n_labeled"] == 0 and any("gold_reward" in w for w in bare["warnings"])
     assert bare["perturbation"] is None
+
+
+def test_judge_trust_says_when_gold_has_one_class_only():
+    # Every gold label is 1 (a self-judge that passed everything): kappa is
+    # 0 and the short/long split looks like bias, but neither is a finding.
+    rows = []
+    for i in range(12):
+        long = i % 2 == 1
+        rows.append(
+            _row(f"t{i}", int(long), ("Detailed answer. " * 12) if long else "Short.", gold=1)
+        )
+    report = judge_trust(rows)
+    assert report["gold_degenerate"] is True
+    assert any("gold labels are all 1" in w for w in report["warnings"])
+    assert not any(w.startswith("kappa") for w in report["warnings"])
+    assert not any("length bias" in w for w in report["warnings"])
+    assert report["ok"] is True  # nothing the labels can support was flagged
+    mixed = rows + [_row(f"u{i}", 0, "Short.", gold=0) for i in range(6)]
+    assert judge_trust(mixed)["gold_degenerate"] is False

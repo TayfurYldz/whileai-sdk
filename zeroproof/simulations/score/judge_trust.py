@@ -211,7 +211,19 @@ def judge_trust(
     )
 
     warnings: list[str] = list(agree.get("warnings") or [])
-    if agree["kappa"] is not None and agree["n"] and agree["kappa"] < 0.4:
+    # Gold labels of one class only: agreement is a pass-rate check, kappa
+    # is undefined in spirit (no chance level to beat), and the length
+    # split within the other class has nothing to compare. Say so instead
+    # of flagging bias that the labels cannot support.
+    gold_values = {_label(r, gold) for r in labeled}
+    degenerate_gold = len(labeled) > 0 and len(gold_values) == 1
+    if degenerate_gold:
+        only = next(iter(gold_values))
+        warnings.append(
+            f"gold labels are all {only}; kappa and the length check are uninformative until "
+            f"the gold set carries both passes and failures (label some {'failures' if only else 'passes'})"
+        )
+    if not degenerate_gold and agree["kappa"] is not None and agree["n"] and agree["kappa"] < 0.4:
         warnings.append(f"kappa {agree['kappa']:.2f}: judge and humans barely agree beyond chance")
     if halves["a"]["agreement"] is not None and halves["b"]["agreement"] is not None:
         gap = abs(halves["a"]["agreement"] - halves["b"]["agreement"])
@@ -220,7 +232,7 @@ def judge_trust(
                 f"agreement differs by {gap:.0%} between task halves; the rubric may be fit to "
                 "the examples it was tuned on"
             )
-    if length.get("flagged"):
+    if length.get("flagged") and not degenerate_gold:
         warnings.append(
             f"judge pass rate differs by {length['max_gap']:.0%} between short and long replies "
             "with the same gold label: length bias"
@@ -245,6 +257,7 @@ def judge_trust(
         "ok": ok,
         "n_rows": len(rows),
         "n_labeled": len(labeled),
+        "gold_degenerate": degenerate_gold,
         "agreement": agree,
         "held_out_halves": halves,
         "length_sensitivity": length,

@@ -3,6 +3,12 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `judge_trust` says when the gold labels are all one class instead of
+  reporting kappa 0 and a length bias the labels cannot support;
+  `gold_degenerate` on the report. Found on the first hosted-judge run.
+
 ## 0.22 (2026-09-14)
 
 - The default judge is no longer the policy model. `zps.grade` uses
