@@ -447,6 +447,10 @@ def test_run_tests_is_shell_not_a_person_record():
     assert "owner" not in data
     assert "updated_at" not in data
     assert "stdout" in data or "exit_code" in data
+    assert out["status"] == "error"
+    assert out["reason"] == "invented_execution"
+    assert (data.get("exit_code") if data else out.get("exit_code")) == 1
+    assert " passed" not in json.dumps(out)
 
 
 def test_record_shaped_example_does_not_override_run_tests():

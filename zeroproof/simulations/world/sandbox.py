@@ -454,66 +454,25 @@ def _invented_grep(arguments: dict, n: int) -> dict[str, Any]:
     return {"pattern": pattern, "count": count, "matches": matches}
 
 
+_INVENTED_EXECUTION = (
+    "invented_execution: no command was run. "
+    "Pass execute= for a real world; this is not a test result."
+)
+
+
 def _invented_shell(arguments: dict, n: int) -> dict[str, Any]:
+    """Mock shell never looks like a real pass. ``n`` kept for the caller."""
+    del n
     command = str(
         arguments.get("command") or arguments.get("cmd") or arguments.get("argv") or "true"
     )
-    flavor = n % 11
-    if flavor == 0:
-        return {
-            "command": command,
-            "exit_code": 1,
-            "stdout": "",
-            "stderr": "bash: src/secret.key: Permission denied\n",
-        }
-    if flavor == 1:
-        return {
-            "command": command,
-            "exit_code": 1,
-            "stdout": (
-                "============================= test session starts "
-                "==============================\n"
-                f"collected {6 + n % 5} items\n"
-                "tests/test_app.py .....F\n"
-                "FAILED tests/test_app.py::test_sync - AssertionError: "
-                "expected 1\n"
-                "=========================== 1 failed, 5 passed in 0.51s "
-                "========================\n"
-            ),
-            "stderr": "",
-        }
-    if flavor == 2:
-        return {
-            "command": command,
-            "exit_code": 1,
-            "stdout": (
-                "Auto-merging src/app.py\n"
-                "CONFLICT (content): Merge conflict in src/app.py\n"
-                "Automatic merge failed; fix conflicts and then commit "
-                "the result.\n"
-            ),
-            "stderr": "",
-        }
-    if "ls" in command or flavor == 3:
-        return {
-            "command": command,
-            "exit_code": 0,
-            "stdout": "src/\n  app.py\n  util.py\nREADME.md\n",
-            "stderr": "",
-        }
-    passed = 6 + n % 6
     return {
         "command": command,
-        "exit_code": 0,
-        "stdout": (
-            "============================= test session starts "
-            "==============================\n"
-            f"collected {passed} items\n"
-            f"tests/test_app.py {'.' * min(passed, 8)}\n"
-            f"============================== {passed} passed in 0.42s "
-            "===============================\n"
-        ),
-        "stderr": "",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": _INVENTED_EXECUTION + "\n",
+        "invented": True,
+        "reason": "invented_execution",
     }
 
 
@@ -550,19 +509,25 @@ def _invented_git(tool: str, arguments: dict, n: int) -> dict[str, Any]:
 
 
 def _invented_ci(arguments: dict, n: int) -> dict[str, Any]:
+    """Mock CI never reports a green run. Items keep a check shape."""
     count = 3 + n % 2
     items = []
     for i in range(count):
-        failed = n % 7 == 0 and i == count - 1
         items.append(
             {
                 "name": _CHECK_NAMES[i % len(_CHECK_NAMES)],
                 "status": "completed",
-                "conclusion": "failure" if failed else "success",
+                "conclusion": "unknown",
                 "duration_s": 8 + ((n + i * 11) % 90),
             }
         )
-    return {"count": count, "items": items}
+    return {
+        "count": count,
+        "items": items,
+        "invented": True,
+        "reason": "invented_execution",
+        "conclusion": "unknown",
+    }
 
 
 def _invented_payload(
@@ -588,6 +553,25 @@ def _invented_payload(
         cents = (n // 3) % 100 if n % 3 else 0
         return {"amount": (17 + n % 483) * scale + cents / 100, "currency": "USD"}
     return _invented_record(tool, arguments, n, digest)
+
+
+def _label_invented(data: Any) -> Any:
+    if isinstance(data, dict):
+        labeled = dict(data)
+        labeled["invented"] = True
+        return labeled
+    return data
+
+
+def _honest_mock_data(kind: str, arguments: dict, data: Any) -> Any:
+    """Invented execution is labeled or failed; never a green suite."""
+    if kind == "shell":
+        return _invented_shell(arguments, 0)
+    if kind == "ci":
+        return _invented_ci(arguments, 0)
+    if kind in {"file", "files", "grep", "git"}:
+        return _label_invented(data)
+    return data
 
 
 _FILE_MUTATE = re.compile(r"(write|edit|apply|patch|create_file|update_file|replace)", re.I)
@@ -975,7 +959,7 @@ class MockEnvironment:
             stored = self.entities.get(str(references[0][1])) or {}
             prior = stored.get("data")
             if isinstance(prior, dict) and prior:
-                return {"data": dict(prior)}
+                return {"data": _honest_mock_data(kind, args, dict(prior))}
         if isinstance(shape, dict) and shape:
             filled = _fill_template(shape, n)
             for key, val in args.items():
@@ -996,13 +980,14 @@ class MockEnvironment:
                             filled[key] = list(val)
                         else:
                             filled[key] = [_entity_consistent(item, item_template) for item in val]
-                return {"data": self._finish_record(tool, args, n, kind, filled)}
+                finished = self._finish_record(tool, args, n, kind, filled)
+                return {"data": _honest_mock_data(kind, args, finished)}
         invented = _invented_payload(tool, args, n, digest, spec)
         if _result_kind(tool, spec, args) == "money":
             return invented
         if isinstance(invented, dict):
             invented = self._finish_record(tool, args, n, kind, invented)
-        return {"data": invented}
+        return {"data": _honest_mock_data(kind, args, invented)}
 
     def _finish_record(self, tool: str, arguments: dict, n: int, kind: str, data: dict) -> dict:
         """Per-call identity, then remember the record for later reads."""
@@ -1054,13 +1039,12 @@ class MockEnvironment:
         if kind == "file" and (_CREATE.match(tool) or _FILE_MUTATE.search(tool)):
             n = int(digest[:8], 16)
             path = _path_from_args(arguments, n)
-            content = str(arguments.get("content") or arguments.get("diff") or "")
-            if path:
-                self.entities[path] = {"tool": tool, "arguments": arguments, "version": 1}
             return {
-                "status": "ok",
+                "status": "error",
+                "reason": "invented_execution",
+                "invented": True,
                 "path": path,
-                "bytes_written": len(content) if content else len(_fake_source(path, n)),
+                "hint": "Pass execute=; no file was written.",
             }
 
         if _CREATE.match(tool) and kind in {"record", "money"}:
@@ -1076,7 +1060,7 @@ class MockEnvironment:
         if _READ.match(tool):
             if references and dangling:
                 return {"status": "not_found", "missing": dangling}
-            return {"status": "ok", **self._payload(tool, digest, arguments)}
+            return self._world_result(tool, digest, arguments)
         if _DELETE.match(tool):
             if dangling:
                 return {"status": "not_found", "missing": dangling}
@@ -1095,7 +1079,20 @@ class MockEnvironment:
             )
             if entity is not None:
                 entity["version"] = int(entity.get("version", 1)) + 1
-        return {"status": "ok", **self._payload(tool, digest, arguments)}
+        return self._world_result(tool, digest, arguments)
+
+    def _world_result(self, tool: str, digest: str, arguments: dict) -> dict[str, Any]:
+        spec = self.specs.get(tool) or {}
+        kind = _result_kind(tool, spec, arguments)
+        payload = self._payload(tool, digest, arguments)
+        if kind in {"shell", "ci"}:
+            return {
+                "status": "error",
+                "reason": "invented_execution",
+                "invented": True,
+                **payload,
+            }
+        return {"status": "ok", **payload}
 
     def executor(self) -> Callable[[str, dict], dict]:
         return self.call
