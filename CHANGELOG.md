@@ -5,6 +5,13 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Training runs: `run = zps.training_run(name, dataset=, base_model=,
+  total_steps=)`, `run.log(step, loss=, ...)`, `run.progress`,
+  `run.finish()`; `zps.TrainerCallback(run)` for Transformers and TRL
+  trainers; `zps.list_runs`, `zps.get_run`, `zps.delete_run`. Points
+  are buffered and sent in batches and logging never raises into the
+  training loop. The platform draws the loss curve and progress bar at
+  /platform/training.
 - Agents: `zps.agents()`, `zps.register_agent(name, tools=, system_prompt=)`;
   `data.push(name, agent=...)` registers the agent and attaches the run's
   tools and system prompt to its record.
