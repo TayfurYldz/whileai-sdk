@@ -268,11 +268,33 @@ def push_rows(
 
 
 def push_file(
-    path: str, name: str | None = None, *, api_key: str | None = None, parent: str | None = None
+    path: str,
+    name: str | None = None,
+    *,
+    api_key: str | None = None,
+    parent: str | None = None,
+    gate: bool = True,
+    mode: str | None = None,
 ) -> dict:
-    """Upload an existing JSONL file. ``name`` defaults to the file name."""
-    with open(path, "rb") as fh:
-        payload = fh.read()
+    """Upload an existing JSONL file. ``name`` defaults to the file name.
+
+    ``gate=True`` (default) parses the file, runs ``publish_gate`` (rows
+    get their ``calibration`` stamp; RL-shaped rows that are ungraded or
+    have no mixed group are refused), and uploads the stamped rows. The
+    report comes back as ``entry["gate"]``. ``gate=False`` uploads the
+    bytes exactly as they are on disk.
+    """
+    gate_report = None
+    if gate:
+        from ..score.publish_gate import publish_gate
+        from ..score.quality import load_jsonl
+
+        rows = load_jsonl(path)
+        gate_report = publish_gate(rows, mode=mode)
+        payload = "".join(json.dumps(r, default=str) + "\n" for r in rows).encode()
+    else:
+        with open(path, "rb") as fh:
+            payload = fh.read()
     stem = os.path.basename(path)
     if stem.endswith(".jsonl"):
         stem = stem[:-6]
@@ -288,7 +310,10 @@ def push_file(
         data=payload,
         content_type="application/jsonl",
     )
-    return _call("POST", f"/datasets/{created['datasetId']}/finalize", api_key)
+    final = _call("POST", f"/datasets/{created['datasetId']}/finalize", api_key)
+    if gate_report is not None:
+        final = {**final, "gate": gate_report}
+    return final
 
 
 def datasets(*, api_key: str | None = None) -> dict:

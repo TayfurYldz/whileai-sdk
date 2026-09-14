@@ -3,6 +3,19 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `zps.push_file` runs the publish gate too (`gate=False` uploads the
+  bytes as they are), so a JSONL push no longer bypasses it. The stamped
+  rows are what get uploaded; report on `entry["gate"]`.
+- `calibration` is part of the typed contract: declared in
+  `schemas/row-v1.json`, validated (`calibration_invalid`), read back
+  with `zps.calibration_of(row)`, carried by `from_row` on
+  `rollout.extra["calibration"]` and written by `to_row`.
+- Training rows carry `loss_mask` (one 0/1 per message: 1 on assistant
+  turns, 0 on system, user, and tool output). Declared in the schema and
+  validated (`loss_mask_invalid`).
+
 ## 0.18 (2026-09-13)
 
 - Public catalog: `zps.publish(id, agent=...)`, `zps.unpublish(id)`,
