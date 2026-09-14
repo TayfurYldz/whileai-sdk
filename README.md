@@ -75,6 +75,8 @@ entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, 
 
 After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`.
 
+Character training, the same loop aimed at how the model talks: a constitution in, graded replies, length-matched pairs and SFT rows out, and the judge checked against the constitution's own labels. Worked example [`examples/character`](examples/character), recipe [docs/character-training.md](docs/character-training.md), page [zeroproofai.com/docs/character-training](https://zeroproofai.com/docs/character-training).
+
 | Call | What it decides | Reads |
 |---|---|---|
 | `simulate` | the situations, the users, the world, k rollouts per ask | your spec or tools + system prompt |
