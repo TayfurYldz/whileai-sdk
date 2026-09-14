@@ -279,6 +279,41 @@ the Environments Hub installs a pushed env with plain pip, so a `[tool.uv.source
 git pin resolves locally and then fails on their runtime with a
 `ModuleNotFoundError`.
 
+### Export an RL environment
+
+On-policy RL (GRPO, RLOO, PPO) samples its own rollouts from the policy
+under training, so what it needs is not rows but what the rows came from:
+the task set, the world that answers tool calls, and the reward that
+grades a finished trajectory. `export_environment` writes those three as an
+installable `verifiers` package, the shape Prime Intellect and TRL read.
+
+```python
+data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+scored = data.grade()
+zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+# pip install -e envs/github-agent
+# vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
+```
+
+The package holds `spec.json` (system prompt, the tool schemas verbatim,
+the turn cap, and dotted references to the reward and the world),
+`data/train.jsonl` and `data/holdout.jsonl` (one task per prompt in the
+verifiers shape, with the task's fault plan, world state, privileged
+reference and calibration in `info`, read on the server and never in the
+prompt), and a README with the gate: the difficulty band applied when the
+rows were graded (prompts the policy always or never solved carry no
+advantage and are dropped), the split by scenario, and the train-against-
+holdout decontamination. The environment class lives in the SDK and is
+tested there: a `StatefulToolEnv` whose world is the mock world seeded per
+task, or your own `execute=`, and whose rubric is the reward through the
+judge contract, so a `Verifier` such as `CodeExec`, your judge callable, or
+`conduct_grade` all work unchanged. With no `reward=` the export warns:
+`conduct_grade` is a process reward, and a policy trained on it alone learns
+to call nothing (`examples/prime-intellect-rl`). `zps.load_environment(spec)`
+builds the environment in a process that has `verifiers` (`pip install
+'zeroproof[rl]'`); `examples/coding-efficiency` is the same shape built by
+hand over an executable world with a hidden test suite.
+
 ```python
 import zeroproof.simulations as zps
 

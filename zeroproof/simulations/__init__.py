@@ -23,6 +23,7 @@ import logging as _logging
 
 from . import data, schema, simulation, verify
 from .data import SimulationData, conversation, grade, grade_llm, llm_grade, rank
+from .environment import build_tasks, export_environment, load_environment
 from .export import (
     export_dataset,
     export_preference,
@@ -223,6 +224,7 @@ __all__ = [
     "behavioral_markers",
     "build_dimensions",
     "build_preference_pairs",
+    "build_tasks",
     "calibrate",
     "calibration_of",
     "catalog",
@@ -248,6 +250,7 @@ __all__ = [
     "eval_variance",
     "evaluate",
     "export_dataset",
+    "export_environment",
     "export_preference",
     "export_training",
     "filter_rl_rows",
@@ -284,6 +287,7 @@ __all__ = [
     "length_report",
     "list_runs",
     "llm_grade",
+    "load_environment",
     "load_spec",
     "load_traces",
     "local_model",
