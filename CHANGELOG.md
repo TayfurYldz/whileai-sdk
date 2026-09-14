@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `decontaminate(fields=)` defaults to `("prompt",)`: contamination is
+  training-prompt to eval-prompt overlap (rlhf-book ch. 16), and the old
+  `("prompt", "final_text")` default flagged whole prompt-disjoint
+  datasets on shared reply boilerplate. The report gains `by_field` and a
+  warning when the rate is at or above 0.9 (#125).
 - `examples/dpo --constructed-negatives`: for every no-id or off-topic
   prompt the policy answered without a tool call, pair that reply
   against an invented call (`pairs.constructed_negatives`), so DPO has

@@ -12,8 +12,10 @@ and evaluation prompts, 8-gram in the Tulu 3 decontamination).
   with a bootstrap interval and a sign-flip permutation p-value. Unpaired
   comparison is the fallback and is labeled as such.
 * Decontamination is word n-gram overlap (default 8) between a dataset's
-  prompts and replies and the evaluation prompts it must not have seen.
-  Short prompts fall back to exact normalized match.
+  training prompts and the evaluation prompts it must not have seen.
+  Short prompts fall back to exact normalized match. Replies are opt-in
+  (``fields=("prompt", "final_text")``): two runs of one policy share
+  reply phrasing whether or not the eval leaked.
 
 Everything here is stdlib and deterministic under ``seed``.
 """
@@ -418,7 +420,7 @@ def decontaminate(
     against: Sequence[Any] | Any,
     *,
     n: int = 8,
-    fields: Sequence[str] = ("prompt", "final_text"),
+    fields: Sequence[str] = ("prompt",),
 ) -> tuple[list[dict], dict[str, Any]]:
     """Drop rows that share any word ``n``-gram with an evaluation set.
 
@@ -429,6 +431,16 @@ def decontaminate(
     its ``fields`` shares an n-gram, or, for text shorter than ``n`` words,
     matches an evaluation prompt exactly after normalization. Returns the
     clean rows and a report with the first offenders.
+
+    ``fields`` defaults to the training prompt alone, which is the field
+    standard: contamination is overlap "from the training prompt to the
+    exact prompts in the evaluation set" (rlhf-book ch. 16, the Tulu 3
+    8-gram decontamination). Pass ``fields=("prompt", "final_text")`` for
+    the stricter and different question of whether a policy's own replies
+    reproduce eval answers — but two runs of one policy share reply
+    phrasing by construction, so that setting flags most of a dataset
+    whenever both sides came from the same generator. ``by_field`` in the
+    report says which field drove the matches.
     """
     sources = (
         against
@@ -448,38 +460,57 @@ def decontaminate(
                     eval_exact.add(_norm(text))
     kept: list[dict] = []
     flagged: list[dict[str, Any]] = []
+    by_field: dict[str, int] = {field: 0 for field in fields}
     for i, row in enumerate(rows):
         if not isinstance(row, dict):
             continue
-        hit: tuple[str, str] | None = None
+        hits: list[tuple[str, str]] = []
         for field in fields:
             text = str(row.get(field) or "")
             words = _words(text)
             if not words:
                 continue
+            hit: tuple[str, str] | None = None
             if len(words) < n:
                 if _norm(text) in eval_exact:
                     hit = (field, "exact")
             else:
-                grams = _ngrams(words, n)
-                shared = grams & eval_ngrams
+                shared = _ngrams(words, n) & eval_ngrams
                 if shared:
                     hit = (field, " ".join(next(iter(shared))))
             if hit:
-                break
-        if hit:
-            flagged.append({"index": i, "field": hit[0], "match": hit[1][:120]})
+                hits.append(hit)
+                by_field[field] += 1
+        if hits:
+            flagged.append({"index": i, "field": hits[0][0], "match": hits[0][1][:120]})
         else:
             kept.append(row)
     total = sum(1 for r in rows if isinstance(r, dict))
+    rate = (len(flagged) / total) if total else 0.0
+    warnings: list[str] = []
+    if total and rate >= 0.9:
+        warnings.append(
+            f"contamination_rate {rate:.2f}: almost every row is flagged, which more often "
+            "means the two sets share a generator (template boilerplate, stock phrasing) "
+            "than that the eval leaked. Read `examples` before dropping the dataset."
+        )
+    reply_hits = sum(c for f, c in by_field.items() if f != "prompt")
+    if reply_hits > by_field.get("prompt", 0):
+        warnings.append(
+            "most matches came from a reply field, not the prompt; contamination is normally "
+            'measured prompt-to-prompt (rlhf-book ch. 16). Re-run with fields=("prompt",) '
+            "to see the leakage rate the field reports."
+        )
     return kept, {
         "n": total,
         "n_kept": len(kept),
         "n_contaminated": len(flagged),
-        "contamination_rate": (len(flagged) / total) if total else 0.0,
+        "contamination_rate": rate,
         "n_eval_rows": n_eval,
         "ngram": n,
         "fields": list(fields),
+        "by_field": by_field,
+        "warnings": warnings,
         "examples": flagged[:20],
     }
 

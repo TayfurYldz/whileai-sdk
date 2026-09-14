@@ -131,11 +131,19 @@ def test_decontaminate_by_ngram_and_exact_match(tmp_path):
             final="please look up order ORD-4017 and tell me whether the refund has been issued yet",
         ),
     ]
+    # The default is prompt-to-prompt overlap, so the row whose only tie to the
+    # eval set is its own reply is kept.
     kept, report = decontaminate(rows, evals)
-    assert report["n_contaminated"] == 4 and len(kept) == 1
+    assert report["fields"] == ["prompt"]
+    assert report["n_contaminated"] == 3 and len(kept) == 2
     assert report["examples"][0]["field"] == "prompt"
-    assert report["examples"][-1]["field"] == "final_text"
+    assert report["by_field"] == {"prompt": 3}
     assert report["n_eval_rows"] == 2 and report["ngram"] == 8
+
+    strict_kept, strict = decontaminate(rows, evals, fields=("prompt", "final_text"))
+    assert strict["n_contaminated"] == 4 and len(strict_kept) == 1
+    assert strict["examples"][-1]["field"] == "final_text"
+    assert strict["by_field"] == {"prompt": 3, "final_text": 1}
 
     # The eval set's own replies are not a contamination source: shared tool
     # boilerplate between two replies says nothing about the eval question.
@@ -146,13 +154,45 @@ def test_decontaminate_by_ngram_and_exact_match(tmp_path):
     assert report3["n_contaminated"] == 0
     with_answer = [{"prompt": "another eval", "answer": "Issue 1 is open."}]
     # four rows carry the default reply; the fifth reply is the eval prompt text
-    assert decontaminate(rows, with_answer, n=3)[1]["n_contaminated"] == len(rows) - 1
+    strict3 = decontaminate(rows, with_answer, n=3, fields=("prompt", "final_text"))[1]
+    assert strict3["n_contaminated"] == len(rows) - 1
+    # ... and none of that is prompt overlap, which is what the default measures.
+    assert decontaminate(rows, with_answer, n=3)[1]["n_contaminated"] == 0
 
     path = tmp_path / "eval.jsonl"
     path.write_text("".join(json.dumps(e) + "\n" for e in evals))
     _kept2, report2 = decontaminate(rows, [str(path)], n=15)
-    assert report2["n_contaminated"] == 3  # the paraphrase shares 14 words, not 15
+    assert report2["n_contaminated"] == 2  # the paraphrase shares 14 words, not 15
     assert zps.decontaminate(rows, evals)[1]["n"] == 5
+
+
+def test_decontaminate_default_ignores_shared_reply_boilerplate():
+    """Issue #125: two runs of one policy share reply n-grams by construction,
+    so the old ("prompt", "final_text") default condemned whole datasets that
+    were prompt-disjoint. The report has to explain a high rate, too."""
+    boilerplate = "I have checked the account and can confirm the request is now being handled"
+    train = [
+        _row(f"customer {i} asks about a refund on order {i}", final=boilerplate) for i in range(10)
+    ]
+    # Prompt-disjoint, but the eval's gold answers use the same stock phrasing.
+    evals = [
+        {
+            "prompt": f"customer {i + 100} asks about a refund on order {i + 100}",
+            "answer": boilerplate,
+        }
+        for i in range(10)
+    ]
+
+    _kept, report = decontaminate(train, evals)
+    assert report["n_kept"] == 10 and report["contamination_rate"] == 0.0
+    assert report["by_field"] == {"prompt": 0} and not report["warnings"]
+
+    strict_kept, strict = decontaminate(train, evals, fields=("prompt", "final_text"))
+    assert strict_kept == [] and strict["contamination_rate"] == 1.0
+    # The report names the field that drove it and says a 1.0 is suspicious.
+    assert strict["by_field"] == {"prompt": 0, "final_text": 10}
+    assert any("generator" in w for w in strict["warnings"])
+    assert any("prompt-to-prompt" in w for w in strict["warnings"])
 
 
 # ---------------------------------------------------------------- delta report
