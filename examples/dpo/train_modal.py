@@ -4,6 +4,7 @@
     modal run examples/dpo/train_modal.py --pairs pairs.jsonl    # pairs from zps.export_preference
     modal run examples/dpo/train_modal.py --loss-type ipo --beta 0.1
     modal run examples/dpo/train_modal.py --prompts-file examples/grpo/prompts.jsonl   # model-written set
+    modal run examples/dpo/train_modal.py --from-run refund-dpo-v1 --run-name refund-dpo-v1-r2   # round two, from the adapter
 
 What happens:
 
@@ -59,6 +60,7 @@ image = (
     )
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE.parent / "grpo" / "reward.py"), "/root/reward.py")
+    .add_local_file(str(HERE.parent / "grpo" / "prompts.py"), "/root/prompts.py")
     .add_local_file(str(HERE / "pairs.py"), "/root/pairs.py")
     # From inside this repo the checkout's SDK rides along and shadows the
     # PyPI one, so an unreleased SDK change works here first.
@@ -111,6 +113,31 @@ def _sample(
     return out
 
 
+def _stamp(rows: list[dict]) -> list[dict]:
+    """``row["category"]`` (with_id, no_id, off_topic) on every graded row,
+    so ``run.delta(by="category")`` can split the target by kind of prompt."""
+    try:
+        sys.path.insert(0, "/root")
+        from prompts import category
+        from reward import case_for
+    except ImportError:
+        return rows
+    for row in rows:
+        row["category"] = category(case_for(str(row.get("prompt") or "")))
+    return rows
+
+
+def _by_category(rows: list[dict]) -> dict | None:
+    """pass@1 and tool-call rate per prompt category, when prompts.py is
+    mounted; a headline pass@1 hides which kind of prompt moved."""
+    try:
+        sys.path.insert(0, "/root")
+        from prompts import pass_by_category
+    except ImportError:
+        return None
+    return pass_by_category(rows)
+
+
 @app.function(
     image=image,
     gpu=os.environ.get("ZP_DPO_GPU", "A10G"),
@@ -132,6 +159,7 @@ def train(
     max_completion_length: int = 160,
     lora_rank: int = 16,
     eval_samples: int = 4,
+    from_run: str = "",
 ) -> dict:
     import json
 
@@ -153,9 +181,22 @@ def train(
     model = AutoModelForCausalLM.from_pretrained(
         base_model, torch_dtype=torch.bfloat16, device_map="cuda"
     )
+    if from_run:
+        # Round two (or n): the previous round's adapter is merged into the
+        # weights, so this round samples its own pairs from that policy and
+        # the reference (adapter off) is that policy, not the base. That is
+        # iterated on-policy DPO; each round's pairs are fresh.
+        from peft import PeftModel
+
+        prev = os.path.join(VOLUME_ROOT, from_run, "adapter")
+        if not os.path.isdir(prev):
+            raise FileNotFoundError(f"no adapter at {prev}; run names are volume folders")
+        model = PeftModel.from_pretrained(model, prev).merge_and_unload()
+        print(f"policy: {base_model} + {from_run}/adapter, merged")
 
     config = {
         "base_model": base_model,
+        "from_run": from_run or None,
         "steps": steps,
         "learning_rate": learning_rate,
         "beta": beta,
@@ -184,7 +225,7 @@ def train(
     before_replies = _sample(
         model, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    before_rows = reward_rows(holdout_prompts, before_replies)
+    before_rows = _stamp(reward_rows(holdout_prompts, before_replies))
     before = zps.pass_at(before_rows)
     print(f"before: {before}")
 
@@ -271,13 +312,20 @@ def train(
     after_replies = _sample(
         policy, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    after_rows = reward_rows(holdout_prompts, after_replies)
+    after_rows = _stamp(reward_rows(holdout_prompts, after_replies))
     after = zps.pass_at(after_rows)
     print(f"after:  {after}")
+    print(f"by category: before {_by_category(before_rows)}")
+    print(f"             after  {_by_category(after_rows)}")
 
     adapter_dir = os.path.join(out_dir, "adapter")
     policy.save_pretrained(adapter_dir)
     tokenizer.save_pretrained(adapter_dir)
+    if from_run:
+        # This adapter sits on merged weights, not the base, so the merged
+        # policy is saved whole for serving and for a further round.
+        policy.merge_and_unload().save_pretrained(os.path.join(out_dir, "merged"))
+        tokenizer.save_pretrained(os.path.join(out_dir, "merged"))
     with open(os.path.join(out_dir, "pairs.jsonl"), "w") as fh:
         for r in pair_rows:
             fh.write(json.dumps(r) + "\n")
@@ -296,19 +344,30 @@ def train(
         "ci95_after": after.ci95,
         "holdout_prompts": len(holdout_prompts),
         "eval_samples": eval_samples,
+        "by_category_before": _by_category(before_rows),
+        "by_category_after": _by_category(after_rows),
         "pairs": len(pair_rows),
         "pair_report": pair_report or None,
+        "from_run": from_run or None,
     }
     delta = None
     if run is not None:
         delta = run.delta(
-            before_rows, after_rows, target="pass_at_1", must_not_regress=["well_formed"]
+            before_rows,
+            after_rows,
+            target="pass_at_1",
+            must_not_regress=["well_formed"],
+            by="category",
         )
         run.finish("done", summary=summary, adapter=f"zeroproof-dpo-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     else:
         delta = zps.delta_report(
-            before_rows, after_rows, target="pass_at_1", must_not_regress=["well_formed"]
+            before_rows,
+            after_rows,
+            target="pass_at_1",
+            must_not_regress=["well_formed"],
+            by="category",
         )
     print(zps.format_delta_report(delta))
     summary["delta_verdict"] = delta["target_verdict"]
@@ -329,6 +388,7 @@ def main(
     base_model: str = BASE_MODEL,
     seed: int = 0,
     prompts_file: str = "",
+    from_run: str = "",
 ):
     from pairs import load_export
     from reward import SYSTEM, build_prompts, split_holdout
@@ -339,9 +399,14 @@ def main(
 
         items = load_prompts(prompts_file)
         print(f"{len(items)} model-written prompts from {prompts_file}")
+        from prompts import split_holdout_stratified
+
+        # By scenario within each category, so the holdout has no-id and
+        # off-topic prompts too; a plain hash split once left it with none.
+        train_items, held = split_holdout_stratified(items, holdout)
     else:
         items = build_prompts(prompts, seed=seed)
-    train_items, held = split_holdout(items, holdout)
+        train_items, held = split_holdout(items, holdout)
     print(f"{len(items)} prompts: {len(train_items)} train, {len(held)} holdout")
     pair_rows = load_export(pairs, system=SYSTEM) if pairs else None
     if pair_rows is not None:
@@ -357,5 +422,6 @@ def main(
         learning_rate=learning_rate,
         beta=beta,
         loss_type=loss_type,
+        from_run=from_run,
     )
     print("done:", summary)
