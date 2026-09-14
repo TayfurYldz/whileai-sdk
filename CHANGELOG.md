@@ -3,6 +3,22 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Character training example (`examples/character`): the OpenAI Model
+  Spec's style section parsed into a constitution with its GOOD/BAD
+  comparisons, prompts per trait, k replies each, a judge that reads the
+  trait's principle, preference pairs and SFT rows with the deployment
+  prompt, and `measure.py` for the before/after delta with `on_task` and
+  `no_filler` guarded. The spec's labeled replies grade the judge
+  (`judge_agreement`). Offline by default; `--model-url` for a live model.
+  How-to in `docs/character-training.md`.
+- A row's `privileged` block (`principle`, `hidden_state`, `reference`)
+  now reads into `Task.privileged` in `from_row`. `to_row` still never
+  projects it (it is the teacher's context, one step from a training
+  file); a source row's block rides back out as passthrough. The engine
+  leaves it empty; character and rubric pipelines write it.
+
 ## 0.23 (2026-09-14)
 
 - Markers a judge returns now reach `marker_summary`. `run_judge`

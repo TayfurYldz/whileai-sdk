@@ -36,6 +36,8 @@ examples/*
 !examples/identity/
 !examples/schema/
 !examples/pass-at-k/
+!examples/character/
+examples/character/out/
 
 # helpers, not the product
 /scripts/*
