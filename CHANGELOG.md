@@ -3,6 +3,13 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## 0.27 (2026-09-14)
+
+- Character training docs and example README point at the dataset's
+  home, `zero-proof-ai/character-training-model-spec` on Hugging Face
+  (train, holdout, eval) and the catalog agent `sol-character`;
+  `docs/character-training.md` gains a section on the run's rows.
+
 ## 0.26 (2026-09-14)
 
 - `examples/grpo`: GRPO on Modal end to end. Prompts from the offline

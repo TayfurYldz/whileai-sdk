@@ -68,6 +68,16 @@ general capabilities did not move.
    `delta_report(target="marker:trait", must_not_regress=["on_task", "no_filler"])`
    gives the headline with an interval and fails on a regression.
 
+## The rows from one run
+
+The live run in the example (hosted Qwen3-4B student, hosted Phi-4 judge)
+is public: [zero-proof-ai/character-training-model-spec](https://huggingface.co/datasets/zero-proof-ai/character-training-model-spec)
+on Hugging Face, splits `train` (60), `holdout` (144) and `eval` (35, the
+spec's labeled replies with `gold_reward`), and on the
+[platform catalog](https://www.zeroproofai.com/datasets) under the agent
+`sol-character`. Grade the `eval` split with your judge before reading
+anything else; that is the check the pipeline is built around.
+
 ## Things that go wrong
 
 - **The judge likes long replies.** In the spec's own comparisons the GOOD
