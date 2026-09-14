@@ -5,18 +5,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## 0.17 (2026-09-13)
 
+- `signup` says that the key is a trial key and how to lift it.
+  `zeroproof status` shows the tier; `zeroproof.account()` returns tier,
+  limits and today's usage (`GET /me`).
 - pass@1 / pass^k / pass@k from graded groups: `data.pass_at`,
   `ScoredData.pass_at`, `zps.pass_at(rows)` (a `PassAt` with
   `.headroom` = pass@k - pass@1 and `.per_task`). Unbiased estimators;
   k-way numbers withheld below `repeats=4`. `group_signal` reports the
   same keys, `recommend(mode="rl")` explains the mixed rate as headroom,
   and `save(meta=True)` writes `pass_at` to the sidecar.
-
-## Unreleased
-
-- `signup` says that the key is a trial key and how to lift it.
-  `zeroproof status` shows the tier; `zeroproof.account()` returns tier,
-  limits and today's usage (`GET /me`).
 
 ## 0.16 (2026-09-13)
 
