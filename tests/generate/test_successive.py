@@ -158,3 +158,42 @@ def test_rl_reports_time_spent_idle_waiting_on_verdicts():
     assert groups["idle_on_judge_s"] > 0
     note = [s for s in data.stages if s.startswith("rl pool idle on judge")]
     assert note and "situations>=2" in note[0], data.stages
+
+
+def test_truncated_rollouts_are_not_judged_and_do_not_stall_their_group():
+    judged: list[str] = []
+
+    def cut_agent(message: str) -> dict:
+        out = scripted_agent(message)
+        if hashlib.md5(message.encode("utf-8")).hexdigest()[-1] in "01234567":
+            out["steps"] = [
+                {"tool": "lookup_order", "arguments": {}, "result": {}, "truncated": True}
+            ]
+        return out
+
+    def judge(row: dict) -> dict:
+        judged.append(row["prompt"])
+        return {"reward": 1.0, "reason": "ok"}
+
+    data = zps.simulate(
+        cut_agent,
+        mode="rl",
+        situations=4,
+        rollouts_per_request=3,
+        budget=12,
+        grader=judge,
+        **offline(),
+    )
+    rows = data.trajectories
+    cut = [t for t in rows if t.get("judge_name") == "length_cap"]
+    assert cut, "no rollout hit the cap"
+    assert all(
+        t["reward"] is None and t["judge_status"] == "missing_reward" and "truncated" in t["reason"]
+        for t in cut
+    )
+    assert not any(t["prompt"] in judged and t in cut for t in cut)
+    assert data.search["groups"]["truncated_skipped"] == len(cut)
+    # the run still finished its groups instead of waiting on labels that
+    # will never come
+    assert data.stopped_because in ("situations_exhausted", "budget"), data.stopped_because
+    assert data.search["grader"]["judged_in_loop"] == len(rows) - len(cut)

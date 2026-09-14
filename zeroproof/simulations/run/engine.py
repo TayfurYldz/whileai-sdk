@@ -101,7 +101,7 @@ from ..ingest.traces import (
     opening_share,
     region_progress,
 )
-from ..schema import SCHEMA_KEY, SCHEMA_VERSION
+from ..schema import SCHEMA_KEY, SCHEMA_VERSION, Judgment, ScorerRef, attach
 from ..score.grading import behavior_signature, conduct_grade
 from .config import DEAD_AGENT_MIN_ERRORS, RunConfig
 from .rows import (
@@ -126,6 +126,17 @@ def _agent_error_text(exc: BaseException) -> str:
     """The dropped-row sentinel. Names the exception type so a TypeError
     from a wrong signature reads differently from a RuntimeError inside."""
     return f"<agent error: {type(exc).__name__}: {public_llm_error(exc)}>"
+
+
+def _hit_length_cap(row: dict) -> bool:
+    """A step the backend flagged as cut by its token cap, or a reply that
+    ends mid-sentence by the hygiene rule."""
+    from ..score.hygiene import is_truncated
+
+    steps = row.get("steps") or []
+    if any(isinstance(s, dict) and s.get("truncated") for s in steps):
+        return True
+    return is_truncated(row)
 
 
 class Run:
@@ -823,6 +834,10 @@ class Run:
         # seconds the rollout pool sat empty with nothing to do but wait
         # for verdicts: the run had too few situations for its concurrency
         self.idle_on_judge_s = 0.0
+        # rollouts that hit the length cap: never judged, counted as done
+        # without evidence in their group (rlhf-book ch. 6)
+        self.group_truncated: dict[str, int] = {}
+        self.skipped_truncated = 0
         self._successive = c.topo["repeat_policy"] == "successive" and not c.k_immediate
         # Set when the clock can no longer fit a fresh group: only verify
         # jobs are scheduled so in-flight groups finish before the whistle.
@@ -2039,6 +2054,24 @@ class Run:
             prompt = str(t.get("prompt") or job[0] or "")
             if not prompt:
                 continue
+            if _hit_length_cap(t):
+                # A completion cut by the cap is not a completion. Scoring
+                # it runs the judge out of distribution; it carries no
+                # label in its group and the pruner drops it later.
+                attach(
+                    t,
+                    Judgment(
+                        rollout_id=str(t.get("rollout_id") or ""),
+                        scorer=ScorerRef(name="length_cap", kind="rule"),
+                        reward=None,
+                        status="missing_reward",
+                        reason="truncated: hit the length cap, not judged",
+                    ),
+                )
+                self.skipped_truncated += 1
+                if successive:
+                    self._successive_update(prompt, t, job, truncated=True)
+                continue
             if judged_async:
                 self._submit_judgment(t, job)
                 continue
@@ -2127,7 +2160,9 @@ class Run:
 
     # ------------------------------------------- successive allocation
 
-    def _successive_update(self, prompt: str, t: dict, job: tuple) -> None:
+    def _successive_update(
+        self, prompt: str, t: dict, job: tuple, *, truncated: bool = False
+    ) -> None:
         """Fold one finished rollout into its group and decide whether the
         prompt gets another.
 
@@ -2154,12 +2189,15 @@ class Run:
             else str(t.get("behavior_signature") or "")
         )
         labels = self.group_labels.setdefault(prompt, [])
+        self.group_job[prompt] = job
+        if truncated:
+            self.group_truncated[prompt] = self.group_truncated.get(prompt, 0) + 1
         was_unanimous = len(labels) >= 1 and len(set(labels)) == 1
         n_prev = len(labels)
-        labels.append(label)
-        self.group_job[prompt] = job
-        n_done = len(labels)
-        if was_unanimous and n_prev >= max(1, min(k, c.probe)):
+        if not truncated:
+            labels.append(label)
+        n_done = len(labels) + self.group_truncated.get(prompt, 0)
+        if not truncated and was_unanimous and n_prev >= max(1, min(k, c.probe)):
             # this rollout was a continuation of a unanimous group: it is
             # one observation of the hazard at n_prev
             self.hazard_seen[n_prev] = self.hazard_seen.get(n_prev, 0) + 1
@@ -2377,6 +2415,7 @@ class Run:
             "mixed_rate": round((self.groups_mixed + 1.0) / (self.groups_probed + 2.0), 4),
             "hazard": {str(n): round(self._hazard(n), 4) for n in sorted(self.hazard_seen)},
             "idle_on_judge_s": round(self.idle_on_judge_s, 1),
+            "truncated_skipped": self.skipped_truncated,
             "closing": self.closing,
         }
 
