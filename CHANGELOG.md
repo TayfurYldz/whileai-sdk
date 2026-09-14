@@ -31,6 +31,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   test drops from 26-49 s to under 1 s and the suite from 162 s to
   100 s. Rows out of the simulator are unchanged (golden harness: 13/13
   identical) (#36).
+- `examples/dpo`: DPO on Modal end to end, the offline counterpart of
+  `examples/grpo`. Pairs come from the base policy's own samples scored
+  by the same rule and paired by `build_preference_pairs` (length
+  matched), or from a `zps.export_preference` file with `--pairs`; TRL
+  `DPOTrainer` with LoRA on Qwen2.5-1.5B-Instruct, the reference model
+  is the adapter switched off, reward margin and accuracy on the
+  dashboard, pass@1 before and after on a holdout, `run.delta` on the
+  run page. `pairs.py` (first-turn rendering, TRL rows, export loader)
+  is unit-tested offline.
 
 ## 0.27 (2026-09-14)
 

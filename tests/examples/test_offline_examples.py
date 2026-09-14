@@ -37,7 +37,12 @@ CLI_EXAMPLES = [
 ]
 
 # Need the ``modal`` client, which is not a dev dependency. Compiled, not run.
-NEEDS_MODAL = {"grpo/train_modal.py", "identity/eval_modal.py", "identity/train_modal.py"}
+NEEDS_MODAL = {
+    "dpo/train_modal.py",
+    "grpo/train_modal.py",
+    "identity/eval_modal.py",
+    "identity/train_modal.py",
+}
 
 
 def _offline_env() -> dict[str, str]:

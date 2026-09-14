@@ -1,0 +1,167 @@
+"""Preference pairs for DPO, from the SDK's graded rows or its exported JSONL.
+
+DPO needs a chosen and a rejected reply to the same prompt. Two supplies:
+
+* **On-policy (default here)**: sample the base policy a few times per
+  prompt, score every reply with the rule in ``reward.py``, and let
+  ``zps.build_preference_pairs`` pair a pass with a fail of similar length.
+  Both sides come from the policy being trained, which is where DPO works
+  best (rlhf-book ch. 11).
+* **Exported**: a file written by ``zps.export_preference`` (chosen and
+  rejected as full message lists) from any graded dataset, for example one
+  pulled from the platform. Pass it as ``--pairs``.
+
+Either way the trainer sees TRL's conversational shape: ``prompt`` is the
+system and user turns, ``chosen`` and ``rejected`` are one assistant turn
+each. Pure Python, no model, so it is checkable offline.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+
+def _render_assistant(message: dict) -> str:
+    """An assistant message as the text the policy would emit: its content
+    plus one ``<tool_call>`` block per structured tool call."""
+    text = str(message.get("content") or "").strip()
+    blocks: list[str] = []
+    for call in message.get("tool_calls") or []:
+        call = call if isinstance(call, dict) else {}
+        fn = call["function"] if isinstance(call.get("function"), dict) else call
+        args = fn.get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {"raw": args}
+        blocks.append(
+            "<tool_call>\n"
+            + json.dumps({"name": fn.get("name"), "arguments": args if args is not None else {}})
+            + "\n</tool_call>"
+        )
+    return "\n".join([t for t in [text, *blocks] if t])
+
+
+def first_turn(row: dict) -> str:
+    """The text of a rollout's first assistant turn.
+
+    A tool step first becomes a ``<tool_call>`` block; otherwise the first
+    assistant message, or ``final_text`` for single-turn rows."""
+    for step in row.get("steps") or []:
+        if isinstance(step, dict) and step.get("tool"):
+            args = step.get("arguments")
+            if args is None:
+                args = step.get("input")
+            return (
+                "<tool_call>\n"
+                + json.dumps({"name": str(step["tool"]), "arguments": args if isinstance(args, dict) else {}})
+                + "\n</tool_call>"
+            )
+    for message in row.get("messages") or []:
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            rendered = _render_assistant(message)
+            if rendered:
+                return rendered
+    return str(row.get("final_text") or "").strip()
+
+
+def dpo_rows(pairs: list[dict], system: str) -> list[dict[str, Any]]:
+    """TRL conversational rows from ``build_preference_pairs`` output. A pair
+    whose two first turns read the same is dropped: the contrast was later
+    in the rollout and a first-turn trainer cannot learn it."""
+    out: list[dict[str, Any]] = []
+    for pair in pairs:
+        prompt = str(pair.get("prompt") or "").strip()
+        chosen = first_turn(pair.get("chosen") or {})
+        rejected = first_turn(pair.get("rejected") or {})
+        if not prompt or not chosen or not rejected or chosen == rejected:
+            continue
+        out.append(
+            {
+                "prompt": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                "chosen": [{"role": "assistant", "content": chosen}],
+                "rejected": [{"role": "assistant", "content": rejected}],
+                "margin": pair.get("margin"),
+            }
+        )
+    return out
+
+
+def sampled_pairs(
+    prompts: list[dict[str, Any]],
+    replies: list[list[str]],
+    *,
+    system: str,
+    min_margin: float = 0.5,
+    max_pairs_per_prompt: int = 2,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """On-policy pairs: score the sampled replies with the rule, pair passes
+    with fails per prompt (length-matched), return TRL rows and the pair
+    report (how often chosen is the longer side, mean margin)."""
+    import zeroproof.simulations as zps
+
+    from reward import reward_rows
+
+    rows = reward_rows(prompts, replies)
+    for row in rows:
+        # build_preference_pairs reads ``reward``; the raw rule score is the
+        # finer signal, so a 1.0 vs 0.5 pair exists at min_margin 0.5.
+        row["reward"] = float(row["markers"]["tool_rule"])
+    pairs, report = zps.build_preference_pairs(
+        rows, min_margin=min_margin, max_pairs_per_prompt=max_pairs_per_prompt, length_match=True
+    )
+    out = dpo_rows(pairs, system)
+    report = dict(report)
+    report["trl_rows"] = len(out)
+    return out, report
+
+
+def load_export(path: str, *, system: str | None = None) -> list[dict[str, Any]]:
+    """Rows from a ``zps.export_preference`` JSONL. Each line carries
+    ``chosen`` and ``rejected`` as full conversations; the prompt is every
+    message before the first assistant turn, the sides are that turn."""
+    out: list[dict[str, Any]] = []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            entry = json.loads(line)
+            sides: dict[str, str] = {}
+            prompt_msgs: list[dict] | None = None
+            for side in ("chosen", "rejected"):
+                msgs = [m for m in entry.get(side) or [] if isinstance(m, dict)]
+                idx = next((i for i, m in enumerate(msgs) if m.get("role") == "assistant"), None)
+                if idx is None:
+                    break
+                head = [
+                    {"role": m["role"], "content": str(m.get("content") or "")}
+                    for m in msgs[:idx]
+                    if m.get("role") in ("system", "user")
+                ]
+                if system is not None:
+                    head = [{"role": "system", "content": system}, *[m for m in head if m["role"] != "system"]]
+                if prompt_msgs is None:
+                    prompt_msgs = head
+                sides[side] = _render_assistant(msgs[idx])
+            if len(sides) < 2 or not prompt_msgs or not sides["chosen"] or not sides["rejected"]:
+                continue
+            if sides["chosen"] == sides["rejected"]:
+                continue
+            out.append(
+                {
+                    "prompt": prompt_msgs,
+                    "chosen": [{"role": "assistant", "content": sides["chosen"]}],
+                    "rejected": [{"role": "assistant", "content": sides["rejected"]}],
+                    "margin": entry.get("margin"),
+                }
+            )
+    return out
+
+
+__all__ = ["dpo_rows", "first_turn", "load_export", "sampled_pairs"]
