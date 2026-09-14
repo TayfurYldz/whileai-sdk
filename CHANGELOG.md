@@ -10,6 +10,21 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   dataset no longer reports `None` for the tool-count correlation.
   The calibration stamp's `task_id` is the `scenario_id` when the row
   has one, not the prompt text.
+- `simulate(logprobs=True)` asks the rollout model for the log-probability
+  of every token it generates (rlhf-book ch. 6 off-policy correction,
+  ch. 15 KL). Each agent turn's first step carries `logprob` and
+  `n_tokens` (`"tokens"` adds `token_logprobs`), the row carries the
+  totals, and a turn cut at the token cap is marked `truncated`. The
+  fields ride through `export_row`, `training_rows`, `from_row`/`to_row`
+  (`Step.logprob`, `Step.n_tokens`, `Step.truncated`) and the wire schema.
+  A server that rejects `logprobs` is asked again without it.
+- `zps.logprob_report(rows)`: capture coverage, mean token logprob,
+  per-row quantiles, reward-vs-confidence correlation (flagged at 0.3),
+  truncated count. `zps.mean_kl(rows, ref="ref_logprob")`: sampled
+  KL(policy || reference) per generated token, overall and per task, from
+  a reference logprob key or a second scored row list.
+  `calibrate(rows, ref=...)` writes it into `calibration.mean_kl`, the
+  field nothing populated before.
 
 ## 0.20 (2026-09-14)
 

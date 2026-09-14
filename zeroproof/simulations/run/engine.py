@@ -397,6 +397,8 @@ class Run:
         }
         if c.temperature is not None:
             runner_kw["temperature"] = float(c.temperature)
+        if c.logprobs:
+            runner_kw["logprobs"] = c.logprobs
         if c.execute is not None:
             runner_kw["execute"] = c.execute
         if c.backend:
@@ -627,6 +629,18 @@ class Run:
             t["steering"] = dict(steering)
         t.update(_row_conversation(meta, prompt, c.seed))
         t["behavior_signature"] = behavior_signature(t)
+        # Sampling facts roll up from the agent turns: the summed logprob
+        # and token count a trainer needs for an importance ratio or a KL.
+        lp_steps = [
+            s
+            for s in t["steps"]
+            if isinstance(s, dict)
+            and isinstance(s.get("logprob"), (int, float))
+            and not isinstance(s.get("logprob"), bool)
+        ]
+        if lp_steps:
+            t["logprob"] = round(sum(float(s["logprob"]) for s in lp_steps), 6)
+            t["n_tokens"] = sum(int(s.get("n_tokens") or 0) for s in lp_steps)
         return t
 
     @staticmethod

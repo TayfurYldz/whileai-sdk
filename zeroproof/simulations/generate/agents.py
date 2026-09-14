@@ -316,6 +316,40 @@ def _trim_length_cut(choice: dict) -> None:
         message["content"] = text[: cut + 1]
 
 
+def _logprob_summary(choice: dict, *, tokens: bool) -> dict | None:
+    """Sum and count of the sampled tokens' log-probabilities, when the
+    server returned them. ``tokens=True`` keeps the per-token list too."""
+    lp = choice.get("logprobs") if isinstance(choice, dict) else None
+    content = lp.get("content") if isinstance(lp, dict) else None
+    if not isinstance(content, list) or not content:
+        return None
+    values = [
+        float(t["logprob"])
+        for t in content
+        if isinstance(t, dict) and isinstance(t.get("logprob"), (int, float))
+    ]
+    if not values:
+        return None
+    out: dict[str, Any] = {"sum": round(sum(values), 6), "n": len(values)}
+    if tokens:
+        out["tokens"] = [round(v, 6) for v in values]
+    return out
+
+
+def _turn_meta(reply: dict) -> dict:
+    """Step fields an agent turn carries: logprob, n_tokens, truncated."""
+    meta: dict[str, Any] = {}
+    lp = reply.get("_logprobs") if isinstance(reply, dict) else None
+    if isinstance(lp, dict):
+        meta["logprob"] = lp["sum"]
+        meta["n_tokens"] = lp["n"]
+        if lp.get("tokens"):
+            meta["token_logprobs"] = list(lp["tokens"])
+    if isinstance(reply, dict) and reply.get("_finish_reason") == "length":
+        meta["truncated"] = True
+    return meta
+
+
 def complete(
     base_url: str,
     model: str,
@@ -327,11 +361,16 @@ def complete(
     max_tokens: int = 1024,
     timeout: float = 60,
     n: int = 1,
+    logprobs: bool | str = False,
 ) -> dict:
     """POST /chat/completions. Reuses a thread-local keep-alive connection.
 
     ``n>1`` asks vLLM for several samples on one prefill. The first choice is
     the return value; extra choices are on ``_all`` when the server honors ``n``.
+    ``logprobs=True`` asks for the sampled tokens' log-probabilities; the
+    reply then carries ``_logprobs`` (sum, n, and with ``"tokens"`` the
+    per-token list). ``_finish_reason`` is always set from the first choice.
+    A server that rejects ``logprobs`` gets the request again without it.
     """
     key = resolve_completion_key(base_url, api_key)
     auth_err = missing_hosted_key(base_url, key)
@@ -364,6 +403,8 @@ def complete(
     }
     if samples > 1:
         payload["n"] = samples
+    if logprobs:
+        payload["logprobs"] = True
     if tools:
         payload["tools"] = _wire_tools(tools)
     headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
@@ -404,6 +445,9 @@ def complete(
                 if resp.status == 400 and payload.get("n"):
                     payload.pop("n", None)
                     raise RuntimeError("retry_drop_n")
+                if resp.status == 400 and payload.get("logprobs") and "logprob" in err.lower():
+                    payload.pop("logprobs", None)
+                    raise RuntimeError("retry_drop_logprobs")
                 if resp.status in {401, 403}:
                     raise RuntimeError(
                         "Hosted Qwen needs VLLM_API_KEY set in the environment."
@@ -429,6 +473,12 @@ def complete(
             extras = [dict(c.get("message") or {}) for c in choices]
             if len(extras) > 1:
                 first["_all"] = extras
+            if choices[0].get("finish_reason"):
+                first["_finish_reason"] = str(choices[0]["finish_reason"])
+            if payload.get("logprobs"):
+                summary = _logprob_summary(choices[0], tokens=logprobs == "tokens")
+                if summary:
+                    first["_logprobs"] = summary
             return first
         except Exception as exc:
             last_err = exc
@@ -436,7 +486,12 @@ def complete(
                 conn.close()
             _tls.conn = None
             kind = str(exc)
-            if kind in {"retry_max_tokens", "retry_shrink_input", "retry_drop_n"}:
+            if kind in {
+                "retry_max_tokens",
+                "retry_shrink_input",
+                "retry_drop_n",
+                "retry_drop_logprobs",
+            }:
                 continue
             if kind == _TRANSIENT_RETRY and transient < _TRANSIENT_TRIES:
                 transient += 1
@@ -505,7 +560,9 @@ def _spoken_text(reply: dict) -> str:
 def _calls_from_reply(reply: dict) -> tuple[list[dict], dict]:
     native = reply.get("tool_calls") or []
     if native:
-        return native, reply
+        # The reply goes back to the server as the assistant turn; its
+        # private fields (_logprobs, _finish_reason, _all) must not.
+        return native, {k: v for k, v in reply.items() if not str(k).startswith("_")}
     content = reply.get("content") or ""
     parsed = parse_text_tool_calls(content)
     if not parsed:
@@ -1097,6 +1154,7 @@ def local_model(
     min_user_turns: int = 1,
     turn_stats: dict | None = None,
     temperature: float = 0.8,
+    logprobs: bool | str = False,
     fault_plans: dict | None = None,
     result_shapes: dict | None = None,
     opening_rate: float = 0.0,
@@ -1181,8 +1239,11 @@ def local_model(
                 timeout=timeout,
                 # A coding agent's diff does not fit in 768.
                 max_tokens=768 if CONTEXT_TOKENS <= 8192 else 2048,
+                logprobs=logprobs,
             )
             calls, assistant = _calls_from_reply(reply)
+            # One agent turn, one set of sampling facts, on its first step.
+            turn_meta = _turn_meta(reply)
             spoken = (_spoken_text(reply) or "").strip()
             if spoken:
                 final_text = spoken
@@ -1226,6 +1287,9 @@ def local_model(
                         if spoken and not attached:
                             step["text"] = spoken
                             attached = True
+                        if turn_meta:
+                            step.update(turn_meta)
+                            turn_meta = {}
                         steps.append(step)
                         messages.append(
                             {
@@ -1240,6 +1304,9 @@ def local_model(
                     if spoken and not attached:
                         step["text"] = spoken
                         attached = True
+                    if turn_meta:
+                        step.update(turn_meta)
+                        turn_meta = {}
                     steps.append(step)
                     messages.append(
                         {
@@ -1262,7 +1329,8 @@ def local_model(
                     return _done(steps, prev)
             messages.append({"role": "assistant", "content": spoken})
             if spoken:
-                steps.append({"text": spoken})
+                steps.append({"text": spoken, **turn_meta})
+                turn_meta = {}
             # After the agent speaks, the user replies only if the thread
             # is still open. Do not stack assistant-only variants of the
             # same line. One extra agent beat is allowed only for a short

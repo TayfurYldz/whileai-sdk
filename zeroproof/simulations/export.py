@@ -47,6 +47,8 @@ _CARRY_KEYS = (
     "judge_status",
     "judge_name",
     "lineage",
+    "logprob",
+    "n_tokens",
     "tier",
     "ask_family",
     "ask",

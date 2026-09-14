@@ -71,6 +71,7 @@ def calibrate(
     *,
     policy: PolicyRef | dict | str | None = None,
     model: str | None = None,
+    ref: str | Sequence[dict] | None = None,
 ) -> dict[str, Any]:
     """Stamp ``calibration`` on every graded row, in place.
 
@@ -78,9 +79,19 @@ def calibrate(
     the same grouping ``group_signal`` and ``pass_at`` use. Rows without a
     0/1 reward are left alone and counted. Returns a report with the
     number of tasks and rows stamped plus the ``pass_at`` summary.
+    ``ref`` (a key holding the reference model's summed logprob, or rows
+    scored under it) fills ``mean_kl`` per task from the captured
+    logprobs; see ``mean_kl``.
     """
     student = policy_ref(policy, model=model)
     groups = _group_label_lists(rows)
+    kl_per_task: dict[str, float] = {}
+    kl_report: dict[str, Any] | None = None
+    if ref is not None:
+        from .logprobs import mean_kl
+
+        kl_report = mean_kl(rows, ref)
+        kl_per_task = dict(kl_report["per_task"])
     stamped = 0
     for row in rows:
         if not isinstance(row, dict) or _binary_label(row) is None:
@@ -93,6 +104,7 @@ def calibrate(
             student=student,
             n=len(labels),
             pass_rate=sum(labels) / len(labels),
+            mean_kl=kl_per_task.get(_task_id(row)),
         )
         row["calibration"] = asdict(record)
         stamped += 1
@@ -104,6 +116,7 @@ def calibrate(
         "n_unstamped": len(rows) - stamped,
         "student": asdict(student),
         "pass_at": rates.to_dict(),
+        **({"mean_kl": kl_report} if kl_report is not None else {}),
     }
 
 

@@ -57,6 +57,7 @@ _MOVED_NAMES = {
     "avg_turns",
     "min_user_turns",
     "temperature",
+    "logprobs",
     "seed",
     "grader",
     "llm_spec",
@@ -264,6 +265,7 @@ class RunConfig:
     avg_turns: float
     min_user_turns: int
     temperature: Any
+    logprobs: Any
     seed: int
     embedder: Any
     mutate_failures: bool
@@ -363,6 +365,9 @@ def resolve_run_config(
     avg_turns = float(cfg.pop("avg_turns", 4))
     min_user_turns = max(1, int(cfg.pop("min_user_turns", 1)))
     temperature = cfg.pop("temperature", None)
+    logprobs = cfg.pop("logprobs", False)
+    if logprobs not in (False, True, "tokens"):
+        raise ValueError('logprobs must be False, True, or "tokens"')
     seed = int(cfg.pop("seed", 0))
     # The named grader= parameter wins; advanced={"grader": ...} stays as
     # the legacy spelling. Both route to one application path at the end.
@@ -506,6 +511,7 @@ def resolve_run_config(
         avg_turns=avg_turns,
         min_user_turns=min_user_turns,
         temperature=temperature,
+        logprobs=logprobs,
         seed=seed,
         embedder=embedder,
         mutate_failures=mutate_failures,

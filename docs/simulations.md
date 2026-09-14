@@ -106,7 +106,10 @@ match, and the length gap between chosen and rejected, with a warning
 when the chosen side is usually the longer one, because a preference
 trainer learns length before it learns behavior. RL groups carry
 `group_id`, the group size, and the 0/1 counts, plus the calibration
-stamp the publish gate writes. The default check
+stamp the publish gate writes. With `logprobs=True` every agent turn also
+carries the summed log-probability of the tokens the policy generated and
+their count, which is what a later update needs to correct for being
+off-policy and what a KL to a reference model is computed from. The default check
 is lexical: word and bigram overlap with numbers collapsed, so it drops
 near-copies and copies that differ only in an id, and it does not catch
 a paraphrase. Pass a semantic `embedder=` to the leakage functions when
