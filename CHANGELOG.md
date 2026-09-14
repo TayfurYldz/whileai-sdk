@@ -5,6 +5,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## 0.29 (2026-09-14)
 
+- `pass_at` says when groups are uneven. A time or row budget that cuts a
+  run mid-group leaves ragged groups; `k` defaults to the smallest, so the
+  k-way numbers were withheld with "set repeats>=4" even when repeats was
+  4. The note now names the size range and the `k=` that scores the groups
+  which reached it.
+- `SimulationData.grade` docstring names what the no-argument path is
+  (`grade_llm`, the hosted Phi-4 judge, in place, returning the judge
+  report) and README marks `grade=True` as the legacy conduct score.
 - An `agent=` callable that fails every call is called off after
   `max(16, 2 * budget)` lost rollouts with `stopped_because="agent_failed"`,
   instead of re-rolling each lost slot and refilling it until the writer
