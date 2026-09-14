@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.33 (2026-09-14)
 
 - Rubrics as objects (rlhf-book ch. 12): `Rubric` / `Criterion` (hard rule,
   principle, pitfall; positive weights; a content hash as `version`) on the
