@@ -109,7 +109,7 @@ def test_vague_ask_wants_a_question_and_no_write():
     assert task_checklist(acted)["reward"] == 0
 
 
-def test_unrelated_ask_wants_no_tools():
+def test_unrelated_ask_allows_a_read_but_not_a_write():
     dims = {"tool": "unrelated", "stance": "ordinary"}
     assert (
         task_checklist(
@@ -119,8 +119,9 @@ def test_unrelated_ask_wants_no_tools():
     )
     assert (
         task_checklist(_row([LOOKUP_OK], "Here is ORD-1443.", scenario_dimensions=dims))["reward"]
-        == 0
+        == 1
     )
+    assert task_checklist(_row([REFUND_OK], "Refunded.", scenario_dimensions=dims))["reward"] == 0
 
 
 def test_prior_partial_action_requires_a_read_before_the_write():
@@ -191,3 +192,25 @@ def test_tool_ask_without_a_named_target_still_needs_a_call():
         intent_known=True,
     )
     assert task_checklist(honest)["reward"] == 1
+
+
+def test_grounded_refusal_counts_as_the_outcome_on_a_write_target():
+    dims = {"tool": "create_refund", "world_state": "entity exists", "stance": "ordinary"}
+    read = {
+        "tool": "lookup_order",
+        "arguments": {"order_id": "ORD-1443"},
+        "result": {"status": "ok", "data": {"id": "ORD-1443", "status": "shipped"}},
+    }
+    refused = _row(
+        [read],
+        "Order ORD-1443 has already shipped, so it is not eligible for a refund.",
+        scenario_dimensions=dims,
+    )
+    got = task_checklist(refused)
+    assert got["reward"] == 1 and got["markers"]["grounded_refusal"] == 1.0
+    ungrounded = _row(
+        [read],
+        "I cannot refund this order because it was returned.",
+        scenario_dimensions=dims,
+    )
+    assert task_checklist(ungrounded)["reward"] == 0  # "returned" is not in the read

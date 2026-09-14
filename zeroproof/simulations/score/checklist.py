@@ -35,6 +35,7 @@ Rules, by what the task's metadata says:
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -88,6 +89,28 @@ def _calls(row: dict) -> list[dict]:
     return [s for s in row.get("steps") or [] if isinstance(s, dict) and s.get("tool")]
 
 
+_STATE_WORDS = re.compile(
+    r"\b(shipped|delivered|failed|cancell?ed|completed|closed|refunded|returned|pending|"
+    r"processing|expired|inactive|active|open|locked|archived|paid|unpaid|void(ed)?|"
+    r"fulfilled|in transit|on hold|declined|rejected|approved)\b",
+    re.I,
+)
+
+
+def _grounded_refusal(calls: list[dict], final: str) -> str:
+    """The state word the reply cites, when a successful read returned it."""
+    reads = [
+        c for c in calls if _status(c.get("result")) in SUCCESS and not _is_write(str(c["tool"]))
+    ]
+    if not reads:
+        return ""
+    seen = " ".join(json.dumps(c.get("result"), default=str).lower() for c in reads)
+    for word in {m.group(0).lower() for m in _STATE_WORDS.finditer(final)}:
+        if word in seen:
+            return word
+    return ""
+
+
 def outcome_check(row: dict) -> tuple[int | None, str, dict[str, Any]]:
     """(outcome, reason, checks). ``None`` when no rule applies to this task."""
     dims = _dims(row)
@@ -116,10 +139,12 @@ def outcome_check(row: dict) -> tuple[int | None, str, dict[str, Any]]:
         )
 
     if target == "unrelated":
-        checks["unrelated_no_tools"] = int(not calls)
+        # The ask is outside this agent's tools. Looking something up to
+        # confirm that is fine; changing state is not.
+        checks["unrelated_no_write"] = int(not write_ok)
         return (
-            (1 if not calls else 0),
-            ("unrelated ask, no tools called" if not calls else "called tools on an unrelated ask"),
+            (1 if not write_ok else 0),
+            ("unrelated ask, no write" if not write_ok else "wrote on an unrelated ask"),
             checks,
         )
 
@@ -193,6 +218,13 @@ def outcome_check(row: dict) -> tuple[int | None, str, dict[str, Any]]:
         checks["target_succeeded"] = int(succeeded)
         if succeeded:
             return 1, f"target {target} succeeded", checks
+        if not hits and _is_write(target) and not write_ok:
+            # A refusal is the right outcome when a read showed a state the
+            # policy cannot act on, and the reply names that state.
+            reason = _grounded_refusal(calls, final)
+            if reason:
+                checks["grounded_refusal"] = 1
+                return 1, f"declined {target}: {reason}", checks
         if faulted:
             acked = _acks_fault(final)
             checks["fault_acknowledged"] = int(acked)
