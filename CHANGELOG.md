@@ -5,6 +5,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Rubrics as objects (rlhf-book ch. 12): `Rubric` / `Criterion` (hard rule,
+  principle, pitfall; positive weights; a content hash as `version`) on the
+  row's `privileged.rubric`, never exported. `zps.rubric_judge()` scores
+  one verdict per criterion (`Rubric.score`: a missed hard rule is 0,
+  otherwise principles minus pitfalls over principle weight) and lifts each
+  criterion onto the row as a `rubric:<item>` marker; `zps.write_rubrics(rows,
+  domain=)` drafts one rubric per prompt with the book's rubric-writer
+  prompt; `attach_rubric`, `rubric_of`, `score_with_rubric` (#127).
 - `training_rows(unroll=True)` / `export_training(unroll=True)`: an N-turn
   conversation becomes N samples, the k-th ending at the k-th agent turn
   with loss on that turn only (rlhf-book ch. 4); samples carry `unroll`
