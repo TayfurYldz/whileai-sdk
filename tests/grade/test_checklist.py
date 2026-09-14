@@ -244,6 +244,35 @@ def test_duplicate_entity_needs_a_look_or_a_question_before_writing():
     asked = _row(
         [], "There are two orders matching that; which one do you mean?", scenario_dimensions=dims
     )
-    assert (
-        task_checklist(asked)["reward"] == 0
-    )  # asked, but the target was never reached: no outcome yet
+    assert task_checklist(asked)["reward"] == 1
+    read_only = _row(
+        [LOOKUP_OK], "There are two records for ORD-1443 and they differ.", scenario_dimensions=dims
+    )
+    assert task_checklist(read_only)["reward"] == 1
+    idle = _row([], "Sure, I can help.", scenario_dimensions=dims)
+    assert task_checklist(idle)["reward"] == 0
+
+
+def test_already_done_phrasing_is_flexible_and_multi_tool_is_judge_territory():
+    dims = {"tool": "cancel_event", "world_state": "entity already acted on", "stance": "ordinary"}
+    done = {
+        "tool": "cancel_event",
+        "arguments": {"event_id": "78902"},
+        "result": {"status": "already_done"},
+    }
+    row = {
+        "prompt": "cancel summer festival id 78902",
+        "steps": [done],
+        "final_text": "Event 78902 is already marked as completed, so nothing more to do.",
+        "scenario_dimensions": dims,
+    }
+    assert task_checklist(row)["reward"] == 1
+    multi = {
+        "prompt": "change the deadline and add a reminder",
+        "steps": [],
+        "final_text": "I cannot modify deadlines or reminders; those are outside my tools.",
+        "scenario_dimensions": {"tool": "multi_tool", "stance": "exploratory"},
+        "ask_family": "tool",
+    }
+    got = task_checklist(multi)
+    assert got["reward"] == 1.0 and got["markers"]["outcome_checked"] == 0.0
