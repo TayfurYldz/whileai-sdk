@@ -5,6 +5,13 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/grpo`: `--loss-type` (bnpo, TRL's default; grpo; dr_grpo),
+  `--epsilon-high`, `--no-scale-rewards` and `--mask-truncated`, so
+  Dr.GRPO and DAPO's clip and overlong mask are flags on the one trainer
+  and land in the run config. `prompts.jsonl` is checked in for real (a
+  repo-wide `*.jsonl` ignore had swallowed it) and the test requires it.
+  On it: GRPO 120 steps 0.18 -> 0.85 (+0.63 [+0.50, +0.73]), Dr.GRPO at
+  the same budget 0.17 -> 0.53, DPO one round 0.17 -> 0.69.
 - With `grader=`, every mode judges rows as they land, on the judge pool
   beside the rollouts; only the tail is judged after the clock. Before this
   explore and sft judged everything in one pass after the run, which on a
