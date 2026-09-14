@@ -5,6 +5,13 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `zps.attach_labels(rows, labels, annotator=)`: hand labels from a JSONL
+  path, a list or a mapping, matched by rollout id, scenario id plus
+  rollout index, or prompt plus final text; every label stays on the row
+  as `gold_labels` (label, annotator, kind, ts, note) and `gold_reward` is
+  the majority, unset on a tie. `zps.annotator_agreement(rows)`: per-
+  annotator counts, unanimous share, Cohen's kappa for the busiest pair,
+  the split rows (rlhf-book ch. 10, 11) (#136).
 - `data.grade(use_privileged=True)` / `grade_llm(use_privileged=)`: the
   hosted judge reads the row's `privileged` block (principle, reference,
   hidden state) as `judge_only` in its payload, with a prompt line on how
