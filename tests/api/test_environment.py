@@ -134,8 +134,15 @@ def test_export_environment_writes_an_installable_package(tmp_path):
     )
     pyproject = (out / "pyproject.toml").read_text()
     assert 'name = "refund-agent"' in pyproject and "verifiers>=0.3" in pyproject
+    assert 'build-backend = "hatchling.build"' in pyproject
+    assert 'include = ["refund_agent/**", "pyproject.toml", "README.md"]' in pyproject
+    assert "[tool.verifiers.eval]" in pyproject
     readme = (out / "README.md").read_text()
-    assert ":outcome_reward" in readme and "3 (" in readme
+    assert ":outcome_reward" in readme and "prime eval run refund-agent" in readme
+    assert "2 train / 1 holdout" in readme or "1 train / 2 holdout" in readme
+    vendored = (pkg / "_zp_env.py").read_text()
+    assert "from zeroproof.simulations.export import _resolve" in vendored
+    assert "from ." not in vendored.replace("from ._", "")
 
 
 def test_export_without_reward_warns_about_process_reward(tmp_path):
@@ -243,3 +250,20 @@ def test_load_environment_with_a_live_world(tmp_path):
     msg = asyncio.run(env.call_tool("lookup_order", args, "c1"))
     assert json.loads(msg.content) == {"status": "ok", "order": "ORD-1"}
     assert calls == [("lookup_order", {"order_id": "ORD-1"})]
+
+
+def test_vendored_module_loads_standalone(tmp_path):
+    """The copy in the package works when the installed SDK predates the
+    environment module: import it from its file, not from the package."""
+    import importlib.util
+
+    out = tmp_path / "env"
+    zps.export_environment(
+        _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
+    )
+    path = out / "env" / "_zp_env.py"
+    spec = importlib.util.spec_from_file_location("zp_env_vendored", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    env = module.load_environment(out / "env" / "spec.json")
+    assert [t.name for t in env.tool_defs] == ["lookup_order", "create_refund"]

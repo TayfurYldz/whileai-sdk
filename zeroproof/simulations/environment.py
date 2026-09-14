@@ -249,7 +249,10 @@ _PACKAGE_INIT = '''"""{name}: a ZeroProof RL environment. See README.md."""
 
 from pathlib import Path
 
-from zeroproof.simulations.environment import load_environment as _load
+try:  # the SDK release that ships the environment module
+    from zeroproof.simulations.environment import load_environment as _load
+except ImportError:  # older SDK: the copy written at export time
+    from ._zp_env import load_environment as _load
 
 SPEC = Path(__file__).resolve().parent / "spec.json"
 
@@ -260,21 +263,28 @@ def load_environment(**kwargs):
 
 _PYPROJECT = """[project]
 name = "{dist}"
-version = "0.1.0"
 description = "{description}"
+tags = ["zeroproof", "agents", "tool-use", "train", "eval"]
+version = "0.1.0"
 requires-python = ">=3.11,<3.14"
-dependencies = ["verifiers>=0.3", "zeroproof>={sdk_version}"]
+dependencies = [
+    "verifiers>=0.3.1",
+    "zeroproof>={sdk_version}",
+]
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.setuptools]
+[tool.hatch.build]
+include = ["{name}/**", "pyproject.toml", "README.md"]
+
+[tool.hatch.build.targets.wheel]
 packages = ["{name}"]
-include-package-data = true
 
-[tool.setuptools.package-data]
-"{name}" = ["spec.json", "data/*.jsonl"]
+[tool.verifiers.eval]
+num_examples = 5
+rollouts_per_example = 3
 """
 
 
@@ -294,39 +304,61 @@ def _write_jsonl(path: Path, rows: Sequence[dict]) -> None:
             fh.write(json.dumps(row, default=str) + "\n")
 
 
+def _vendored_source() -> str:
+    """This module, with package-relative imports made absolute, so an
+    exported package loads on an SDK release that predates it."""
+    source = Path(__file__).read_text(encoding="utf-8")
+    return re.sub(r"^(\s*)from \.", r"\1from zeroproof.simulations.", source, flags=re.M)
+
+
 def _readme(name: str, spec: dict, report: dict) -> str:
     decon = report.get("decontamination") or {}
+    dist = name.replace("_", "-")
+    world = spec.get("execute") or "zeroproof mock world, seeded per task"
     lines = [
-        f"# {name}",
+        f"# {dist}",
         "",
         "A ZeroProof RL environment: the task set, the world that answers tool",
         "calls, and the reward that grades a finished trajectory, packaged for",
         "`verifiers`. The trainer samples its own rollouts from the policy under",
         "training, so nothing here is off-policy.",
         "",
-        "```bash",
-        f'pip install -e .    # then: vf-eval {name} -a \'{{"split": "holdout"}}\' -m <policy> ...',
-        "```",
+        "### Overview",
+        f"- **Environment ID**: `{dist}`",
+        f"- **Short description**: {spec.get('system_prompt', '')[:160].strip() or 'tool-using agent'}",
+        "- **Tags**: zeroproof, agents, tool-use, train, eval",
         "",
-        "| | |",
-        "|---|---|",
-        f"| tasks | {report['tasks']} ({report['train']} train, {report['holdout']} holdout) |",
-        f"| tools | {len(spec['tools'])} |",
-        f"| turn cap | {spec['max_turns']} |",
-        f"| reward | `{spec['reward']}` |",
-        f"| world | `{spec.get('execute') or 'zeroproof mock world, seeded per task'}` |",
+        "### Datasets",
+        "- **Primary dataset(s)**: `data/train.jsonl`, `data/holdout.jsonl` (one task per prompt, written by the ZeroProof simulator)",
+        f"- **Split sizes**: {report['train']} train / {report['holdout']} holdout",
+        "",
+        "### Task",
+        "- **Type**: multi-turn tool use",
+        f"- **Tools**: {', '.join('`' + t['name'] + '`' for t in spec['tools'])}",
+        f"- **Turn cap**: {spec['max_turns']}",
+        f"- **World**: `{world}`",
+        f"- **Rubric overview**: `reward` = `{spec['reward']}` through the ZeroProof judge contract (weight 1.0); `n_calls`, `judge_ok` and per-tool call counts logged at weight 0",
     ]
     if report.get("band"):
         lines.append(
-            f"| difficulty band | {report['band'][0]:.0%} to {report['band'][1]:.0%} solve rate; "
-            f"{report['band_dropped']} of {report['graded_prompts']} graded prompts dropped |"
+            f"- **Difficulty band**: {report['band'][0]:.0%} to {report['band'][1]:.0%} solve rate; "
+            f"{report['band_dropped']} of {report['graded_prompts']} graded prompts dropped"
         )
     if decon:
         lines.append(
-            f"| train vs holdout 8-gram overlap | {decon.get('n_contaminated', 0)} tasks "
-            f"({(decon.get('contamination_rate') or 0):.1%}) |"
+            f"- **Train vs holdout 8-gram overlap**: {decon.get('n_contaminated', 0)} tasks "
+            f"({(decon.get('contamination_rate') or 0):.1%})"
         )
-    lines += [""]
+    lines += [
+        "",
+        "### Quickstart",
+        "",
+        "```bash",
+        f"prime eval run {dist}",
+        f'vf-eval {name} -a \'{{"split": "holdout"}}\' -m <policy> -b <base url> -k <key var>',
+        "```",
+        "",
+    ]
     for warning in report.get("warnings") or []:
         lines.append(f"**Warning.** {warning}")
         lines.append("")
@@ -413,6 +445,7 @@ def export_environment(
     pkg = out_dir / name
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text(_PACKAGE_INIT.format(name=name), encoding="utf-8")
+    (pkg / "_zp_env.py").write_text(_vendored_source(), encoding="utf-8")
     (pkg / SPEC_FILE).write_text(json.dumps(spec, indent=2, default=str), encoding="utf-8")
     _write_jsonl(pkg / "data" / "train.jsonl", train)
     _write_jsonl(pkg / "data" / "holdout.jsonl", held)
