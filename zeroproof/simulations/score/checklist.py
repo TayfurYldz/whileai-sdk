@@ -30,6 +30,7 @@ Rules, by what the task's metadata says:
 * unrelated ask: no tool was called.
 * vague ask (intent unknown): the reply asks a question and no write ran.
 * prior partial action in the history: a read preceded the first write.
+* duplicate entity in the world: a read or a question preceded any write.
 * fault on the target tool: acknowledged, or a later call succeeded.
 """
 
@@ -232,6 +233,17 @@ def outcome_check(row: dict) -> tuple[int | None, str, dict[str, Any]]:
             ),
             checks,
         )
+
+    if world in {"duplicate entity", "duplicate"} and write_ok:
+        # Two records match the ask. Writing to one without looking or
+        # asking is a guess; a read before the write, or a question, is
+        # the outcome. (The read-before-write check shares the history rule.)
+        first_write = next(i for i, c in enumerate(calls) if _is_write(str(c["tool"])))
+        looked = any(not _is_write(str(c["tool"])) for c in calls[:first_write])
+        asked = bool(_QUESTION.search(final))
+        checks["duplicate_disambiguated"] = int(looked or asked)
+        if not (looked or asked):
+            return 0, "wrote to one of two matching records without looking or asking", checks
 
     if history in {"prior_partial_action", "partially completed"} and writes:
         first_write = next(i for i, c in enumerate(calls) if _is_write(str(c["tool"])))

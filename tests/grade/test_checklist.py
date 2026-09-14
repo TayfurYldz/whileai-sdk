@@ -230,3 +230,20 @@ def test_announcing_the_action_without_calling_it_is_not_a_refusal():
     )
     got = task_checklist(talker)
     assert got["reward"] == 0 and "never called create_refund" in got["reason"]
+
+
+def test_duplicate_entity_needs_a_look_or_a_question_before_writing():
+    dims = {"tool": "create_refund", "world_state": "duplicate entity", "stance": "ordinary"}
+    blind = _row([REFUND_OK], "Refund RF-1 issued.", scenario_dimensions=dims)
+    got = task_checklist(blind)
+    assert got["reward"] == 0 and got["markers"]["duplicate_disambiguated"] == 0.0
+    looked = _row(
+        [LOOKUP_OK, REFUND_OK], "Checked ORD-1443; refund RF-1 issued.", scenario_dimensions=dims
+    )
+    assert task_checklist(looked)["reward"] == 1
+    asked = _row(
+        [], "There are two orders matching that; which one do you mean?", scenario_dimensions=dims
+    )
+    assert (
+        task_checklist(asked)["reward"] == 0
+    )  # asked, but the target was never reached: no outcome yet
