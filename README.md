@@ -207,6 +207,20 @@ report["band_dropped"]  # {"too_easy": n, "too_hard": n}
 
 The report also carries the reward-hack scan: `report["correlations"]` is corr(reward, feature) for reply length, tool-call count, and assistant turns, and `report["hygiene_warnings"]` names anything at or above `HACK_THRESHOLD` (0.3). Reward that tracks length or punishes tool use is a judge problem, so it is flagged, not pruned. The same scan, plus near-duplicate asks and length spread, runs in the publish gate. Standalone: `zps.reward_correlations(rows)`, `zps.dedupe_groups(rows)`, `zps.near_duplicate_prompts(rows)`, `zps.length_report(rows)`.
 
+### Train, holdout, eval
+
+```python
+data.push("airline-v3", holdout=0.2)          # train set + a linked holdout set, split by task
+data.push("airline-evals", purpose="eval")    # a set you measure with
+zps.update_dataset("ds_...", purpose="holdout")
+zps.preview("ds_...")                         # three sample rows + the analyzer report
+```
+
+The Training data page groups sets by purpose (train, holdout, eval, raw)
+and records the simulation mode on each. Holdout is split by
+`scenario_id`, so a task is wholly on one side, and the same task lands
+on the same side every run.
+
 ### Publish a dataset as a card
 
 ```python

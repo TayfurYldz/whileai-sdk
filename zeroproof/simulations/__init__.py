@@ -35,12 +35,14 @@ from .ingest.platform import (
     catalog,
     datasets,
     issue_delegated_credential,
+    preview,
     publish,
     pull,
     push_file,
     push_rows,
     refresh_delegated_credential,
     unpublish,
+    update_dataset,
 )
 from .ingest.platform import (
     delete as delete_dataset,
@@ -172,6 +174,7 @@ __all__ = [
     "pass_at",
     "policy_sections",
     "preflight",
+    "preview",
     "publish",
     "publish_gate",
     "pull",
@@ -198,6 +201,7 @@ __all__ = [
     "trim_out_of_band",
     "trim_unanimous_groups",
     "unpublish",
+    "update_dataset",
     "validate",
     "write_scene_brief",
 ]

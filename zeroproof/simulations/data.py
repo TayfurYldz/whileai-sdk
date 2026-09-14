@@ -129,6 +129,27 @@ def _prompt_hash(policy: str) -> str | None:
     return hashlib.sha256(policy.encode("utf-8")).hexdigest()[:16]
 
 
+def _split_holdout(rows: list[dict], fraction: float | None) -> tuple[list[dict], list[dict]]:
+    """Split rows by task so a task is wholly train or wholly holdout.
+
+    Deterministic: the same ``scenario_id`` lands on the same side every
+    run, which is what makes a before/after comparison honest.
+    """
+    if not fraction:
+        return rows, []
+    if not 0 < fraction < 1:
+        raise ValueError("holdout must be a fraction between 0 and 1")
+    train: list[dict] = []
+    held: list[dict] = []
+    for r in rows:
+        key = str(r.get("scenario_id") or r.get("task_id") or r.get("prompt") or "")
+        bucket = int(hashlib.sha256(key.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+        (held if bucket < fraction else train).append(r)
+    if not train:
+        raise ValueError("holdout fraction leaves no training rows")
+    return train, held
+
+
 def export_row(row: dict) -> dict:
     """Trainer-facing JSONL row. Search and embedder bookkeeping stay in memory."""
     out: dict[str, Any] = {
@@ -438,8 +459,17 @@ class SimulationData:
         publish: bool = False,
         description: str | None = None,
         gate: bool = True,
+        purpose: str = "train",
+        holdout: float | None = None,
     ) -> dict:
         """Upload this run to your Zero Proof Labs account as a dataset.
+
+        ``purpose`` is the section it lands in on the Training data page
+        (``"train"`` by default; ``"holdout"``, ``"eval"`` or ``"raw"``).
+        ``holdout=0.2`` keeps a fifth of the tasks (by ``scenario_id``) out
+        of the training set and pushes them as a second, linked dataset
+        with purpose ``"holdout"``; the entry carries it as ``["holdout"]``.
+        The simulation mode is recorded on both.
 
         ``api_key`` defaults to the ``ZEROPROOF_API_KEY`` env var, then the
         key saved by ``zeroproof login``. Pass ``parent`` (a ``ds_...``
@@ -471,7 +501,33 @@ class SimulationData:
                     "prompt_hash": _prompt_hash(str(getattr(profile, "policy", "") or "")),
                 },
             )
-        entry = push_rows(rows, name, api_key=api_key, parent=parent)
+        train_rows, holdout_rows = _split_holdout(rows, holdout)
+        entry = push_rows(
+            train_rows,
+            name,
+            api_key=api_key,
+            parent=parent,
+            purpose=purpose,
+            mode=self.mode,
+            agent=agent,
+            description=description,
+        )
+        if holdout_rows:
+            held = push_rows(
+                holdout_rows,
+                f"{name}-holdout",
+                api_key=api_key,
+                parent=entry["datasetId"],
+                purpose="holdout",
+                mode=self.mode,
+                agent=agent,
+                description=description,
+            )
+            entry = {
+                **entry,
+                "holdout": held,
+                "holdout_tasks": len({r.get("scenario_id") for r in holdout_rows}),
+            }
         if gate_report is not None:
             entry = {**entry, "gate": gate_report}
         if publish:

@@ -96,7 +96,7 @@ def test_push_with_publish_needs_an_agent_and_returns_the_card(monkeypatch):
     data = simulate_offline(budget=2, seed=0)
     calls = []
 
-    def fake_push_rows(rows, name, *, api_key=None, parent=None):
+    def fake_push_rows(rows, name, *, api_key=None, parent=None, **meta):
         calls.append(("push", name))
         return {"datasetId": "ds_new"}
 

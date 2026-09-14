@@ -127,7 +127,7 @@ def test_push_gates_by_default_and_can_skip(monkeypatch):
 
     pushed: list[list[dict]] = []
 
-    def fake_push_rows(rows, name, *, api_key=None, parent=None):
+    def fake_push_rows(rows, name, *, api_key=None, parent=None, **meta):
         pushed.append(rows)
         return {"datasetId": "ds_new"}
 

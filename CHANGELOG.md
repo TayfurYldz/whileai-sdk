@@ -3,6 +3,13 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Purpose on every pushed dataset: `data.push(name, purpose="train")`,
+  `holdout=0.2` pushes a linked holdout set split by task,
+  `zps.update_dataset(id, purpose=...)`, `zps.preview(id)`. The
+  simulation mode is recorded on push.
+
 ## 0.19 (2026-09-14)
 
 - `zps.push_file` runs the publish gate too (`gate=False` uploads the

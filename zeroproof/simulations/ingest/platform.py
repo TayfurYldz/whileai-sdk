@@ -221,6 +221,29 @@ def push_to_studio(
     return json.loads(payload) if payload else {}
 
 
+PURPOSES = ("train", "holdout", "eval", "raw")
+MODES = ("explore", "sft", "rl", "adaptive")
+
+
+def _meta_body(
+    purpose: str | None, mode: str | None, agent: str | None, description: str | None
+) -> dict:
+    body: dict = {}
+    if purpose is not None:
+        if purpose not in PURPOSES:
+            raise ValueError(f"purpose must be one of {PURPOSES}, got {purpose!r}")
+        body["purpose"] = purpose
+    if mode is not None:
+        if mode not in MODES:
+            raise ValueError(f"mode must be one of {MODES}, got {mode!r}")
+        body["mode"] = mode
+    if agent is not None:
+        body["agent"] = agent
+    if description is not None:
+        body["description"] = description
+    return body
+
+
 def push_rows(
     rows: list[dict],
     name: str,
@@ -229,12 +252,18 @@ def push_rows(
     parent: str | None = None,
     gate: bool = False,
     mode: str | None = None,
+    purpose: str | None = None,
+    agent: str | None = None,
+    description: str | None = None,
 ) -> dict:
     """Upload rows as JSONL to your Zero Proof Labs account.
 
     Returns the registry entry, including ``datasetId``. Pass ``parent`` (a
     ``ds_...`` id) when this dataset is an iteration of an existing one, so
-    lineage shows on the platform. ``gate=True`` runs ``publish_gate``
+    lineage shows on the platform. ``purpose`` is what the set is for on the
+    Training data page: ``"train"``, ``"holdout"``, ``"eval"`` or ``"raw"``
+    (the default when unset); ``mode`` is the simulation mode that made it,
+    and is also recorded. ``gate=True`` runs ``publish_gate``
     first (calibration stamp; RL-shaped rows refused when ungraded or
     without a mixed group) and returns its report as ``entry["gate"]``.
     ``SimulationData.push`` gates by default; this row-level entry point
@@ -248,7 +277,10 @@ def push_rows(
 
         gate_report = publish_gate(rows, mode=mode)
     check(rows, where="push_rows")
-    body: dict = {"name": name}
+    body: dict = {
+        "name": name,
+        **_meta_body(purpose, mode if mode in MODES else None, agent, description),
+    }
     if parent:
         body["parentDatasetId"] = parent
     created = _call("POST", "/datasets", api_key, body)
@@ -338,6 +370,31 @@ def publish(
     if description:
         body["description"] = description
     return _call("POST", f"/datasets/{dataset_id}/publish", api_key, body)
+
+
+def update_dataset(
+    dataset_id: str,
+    *,
+    purpose: str | None = None,
+    mode: str | None = None,
+    agent: str | None = None,
+    description: str | None = None,
+    api_key: str | None = None,
+) -> dict:
+    """Change what a dataset is for, its mode, agent or description.
+
+    ``purpose`` moves it between the Train, Holdout, Eval and Raw sections of
+    the Training data page. Only the arguments you pass change.
+    """
+    body = _meta_body(purpose, mode, agent, description)
+    if not body:
+        raise ValueError("pass purpose, mode, agent or description")
+    return _call("POST", f"/datasets/{dataset_id}/meta", api_key, body)
+
+
+def preview(dataset_id: str, *, api_key: str | None = None) -> dict:
+    """Three sample rows and the analyzer report for one of your datasets."""
+    return _call("GET", f"/datasets/{dataset_id}/preview", api_key)
 
 
 def unpublish(dataset_id: str, *, api_key: str | None = None) -> dict:
