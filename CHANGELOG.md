@@ -24,6 +24,21 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   rlhf-book ch. 4). `zps.loss_mask(messages, mode=)` builds the mask on
   its own; the export report carries `mask_mode`, `trained_messages`,
   `masked_messages`.
+- Intervals and comparison: `pass_at(rows).ci95` (task bootstrap),
+  `zps.metric_summary` / `zps.marker_summary`, and `zps.compare_runs`
+  (paired task differences, bootstrap interval, sign-flip p-value;
+  unpaired fallback under five shared tasks, labeled).
+- `zps.decontaminate(rows, against=...)`: word 8-gram overlap against
+  evaluation row lists, JSONL paths, or dataset ids; short prompts by
+  exact match. Returns clean rows and the first offenders.
+- `zps.delta_report(before, after, target=, must_not_regress=)`: pass@1
+  and every shared marker compared as paired task differences; headline
+  verdict on the target, regressions fail the report, other drops warn.
+  `format_delta_report` prints it.
+- `zps.judge_trust(rows, judge=)`: agreement with `gold_reward` labels
+  (Wilson interval, kappa, confusion), held-out task halves, length
+  sensitivity within human label, re-judge consistency and filler flips,
+  and a disagreement queue. `format_judge_trust` prints it.
 - Purpose on every pushed dataset: `data.push(name, purpose="train")`,
   `holdout=0.2` pushes a linked holdout set split by task,
   `zps.update_dataset(id, purpose=...)`, `zps.preview(id)`. The

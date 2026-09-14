@@ -70,6 +70,8 @@ class PassAt:
     n_groups_at_k: int = 0
     per_task: dict[str, float] = field(default_factory=dict)
     note: str = ""
+    #: task-bootstrap 95% interval on pass@1; None below three tasks.
+    ci95: tuple[float, float] | None = None
 
     @property
     def headroom(self) -> float | None:
@@ -89,14 +91,16 @@ class PassAt:
             "n_groups_at_k": self.n_groups_at_k,
             "n_rows": self.n_rows,
             "note": self.note,
+            "ci95": list(self.ci95) if self.ci95 else None,
         }
 
     def __str__(self) -> str:
         def fmt(value: float | None) -> str:
             return "n/a" if value is None else f"{value:.2f}"
 
+        ci = f" [{self.ci95[0]:.2f}..{self.ci95[1]:.2f}]" if self.ci95 else ""
         head = (
-            f"pass@1 {fmt(self.pass_at_1)} | pass^{self.k} {fmt(self.pass_pow_k)} | "
+            f"pass@1 {fmt(self.pass_at_1)}{ci} | pass^{self.k} {fmt(self.pass_pow_k)} | "
             f"pass@{self.k} {fmt(self.pass_at_k)} | headroom {fmt(self.headroom)}"
         )
         tail = f"({self.n_groups} groups, k={self.k}"
@@ -160,6 +164,8 @@ def pass_at(
         at_vals = [_pass_at_k_group(len(g), sum(g), resolved_k) for g in eligible]
         pass_pow_k = sum(pow_vals) / len(pow_vals)
         pass_at_k = sum(at_vals) / len(at_vals)
+    from .stats import bootstrap_ci
+
     return PassAt(
         k=resolved_k,
         pass_at_1=pass_at_1,
@@ -170,6 +176,7 @@ def pass_at(
         n_groups_at_k=len(eligible) if pass_at_k is not None else 0,
         per_task=per_task,
         note=note,
+        ci95=bootstrap_ci(list(per_task.values())),
     )
 
 
