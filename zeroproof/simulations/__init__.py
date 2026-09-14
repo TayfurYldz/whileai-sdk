@@ -122,6 +122,7 @@ from .score.publish_gate import PublishGateError, calibrate, publish_gate
 from .score.quality import rank_rows, score_row
 from .score.stats import compare_runs, decontaminate, marker_summary, metric_summary
 from .simulation import resolve_topology, simulate
+from .training import TrainerCallback, TrainingRun, delete_run, get_run, list_runs, training_run
 from .world.sandbox import MockEnvironment
 
 # Library convention: emit under "zeroproof.simulations", never configure
@@ -146,6 +147,8 @@ __all__ = [
     "ScoredData",
     "SimulationData",
     "Task",
+    "TrainerCallback",
+    "TrainingRun",
     "adaptive_allocator",
     "agents",
     "allocator_slot_counts",
@@ -166,6 +169,7 @@ __all__ = [
     "decontaminate",
     "dedupe_groups",
     "delete_dataset",
+    "delete_run",
     "delta_report",
     "dimensions_from_traces",
     "drop_leaky_rows",
@@ -179,6 +183,7 @@ __all__ = [
     "format_judge_trust",
     "format_trace_report",
     "from_row",
+    "get_run",
     "grade",
     "grade_llm",
     "group_signal",
@@ -189,6 +194,7 @@ __all__ = [
     "judge_trust",
     "leakage_report",
     "length_report",
+    "list_runs",
     "llm_grade",
     "load_traces",
     "local_model",
@@ -232,6 +238,7 @@ __all__ = [
     "to_row",
     "trace_report",
     "training_rows",
+    "training_run",
     "trim_out_of_band",
     "trim_unanimous_groups",
     "unpublish",

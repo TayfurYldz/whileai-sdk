@@ -241,8 +241,10 @@ An agent exists the moment a push names it or a trace arrives with
 `gen_ai.agent.name`. Everything on the platform hangs off it.
 
 ```python
-data.push("airline-v3", agent="airline-support")   # registers the agent and attaches tools + system prompt
-zps.agents()                                        # every agent: traces, sets by purpose, public cards
+data.push(
+    "airline-v3", agent="airline-support"
+)  # registers the agent and attaches tools + system prompt
+zps.agents()  # every agent: traces, sets by purpose, public cards
 zps.register_agent("airline-support", description="Refunds and rebooking")
 ```
 
@@ -280,6 +282,28 @@ zps.delta_report(before, after, target="pass_at_1", must_not_regress=["honest_af
 **Intervals and comparison.** Every pass@1 now carries a 95% interval from a bootstrap over tasks (`pass_at(rows).ci95`), and `metric_summary` / `marker_summary` do the same for markers. `compare_runs` pairs the tasks two runs share, bootstraps the paired difference, and adds a sign-flip permutation p-value; fewer than five shared tasks falls back to an unpaired test and says so. The verdict `no_difference_detected` means the interval covers zero, not that the runs are equal.
 
 **Before and after.** `delta_report` runs `compare_runs` on pass@1 and every marker both row sets share. `target=` names the metric the training was meant to move and gives the headline; `must_not_regress=` names the behaviors whose significant drop fails the report; any other significant drop is a warning. `format_delta_report(report)` prints one line per metric.
+
+### Train, and watch it
+
+The SDK does not train. Your trainer does, on Modal, a GPU box, or a notebook, and reports to the platform, which draws the loss curve and the progress bar at [zeroproofai.com/platform/training](https://www.zeroproofai.com/platform/training). Three ways in, one record.
+
+```python
+# one line on a Transformers or TRL trainer
+run = zps.training_run(
+    "identity-v1", dataset="ds_...", base_model="Qwen/Qwen3-4B-Instruct-2507", trainer="trl"
+)
+trainer.add_callback(zps.TrainerCallback(run))
+trainer.train()  # loss, lr, eval loss, epoch, grad norm, then finish
+
+# your own loop
+with zps.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
+    for step, batch in enumerate(loader):
+        loss = train_step(batch)
+        run.log(step, loss=loss, lr=scheduler.get_last_lr()[0])
+    run.finish(summary={"final_loss": loss}, adapter="s3://.../adapter")  # failed on exception
+```
+
+Plain HTTP, for a stack that is not Python: `POST /runs {"name", "dataset_id", "base_model", "total_steps"}` returns `runId`; `POST /runs/{id}/log {"points": [{"step": 10, "loss": 1.2, "lr": 1e-4}], "total_steps"?}` in batches of up to 500; `POST /runs/{id}/finish {"status": "done|failed|stopped", "summary"?, "adapter"?}`. All with `X-Api-Key`. Points are buffered on the client and a send that fails is retried on the next flush; the dashboard never interrupts the trainer. `zps.get_run(id)["series"]` returns the points, oldest first.
 
 ### Publish a dataset as a card
 
