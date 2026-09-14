@@ -537,6 +537,19 @@ class SimulationData:
             }
         if gate_report is not None:
             entry = {**entry, "gate": gate_report}
+        if agent:
+            # The push already registered the agent; this attaches what the
+            # run knew about it so the record is complete without a form.
+            from .ingest.platform import register_agent
+
+            profile = self.profile
+            with contextlib.suppress(Exception):
+                register_agent(
+                    agent,
+                    tools=list(getattr(profile, "tools", None) or []) or None,
+                    system_prompt=str(getattr(profile, "policy", "") or "") or None,
+                    api_key=api_key,
+                )
         if publish:
             entry = {
                 **entry,

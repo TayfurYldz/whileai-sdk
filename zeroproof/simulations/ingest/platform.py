@@ -371,6 +371,36 @@ def publish(
     return _call("POST", f"/datasets/{dataset_id}/publish", api_key, body)
 
 
+def agents(*, api_key: str | None = None) -> list[dict]:
+    """Every agent on your account with counts: traces, sets by purpose, public cards.
+
+    An agent exists the moment a push names it (``data.push(name, agent=...)``)
+    or a trace arrives with ``gen_ai.agent.name``; ``register_agent`` is for
+    attaching the spec or a description ahead of that.
+    """
+    return _call("GET", "/agents", api_key)["agents"]
+
+
+def register_agent(
+    name: str,
+    *,
+    description: str | None = None,
+    tools: list | None = None,
+    system_prompt: str | None = None,
+    api_key: str | None = None,
+) -> dict:
+    """Create or update an agent record: the name, and optionally what it is
+    (a line), its tool schemas, and its system prompt. Returns the record."""
+    body: dict = {"name": name}
+    if description is not None:
+        body["description"] = description
+    if tools is not None:
+        body["tools"] = tools
+    if system_prompt is not None:
+        body["system_prompt"] = system_prompt
+    return _call("POST", "/agents", api_key, body)
+
+
 def update_dataset(
     dataset_id: str,
     *,

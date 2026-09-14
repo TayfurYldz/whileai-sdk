@@ -208,6 +208,17 @@ report["band_dropped"]  # {"too_easy": n, "too_hard": n}
 
 The report also carries the reward-hack scan: `report["correlations"]` is corr(reward, feature) for reply length, tool-call count, and assistant turns, and `report["hygiene_warnings"]` names anything at or above `HACK_THRESHOLD` (0.3). Reward that tracks length or punishes tool use is a judge problem, so it is flagged, not pruned. The same scan, plus near-duplicate asks and length spread, runs in the publish gate. Standalone: `zps.reward_correlations(rows)`, `zps.dedupe_groups(rows)`, `zps.near_duplicate_prompts(rows)`, `zps.length_report(rows)`.
 
+### Agents
+
+An agent exists the moment a push names it or a trace arrives with
+`gen_ai.agent.name`. Everything on the platform hangs off it.
+
+```python
+data.push("airline-v3", agent="airline-support")   # registers the agent and attaches tools + system prompt
+zps.agents()                                        # every agent: traces, sets by purpose, public cards
+zps.register_agent("airline-support", description="Refunds and rebooking")
+```
+
 ### Train, holdout, eval
 
 ```python

@@ -38,6 +38,7 @@ from .generate.scenarios import (
 )
 from .ingest.otel import rows_from_otel
 from .ingest.platform import (
+    agents,
     catalog,
     datasets,
     issue_delegated_credential,
@@ -48,6 +49,7 @@ from .ingest.platform import (
     push_file,
     push_rows,
     refresh_delegated_credential,
+    register_agent,
     unpublish,
     update_dataset,
 )
@@ -140,6 +142,7 @@ __all__ = [
     "SimulationData",
     "Task",
     "adaptive_allocator",
+    "agents",
     "allocator_slot_counts",
     "behavior_signature",
     "build_dimensions",
@@ -209,6 +212,7 @@ __all__ = [
     "rank_rows",
     "recommend",
     "refresh_delegated_credential",
+    "register_agent",
     "resolve_topology",
     "reward_correlations",
     "rows_from_otel",

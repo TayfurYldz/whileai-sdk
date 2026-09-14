@@ -5,6 +5,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Agents: `zps.agents()`, `zps.register_agent(name, tools=, system_prompt=)`;
+  `data.push(name, agent=...)` registers the agent and attaches the run's
+  tools and system prompt to its record.
 - `judge_trust` says when the gold labels are all one class instead of
   reporting kappa 0 and a length bias the labels cannot support;
   `gold_degenerate` on the report. Found on the first hosted-judge run.
