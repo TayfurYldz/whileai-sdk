@@ -13,8 +13,16 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   "no hack is claimed". A varied pool still reports a genuinely inverted
   reward.
 
-## 0.39 (2026-09-14)
+## 0.40 (2026-09-14)
 
+- Docs only: fixed the `zeroproof.simulations.judging` module pointer (it is
+  `score.judging`), lifted the judge contract and marker-polarity rule into
+  the README, gave `traces=` and the close-the-loop toolkit a section,
+  replaced the `spec="specs/..."` snippets (no spec folder ships) with
+  `tools=` + `system_prompt=`, and corrected `.per_task` (a dict, not a
+  vector), the pass^k/pass@k interval claim, `tasks=` k inheritance,
+  `STOCK_MARKERS`, `export_dataset`/`export_training`, and
+  `trim_out_of_band`. No behavior change.
 - `export_training(format="trl")`, `export_preference(format="trl")` and
   `zps.to_trl(rows, kind)`: the shape TRL actually loads — conversational
   SFT rows with no `prompt` string column beside `messages` (it made
@@ -34,6 +42,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   distinct trajectories leave every candidate collinear with reward;
   `hack_scan_diff` withholds `learned` on a degenerate side for the same
   reason, instead of reading a tie as what the policy learned.
+
+## 0.39 (2026-09-14)
+
 - `hack_scan`: a tie in magnitude goes to the endorsed feature (the
   complement of the behavior correlates exactly as strongly, with the
   opposite sign, and is not a second thing the policy learns), and an
@@ -152,8 +163,21 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   also runs `simulate()` twice in one process under contrasting latency.
   Golden captures move: a serial run now folds every batch whole, so a
   `scripts/golden.py` diff across this change is expected to differ.
+
 ## 0.36 (2026-09-14)
 
+- `examples/dpo --constructed-negatives`: for every no-id or off-topic
+  prompt the policy answered without a tool call, pair that reply
+  against an invented call (`pairs.constructed_negatives`), so DPO has
+  contrast on the prompts where its own samples had none; a second
+  balanced round without it had made the invented-id habit worse.
+- `select_for_rl(truncated="drop" | "keep" | "penalize")` and
+  `optimize(mode="rl", truncated=)`: a rollout cut at the token cap is
+  dropped (default), kept with `overlong=True` and a `finished` marker, or
+  kept as a failure with the judged score under `reward_before_penalty`
+  (DAPO's overlong handling, rlhf-book ch. 6, 7). `drop_truncated=False`
+  now means `"keep"` (#139).
+- Over-optimization and eval-variance consolidated onto one module each (#132): `score.style` (style_markers/style_report/refusal_report, 1.0=clean, delta_report-ready) and `score.stats.eval_variance` are canonical; `score.markers` (behavioral_markers/mark_rows) now warns (its presence polarity reads a paired delta backwards); the unreleased `score.benchmark` is removed.
 - `training_rows(max_tool_output_chars=)` / `export_training(...)`: each
   tool message over the cap is cut with a `[... N chars of tool output
   truncated]` marker and counted on the row (`tool_output_truncated`,

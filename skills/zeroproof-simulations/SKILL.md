@@ -145,7 +145,10 @@ model key.
   situation. This is the default and the best first run.
 - Use `mode="sft"` when several human phrasings of each situation are useful.
 - Use `mode="rl"` with `rollouts_per_request=` when repeated attempts on the
-  exact same ask are required.
+  exact same ask are required. It probes each ask with two rollouts and spends
+  the rest of k on the asks whose rollouts disagree; pass `grader=` so the
+  judge's reward decides, not the behavior signature. The allocation is in
+  `data.search["groups"]`.
 - Use `mode="adaptive", until="saturation"` for a broader run that mixes new
   situations, phrasings, and repeats until coverage plateaus.
 
