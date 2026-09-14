@@ -7,6 +7,7 @@ installed (``uv sync --extra rl``); the export itself needs only the SDK.
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import re
 
@@ -109,6 +110,17 @@ def test_refs_round_trip_and_reject_locals():
         _ref_of(lambda row: 1)
     with pytest.raises(ValueError, match="module:attr"):
         _ref_of("conduct_grade")
+    # A Verifier instance with no module-level name is referenced by its
+    # class, which the trainer instantiates bare: fine for a default one,
+    # refused when it carries configuration a bare one would silently lose.
+    from zeroproof.simulations.verify.code import CodeExec
+    from zeroproof.simulations.verify.text import ExactMatch
+
+    assert type(resolve_ref(_ref_of(ExactMatch()))) is ExactMatch
+    with pytest.raises(ValueError, match="configured but not bound"):
+        _ref_of(CodeExec(tests="assert candidate == '4'"))
+    with pytest.raises(ValueError, match="configured but not bound"):
+        _ref_of(ExactMatch(whole=True))
 
 
 def test_export_environment_writes_an_installable_package(tmp_path):
@@ -183,7 +195,13 @@ def test_task_file_is_not_a_training_file():
         assert t["info"]["privileged"]["reference"] == "zzteachersecretzz"
 
 
-vf = pytest.importorskip("verifiers", reason="verifiers not installed (uv sync --extra rl)")
+# The tests below drive an exported package through verifiers itself. A
+# module-level importorskip would skip the export tests above too, and CI
+# installs the dev extra only, so the gate is per test.
+needs_verifiers = pytest.mark.skipif(
+    importlib.util.find_spec("verifiers") is None,
+    reason="verifiers not installed (uv sync --extra rl)",
+)
 
 
 def _fake_state(task: dict, spec: dict) -> dict:
@@ -197,6 +215,7 @@ def _fake_state(task: dict, spec: dict) -> dict:
     }
 
 
+@needs_verifiers
 def test_load_environment_drives_a_rollout_through_the_mock_world(tmp_path):
     out = tmp_path / "refund-agent"
     zps.export_environment(
@@ -226,6 +245,7 @@ def test_load_environment_drives_a_rollout_through_the_mock_world(tmp_path):
     assert {"reward_func", "n_calls", "judge_ok", "lookup_order_calls"} <= rubric_funcs
 
 
+@needs_verifiers
 def test_load_environment_world_is_seeded_per_task(tmp_path):
     out = tmp_path / "env"
     zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
@@ -247,6 +267,7 @@ def test_load_environment_world_is_seeded_per_task(tmp_path):
     assert r1 == r2 == {"status": "timeout", "error": "request timed out"}
 
 
+@needs_verifiers
 def test_load_environment_with_a_live_world(tmp_path):
     calls: list[tuple[str, dict]] = []
 
@@ -267,6 +288,7 @@ def test_load_environment_with_a_live_world(tmp_path):
     assert calls == [("lookup_order", {"order_id": "ORD-1"})]
 
 
+@needs_verifiers
 def test_vendored_module_loads_standalone(tmp_path):
     """The copy in the package works when the installed SDK predates the
     environment module: import it from its file, not from the package."""
@@ -284,6 +306,7 @@ def test_vendored_module_loads_standalone(tmp_path):
     assert [t.name for t in env.tool_defs] == ["lookup_order", "create_refund"]
 
 
+@needs_verifiers
 def test_default_reward_falls_back_to_the_vendored_checklist(tmp_path, monkeypatch):
     """An SDK without score.checklist still loads the exported default reward."""
     import sys
@@ -301,6 +324,7 @@ def test_default_reward_falls_back_to_the_vendored_checklist(tmp_path, monkeypat
     assert env.reward.__module__ == "_zp_checklist"
 
 
+@needs_verifiers
 def test_truncated_rollouts_score_zero_and_trace_monitor_runs(tmp_path):
     out = tmp_path / "env"
     zps.export_environment(

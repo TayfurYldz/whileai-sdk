@@ -107,7 +107,23 @@ def _ref_of(obj: Any) -> str:
         for name, value in vars(mod).items():
             if value is obj:
                 return f"{module}:{name}"
-        return f"{module}:{type(obj).__qualname__}"
+        # No name to import it by, so the trainer would build a bare
+        # instance. That is only the same object when this one carries no
+        # configuration a bare one lacks: CodeExec(tests=...) written inline
+        # would otherwise reload as CodeExec() and score with no tests.
+        cls = type(obj)
+        try:
+            bare: Any = cls()
+        except Exception:
+            bare = None
+        if bare is None or getattr(bare, "__dict__", None) != getattr(obj, "__dict__", None):
+            raise ValueError(
+                f"{cls.__qualname__} instance is configured but not bound to a "
+                f"module-level name in {module}, so the trainer could only rebuild "
+                f"a bare {cls.__qualname__}(): assign it a name in an importable "
+                "module and pass that, or pass 'module:attr'"
+            )
+        return f"{module}:{cls.__qualname__}"
     return f"{module}:{qualname}"
 
 
