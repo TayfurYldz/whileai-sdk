@@ -5,6 +5,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/character/from_model_spec.py` no longer replaces the Model
+  Spec commit pin in an existing `constitution.json` with `null`: without
+  `--commit` it keeps the pin the file already carries and says so, and
+  when no pin is available it says the provenance is unresolved instead
+  of exiting 0 as if it were (#155). The conflict-marker guard now also
+  rejects control characters in tracked text files, which is how a
+  `## 0.32` heading in this file read as a bare date for a day. Coverage
+  floor raised to match what the suite measures.
+
 - A spec folder carries `rubric.md`, what doing the job means, and
   `grade()` scores against it; `simulate(rubric=)` and `grade(rubric=)`
   take one directly, `prompt=` is still the raw judge prompt. Without a
@@ -392,8 +401,6 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `prefers_rejected` with examples. `zps.pairwise_judge(spec)` is the
   hosted model judge with a length-neutral prompt.
   `export_preference(drop_ties=True)` leaves ties out and counts them (#114).
-
-2026-09-14)
 
 - `examples/grpo` and `examples/dpo`: `--balance <share>` repeats the
   prompts of any category below that share of the train split
