@@ -488,6 +488,12 @@ def report(rows: list[dict], *, judge_name: str) -> dict:
     return out
 
 
+def _f(value: Any, spec: str = ".2f") -> str:
+    """A number or n/a. pass@1 is None when every row of a group has no
+    valid verdict, which a live judge can produce and a report must survive."""
+    return "n/a" if value is None else format(value, spec)
+
+
 def print_report(rep: dict, exports: dict) -> None:
     c = rep["counts"]
     p = rep["pass_at"]
@@ -495,38 +501,43 @@ def print_report(rep: dict, exports: dict) -> None:
         f"traits {c['traits']} | train {c['train_prompts']} prompts x {c['k']} = {c['train_rows']} rows"
         f" | adversarial {c['holdout_rows']} | control {c['control_rows']} | spec {c['spec_rows']}"
     )
+    bad = {k: v for k, v in c["reward_distribution"].items() if k == "None"}
+    if bad:
+        print(f"rows without a verdict: {bad['None']} (judge_status != ok; not graded, not paired)")
     agree = rep["judge_vs_spec"]
     if agree:
         print(
-            f"judge {rep['judge']} vs spec labels: agreement {agree.get('agreement')} (n={agree.get('n')})"
+            f"judge {rep['judge']} vs spec labels: agreement {_f(agree.get('agreement'), '.2f')}"
+            f" (n={agree.get('n')}, kappa {_f(agree.get('kappa'), '.2f')})"
         )
     k = c["k"]
     pk = (
         ""
         if p["pass_at_k"] is None
-        else f" | pass^{k} {p['pass_pow_k']:.2f} | pass@{k} {p['pass_at_k']:.2f} | headroom {p['headroom']:.2f}"
+        else f" | pass^{k} {_f(p['pass_pow_k'])} | pass@{k} {_f(p['pass_at_k'])} | headroom {_f(p['headroom'])}"
     )
     print(
-        f"pass@1 {p['pass_at_1']:.2f}{pk} | mixed prompts {rep['group_signal'].get('n_mixed')}/{rep['group_signal'].get('n_groups')}"
+        f"pass@1 {_f(p['pass_at_1'])}{pk} | mixed prompts "
+        f"{rep['group_signal'].get('n_mixed')}/{rep['group_signal'].get('n_groups')}"
     )
     for trait, t in rep["per_trait"].items():
-        hr = "" if t["headroom"] is None else f" headroom {t['headroom']:.2f}"
-        print(f"  {trait:<42} pass@1 {t['pass_at_1']:.2f}{hr}  ({t['n_prompts']} prompts)")
+        hr = "" if t["headroom"] is None else f" headroom {_f(t['headroom'])}"
+        print(f"  {trait:<42} pass@1 {_f(t['pass_at_1'])}{hr}  ({t['n_prompts']} prompts)")
     marks = " | ".join(
-        f"{name} {m['mean']:.2f} [{m['ci95'][0]:.2f},{m['ci95'][1]:.2f}]"
+        f"{name} {_f(m['mean'])} [{_f(m['ci95'][0])},{_f(m['ci95'][1])}]"
         if m["ci95"]
-        else f"{name} {m['mean']:.2f}"
+        else f"{name} {_f(m['mean'])}"
         for name, m in rep["markers"].items()
     )
     print(f"markers: {marks}")
     if rep["controls_on_task"] is not None:
         print(
-            f"controls on_task {rep['controls_on_task']:.2f} | adversarial trait {rep['adversarial_trait']:.2f}"
+            f"controls on_task {_f(rep['controls_on_task'])}"
+            f" | adversarial trait {_f(rep['adversarial_trait'])}"
         )
     corr = (rep["length_bias"].get("correlations") or {}).get("reply_length")
     flagged = rep["length_bias"].get("flagged") or {}
-    corr_text = "n/a" if corr is None else f"{corr:+.2f}"
-    print(f"corr(reward, reply length) {corr_text} {'FLAGGED' if flagged else 'ok'}")
+    print(f"corr(reward, reply length) {_f(corr, '+.2f')} {'FLAGGED' if flagged else 'ok'}")
 
     def short(path: Any) -> str:
         if not path:
@@ -763,6 +774,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument(
         "--after", action="store_true", help="scripted student imitating a trained model"
+    )
+    ap.add_argument(
+        "--no-texture",
+        action="store_true",
+        help="one prompt per spec example, no wording variants",
     )
     args = ap.parse_args(argv)
     rep = run(
