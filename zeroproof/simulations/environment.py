@@ -169,10 +169,14 @@ def _tool_defs(tools: Sequence[dict] | None) -> list[dict]:
     return out
 
 
-def _binary(value: Any) -> int | None:
+def _label(value: Any) -> float | None:
+    """A graded reward as it counts toward the prompt's solve rate: 0 and
+    1 as they are, partial credit (the checklist's 0.5 when conduct is
+    half) as it is, anything else (None, a bool, text) as ungraded."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return int(value) if float(value) in (0.0, 1.0) else None
+    v = float(value)
+    return min(1.0, max(0.0, v)) if v == v else None
 
 
 def _has_outcome_rule(info: dict) -> bool:
@@ -201,11 +205,11 @@ def build_tasks(
 ) -> tuple[list[dict], list[dict], dict[str, Any]]:
     """One task per distinct prompt, split into train and holdout.
 
-    When a prompt has two or more graded rollouts its pass rate is known
-    and, with ``band``, prompts the policy always or never solved are
-    dropped: they carry no advantage (rlhf-book ch. 7, difficulty
-    filtering at 20 to 80 percent). Ungraded prompts and single rollouts
-    are kept as they are. ``holdout`` is a fraction, split by scenario id
+    When a prompt has two or more graded rollouts its solve rate is known
+    (partial credit counts as it is) and, with ``band``, prompts the policy
+    always or never solved are dropped: they carry no advantage (rlhf-book
+    ch. 7, difficulty filtering at 20 to 80 percent). Ungraded prompts and
+    single rollouts are kept as they are. ``holdout`` is a fraction, split by scenario id
     (or the prompt) so a task is wholly on one side, or an explicit list
     of holdout prompts. Train and holdout are decontaminated against each
     other at 8-grams and the report says what overlapped.
@@ -234,8 +238,10 @@ def build_tasks(
         first = members[0]
         scenario = str(first.get("scenario_id") or "")
         key = scenario or prompt
-        example_id = hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
-        labels = [v for v in (_binary(m.get("reward")) for m in members) if v is not None]
+        # The id names the prompt; the split bucket below hashes the scenario
+        # so every prompt drawn from one situation lands on the same side.
+        example_id = hashlib.sha1(f"{scenario}\n{prompt}".encode()).hexdigest()[:12]
+        labels = [v for v in (_label(m.get("reward")) for m in members) if v is not None]
         info: dict[str, Any] = {
             "task_id": example_id,
             "scenario_id": scenario or None,
@@ -254,7 +260,7 @@ def build_tasks(
         if len(labels) >= 2:
             rate = sum(labels) / len(labels)
             info["calibration"] = {"pass_rate": round(rate, 4), "n": len(labels)}
-            if 0 < sum(labels) < len(labels):
+            if min(labels) < max(labels):
                 mixed += 1
             if band is not None and not (band[0] <= rate <= band[1]):
                 dropped_band += 1
@@ -303,10 +309,7 @@ _PACKAGE_INIT = '''"""{name}: a ZeroProof RL environment. See README.md."""
 
 from pathlib import Path
 
-try:  # the SDK release that ships the environment module
-    from zeroproof.simulations.environment import load_environment as _load
-except ImportError:  # older SDK: the copy written at export time
-    from ._zp_env import load_environment as _load
+from zeroproof.simulations.environment import load_environment as _load
 
 SPEC = Path(__file__).resolve().parent / "spec.json"
 
@@ -350,7 +353,7 @@ def _sdk_version() -> str:
 
         return version("zeroproof")
     except Exception:
-        return "0.32"
+        return "0.42"  # the first release that carries this module
 
 
 def _write_jsonl(path: Path, rows: Sequence[dict]) -> None:
@@ -358,23 +361,6 @@ def _write_jsonl(path: Path, rows: Sequence[dict]) -> None:
     with open(path, "w", encoding="utf-8") as fh:
         for row in rows:
             fh.write(json.dumps(row, default=str) + "\n")
-
-
-def _vendored_source() -> str:
-    """This module, with package-relative imports made absolute, so an
-    exported package loads on an SDK release that predates it."""
-    source = Path(__file__).read_text(encoding="utf-8")
-    return re.sub(r"^(\s*)from \.", r"\1from zeroproof.simulations.", source, flags=re.M)
-
-
-def _vendored_checklist() -> str:
-    """``score/checklist.py`` with its imports made absolute, so the default
-    reward loads on an SDK release that predates it."""
-    from .score import checklist as _checklist
-
-    source = Path(_checklist.__file__).read_text(encoding="utf-8")
-    source = source.replace("from ..world.sandbox", "from zeroproof.simulations.world.sandbox")
-    return source.replace("from .grading", "from zeroproof.simulations.score.grading")
 
 
 def _readme(name: str, spec: dict, report: dict) -> str:
@@ -519,8 +505,6 @@ def export_environment(
     pkg = out_dir / name
     pkg.mkdir(parents=True, exist_ok=True)
     (pkg / "__init__.py").write_text(_PACKAGE_INIT.format(name=name), encoding="utf-8")
-    (pkg / "_zp_env.py").write_text(_vendored_source(), encoding="utf-8")
-    (pkg / "_zp_checklist.py").write_text(_vendored_checklist(), encoding="utf-8")
     (pkg / SPEC_FILE).write_text(json.dumps(spec, indent=2, default=str), encoding="utf-8")
     _write_jsonl(pkg / "data" / "train.jsonl", train)
     _write_jsonl(pkg / "data" / "holdout.jsonl", held)
@@ -701,11 +685,9 @@ def _make_env_class() -> type:
             """1.0 when none of the SDK's trace flags fired (fabricated test
             claims, phantom edits, test tampering, ...). Logged, not
             trained on: a monitor for over-optimization symptoms
-            (rlhf-book ch. 14). Absent on SDKs without ``trace_flags``."""
-            try:
-                from .score.trace import trace_flags
-            except ImportError:  # older SDK under the vendored copy
-                return 1.0
+            (rlhf-book ch. 14)."""
+            from .score.trace import trace_flags
+
             row = _row_from_state(state, state.get("zp_info") or {})
             flags = trace_flags(row) or {}
             state["zp_trace_flags"] = flags
@@ -718,27 +700,6 @@ def _make_env_class() -> type:
             return 1.0 if self._verdict(state).get("judge_status") == "ok" else 0.0
 
     return ZeroProofEnv
-
-
-def _resolve_reward(ref: str, base: Path) -> Any:
-    """The spec's reward, or the copy written at export time when the
-    installed SDK predates ``score.checklist``."""
-    try:
-        return resolve_ref(ref)
-    except ImportError:
-        if ref != DEFAULT_REWARD:
-            raise
-        import importlib.util
-
-        vendored = base / "_zp_checklist.py"
-        if not vendored.exists():
-            raise
-        loader_spec = importlib.util.spec_from_file_location("_zp_checklist", vendored)
-        if loader_spec is None or loader_spec.loader is None:  # pragma: no cover
-            raise
-        module = importlib.util.module_from_spec(loader_spec)
-        loader_spec.loader.exec_module(module)
-        return module.task_checklist
 
 
 def load_environment(
@@ -797,7 +758,7 @@ def load_environment(
         raise ValueError(f"no tasks for split {split!r} under {base}")
     reward_obj = resolve_ref(reward) if isinstance(reward, str) else reward
     if reward_obj is None:
-        reward_obj = _resolve_reward(str(spec_dict.get("reward") or DEFAULT_REWARD), base)
+        reward_obj = resolve_ref(str(spec_dict.get("reward") or DEFAULT_REWARD))
     execute_obj = resolve_ref(execute) if isinstance(execute, str) else execute
     if execute_obj is None and spec_dict.get("execute"):
         execute_obj = resolve_ref(str(spec_dict["execute"]))
