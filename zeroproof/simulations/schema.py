@@ -489,6 +489,50 @@ def _ledger(faults: Any) -> list[FaultEvent]:
     return out
 
 
+def attach(row: dict, judgment: Judgment) -> dict:
+    """Write a primary ``Judgment`` onto a row, in place. The one sanctioned
+    verdict write outside ``to_row``: grading paths build a ``Judgment`` and
+    hand it here instead of poking ``reward`` and friends directly.
+
+    ``reward`` lands as an int when it is exactly 0 or 1. ``reason`` and
+    ``failure_class`` are removed when empty so a stale value from an
+    earlier pass never survives a regrade. ``judge_meta`` is the scorer's
+    evidence plus its ``version`` when the scorer has one, so the row says
+    which judge, prompt, and settings produced the label.
+    """
+    reward = judgment.reward
+    if reward in (0, 1, 0.0, 1.0) and reward is not None:
+        row["reward"] = int(reward)
+    else:
+        row["reward"] = reward
+    if judgment.reason:
+        row["reason"] = judgment.reason
+    else:
+        row.pop("reason", None)
+    if judgment.failure_class:
+        row["failure_class"] = judgment.failure_class
+    else:
+        row.pop("failure_class", None)
+    row["judge_name"] = judgment.scorer.name
+    row["judge_status"] = judgment.status
+    meta = dict(judgment.evidence)
+    if judgment.scorer.version:
+        meta["version"] = judgment.scorer.version
+    if meta:
+        row["judge_meta"] = meta
+    return row
+
+
+def _scorer_version(row: dict) -> str | None:
+    meta = row.get("judge_meta")
+    if isinstance(meta, dict) and meta.get("version"):
+        return str(meta["version"])
+    lineage = row.get("lineage")
+    if isinstance(lineage, dict) and lineage.get("judge_version"):
+        return str(lineage["judge_version"])
+    return None
+
+
 def _judgments(row: dict, rollout_id: str) -> list[Judgment]:
     out: list[Judgment] = []
     has_primary = (
@@ -519,7 +563,7 @@ def _judgments(row: dict, rollout_id: str) -> list[Judgment]:
         out.append(
             Judgment(
                 rollout_id=rollout_id,
-                scorer=ScorerRef(name=str(name), kind=kind),
+                scorer=ScorerRef(name=str(name), kind=kind, version=_scorer_version(row)),
                 reward=reward,
                 status=status,
                 reason=str(row.get("reason") or ""),
@@ -759,6 +803,7 @@ __all__ = [
     "Task",
     "World",
     "as_dict",
+    "attach",
     "calibration_of",
     "check",
     "detect_shape",

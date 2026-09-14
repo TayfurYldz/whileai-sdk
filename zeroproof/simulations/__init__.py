@@ -78,6 +78,7 @@ from .schema import (
     to_row,
     validate,
 )
+from .score.agreement import judge_agreement
 from .score.grading import behavior_signature, conduct_grade
 from .score.hygiene import (
     HACK_THRESHOLD,
@@ -166,6 +167,7 @@ __all__ = [
     "hosted_model",
     "inspect",
     "issue_delegated_credential",
+    "judge_agreement",
     "leakage_report",
     "length_report",
     "llm_grade",

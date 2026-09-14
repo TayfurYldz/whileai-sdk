@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import time
@@ -14,6 +15,23 @@ MISSING_QWEN_KEY = "Hosted Qwen needs VLLM_API_KEY set in the environment."
 
 # Why-before-score. 4B needs room for a one-sentence reason.
 JUDGE_MAX_TOKENS = 120
+JUDGE_TEMPERATURE = 0.0
+JUDGE_NAME = "grade_llm"
+
+
+def judge_version(spec: str, prompt: str | None = None) -> str:
+    """``<model>@<sha of the judge prompt>``: the identity of a label.
+
+    Two rows graded under different versions were not graded by the same
+    judge, even when the model name matches; a rubric edit is a new reward
+    model. Stamped on every row ``grade`` writes, read back as
+    ``Judgment.scorer.version``.
+    """
+    _, model = parse_backend_spec(spec)
+    system = str(prompt or "").strip() or JUDGE_SYSTEM
+    digest = hashlib.sha256(system.encode("utf-8")).hexdigest()[:12]
+    return f"{model}@{digest}"
+
 
 JUDGE_SYSTEM = (
     "Did the agent do what it should have done, or what it shouldn't. "
@@ -306,7 +324,7 @@ def grade_one(
             model,
             [{"role": "system", "content": system}, {"role": "user", "content": payload}],
             api_key=api_key,
-            temperature=0.0,
+            temperature=JUDGE_TEMPERATURE,
             max_tokens=JUDGE_MAX_TOKENS,
             timeout=timeout,
         )
@@ -398,6 +416,18 @@ def apply_grade_llm(
         verdicts = []
 
     elapsed = time.monotonic() - started
+    from ..schema import Judgment, ScorerRef, attach
+    from .preflight import classify_failure
+
+    _, judge_model = parse_backend_spec(spec)
+    version = judge_version(spec, prompt)
+    scorer = ScorerRef(name=JUDGE_NAME, kind="judge", version=version)
+    evidence = {
+        "model": judge_model,
+        "prompt_sha": version.rsplit("@", 1)[-1],
+        "temperature": JUDGE_TEMPERATURE,
+        "max_tokens": JUDGE_MAX_TOKENS,
+    }
     graded = 0
     unreachable = 0
     n0 = 0
@@ -409,18 +439,22 @@ def apply_grade_llm(
         if reward is None:
             unreachable += 1
             continue
-        row["reward"] = int(reward)
         reason = str(verdict.get("reason") or "").strip()
-        if reason:
-            row["reason"] = reason
-        else:
-            row.pop("reason", None)
+        failure_class = None
         if int(reward) == 0:
-            from .preflight import classify_failure
-
-            row["failure_class"] = classify_failure(row)
-        else:
-            row.pop("failure_class", None)
+            # classify_failure reads the fresh reason off the row
+            failure_class = classify_failure({**row, "reward": int(reward), "reason": reason})
+        attach(
+            row,
+            Judgment(
+                rollout_id=str(row.get("rollout_id") or row.get("scenario_id") or ""),
+                scorer=scorer,
+                reward=int(reward),
+                reason=reason,
+                failure_class=failure_class,
+                evidence=evidence,
+            ),
+        )
         graded += 1
         if int(reward) == 0:
             n0 += 1
@@ -441,6 +475,7 @@ def apply_grade_llm(
         "n0": n0,
         "n1": n1,
         "backend": spec,
+        "judge_version": version,
         "seconds": round(elapsed, 3),
         "seconds_per_row": round(elapsed / n_called, 3) if n_called else None,
     }
