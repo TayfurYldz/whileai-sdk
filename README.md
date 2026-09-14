@@ -3,30 +3,31 @@
 The ZeroProof Python SDK. One package, two importable modules:
 
 - `zeroproof`: the platform client. OTLP trace ingest and trace-dataset listing against the token gate.
-- `zeroproof.simulations`: post-training data for an agent. (Was the separate top-level package `zeroproof_simulations`; that name still imports for two releases with a deprecation warning.) Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
+- `zeroproof.simulations`: the covering-grid simulator. (Was the separate top-level package `zeroproof_simulations`; that name still imports for two releases with a deprecation warning.) Register the agent — tools, policy, optional traces, optional `execute=` — and we spin the situations, sample pairwise, walk hard. That is the expensive part labs still do by hand. Their judge writes `r`. SFT / preference / GRPO-shaped export is the handoff to their trainer.
 
 This repo absorbed the `zeroproof-simulations` package; `zeroproof-simulations` on PyPI is deprecated in favor of `zeroproof`.
 
 Releases of `zeroproof` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `zeroproof<0.3` if you still depend on it.
 
-Two ways in, one engine. Give it the agent's tools and system prompt and it samples situations across everything that agent can be asked. Give it graded traces as well and it aims the budget at the situations that fail in production, so new rows land where the agent is weak and carry both the failure and the fixed version. Every row is a full conversation: user turns, agent turns, tool calls, tool results, scheduled faults. Rows come back ungraded; your grader decides what good means. Default `explore`: one unique situation per row. How it thinks: [docs/simulations.md](docs/simulations.md).
+Register the agent and we cover it. Tools and system prompt become the grid: this agent's tools, rules, stance, world state, tool condition, history. Traces, when you have them (`load_traces` → `trace_report` → `simulate(traces=...)`), steer the same grid at what already failed; `steering_weight` aims the budget; `evaluate(...).failed_traces()` is the next round on the same cards. `agent=` is their policy playing our cards — on-policy. Omit it and hosted Qwen walks the same grid, coverage first. The writer can still be Qwen. Every row is a full conversation: user turns, agent turns, tool calls, tool results, scheduled faults. Rows come back ungraded: honest, not a fake 0. Default `explore`: one unique situation per row. How it thinks: [docs/simulations.md](docs/simulations.md).
 
 ## How a row gets made
 
 ![How a row gets made: the draw, the coverage grid, the search arms, the rollout, the split](docs/how-a-row-gets-made.svg)
 
-A situation is drawn across the world axes (from the agent's tools) and the human axes (from a separate writer). It fills a cell in the coverage grid, nudges the five search arms, and the agent plays it against a world that breaks on schedule. The row that comes out splits into `Task`, `Rollout`, `Judgment`, and `Marker`, and every training target is a projection of some of those four. The interactive version, running on real rows, is at [zeroproofai.com/docs/engine](https://zeroproofai.com/docs/engine).
+A situation is drawn across this agent's covering axes and a writer layer for how the person sounds. It fills a cell in the pairwise grid, nudges the five search arms, and the player walks it against a world that breaks on schedule. The row that comes out splits into `Task`, `Rollout`, `Judgment`, and `Marker`; `Judgment` lands when their judge writes `r`. Every training target is a projection of some of those four. The interactive version, running on real rows, is at [zeroproofai.com/docs/engine](https://zeroproofai.com/docs/engine).
 
 ## Overview
 
-`simulate()` is a pipeline.
+Register. Simulate. Grade after. Hand off.
 
-1. **Read the agent.** Tools and system prompt. That is the spec of the world.
-2. **Build a fake world from those tools.** Objects, plausible results, and faults (timeout, deny, junk).
-3. **Write users.** A separate writer (same hosted model, different prompt, no agent policy) samples situations across tools, stance, history, and so on.
+1. **Register the agent.** Tools and system prompt. Optional traces. Optional `execute=`. That is the spec of the world.
+2. **Build a world from those tools.** Objects, plausible results, and faults (timeout, deny, junk).
+3. **Write users.** A separate writer (same hosted model, different prompt, no agent policy) samples this agent's covering axes: tool (their names, plus unrelated and multi_tool), rule, stance, world_state when the tools have referent keys, tool_condition, history.
 4. **Pick the diverse ones.** Embeddings plus a bit of noise so the batch is not 200 copies of the same prompt.
-5. **Play the agent.** It talks, calls tools, gets results, talks again. All of that is stored: user text, agent text, tool calls, tool results, `final_text`.
-6. **Grade.** Rows come back ungraded. Grade after with `zps.grade(...)`, pass your own `grader=`, or `grade=True` for the deterministic conduct score.
+5. **Walk hard.** `agent=` is their policy on our cards — on-policy play. Hosted Qwen is our walker when they want coverage first. Same grid. User text, agent text, tool calls, tool results, `final_text`. Default `grade=False`: rows stay ungraded. Ungraded is honest, not a fake 0.
+6. **Grade after.** Authority stays with them. Their judge writes `r` with `data.grade(judge=...)`, `zps.run_judge(...)`, or `zps.grade(...)`. `evaluate(...)` is the same contract with lineage `source=eval` (vs `source=grade`), so evals stay distinct from training rewards. A broken judge stays ungraded. Structural flags (`grade=True`) are display, not the score.
+7. **Hand off.** `select_for_sft`, `select_for_rl`, `export_training`, `export_preference`, `pass_at` — SFT / preference / GRPO-shaped for their trainer (Prime, TRL, their cluster). Training math lives there; we supply the on-policy (or covering) trajectories and the judge contract. The live loop is the same cards, stepped: they act, the world answers, their judge scores, they update.
 
 Stop when the row cap or the clock hits.
 
@@ -36,9 +37,10 @@ Stop when the row cap or the clock hits.
 pip install zeroproof   # or: uv add zeroproof
 ```
 
-Bring your own model. Any OpenAI-compatible chat endpoint that returns tool
-calls works; it writes the situations and plays the agent, so both run on
-your key:
+`agent=` is their policy on our cards. Any OpenAI-compatible chat endpoint
+that returns tool calls works. That play is on-policy for that student.
+The situation writer still defaults to hosted Qwen unless you point
+`simulator=` at your endpoint:
 
 ```bash
 export OPENAI_API_KEY=...
@@ -56,7 +58,7 @@ data = zps.simulate(
 )
 ```
 
-Or use ZeroProof-hosted Qwen, which is the default when no `agent=` is given.
+Omit `agent=` and hosted Qwen is our walker — same grid, coverage first.
 Ask us for a `VLLM_API_KEY`; the endpoint is shared and rate limited.
 
 ```bash
@@ -90,6 +92,25 @@ data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, output="roll
 data = zps.simulate(agent=my_agent)
 ```
 
+Traces first when you have them. `steering_weight` aims at failures; the next
+round is the same cards, stepped — `simulate(traces=evald.failed_traces())`:
+
+```python
+traces = zps.load_traces(trace_source)
+print(zps.trace_report(traces, tools=my_tools, policy=my_system_prompt))
+data = zps.simulate(
+    agent=my_agent, tools=my_tools, system_prompt=my_system_prompt, traces=traces
+)
+scored = data.grade(judge=my_judge)           # lineage source=grade
+evald = zps.evaluate(holdout, judge=my_judge)  # same contract, source=eval
+sft, _ = scored.select_for_sft()
+zps.export_training(sft, output="train.jsonl", system_prompt=my_system_prompt, tools=my_tools)
+```
+
+A second judge — `audit_grades` in `zeroproof.simulations.score.grade_llm` —
+can recommend rubric and eval holes later. Advice, never `r`. It does not run
+on `simulate`.
+
 Pass `spec=` if you have a local tools-and-system-prompt folder. The generated datasets are on [Hugging Face](https://huggingface.co/datasets/zero-proof-ai/agent-simulations), organized by agent type instead of stored in this repo.
 
 | Knob | Default | |
@@ -101,8 +122,8 @@ Pass `spec=` if you have a local tools-and-system-prompt folder. The generated d
 | `fault_rate` | `0.5` | Broken tools. `0` off. Applied by the mock world, so a callable `agent=` that answers its own tool calls never sees one |
 | `simulator` | hosted Qwen | Situation writer. `False` uses the built-in template writer (no model, less variety); an `openai:`/`vllm:` spec runs it on your endpoint |
 | `reproducible` | `False` | Same seed, same concurrency, same agent: same rows. Runs batch by batch, so uneven latency costs throughput. Needs the clock off |
-| `grade` | `False` | Rows come back ungraded; grade after with `zps.grade(...)`, or pass `grader=` (your callable) or `grade=True` (conduct score) |
-| `llm_grade` | `False` | Extra LLM judge. Needs `OPENAI_API_KEY` |
+| `grade` | `False` | Ungraded until their judge writes `r` (`data.grade(judge=)`, `zps.run_judge`, `zps.grade`). `grade=True` is structural flags, not the score |
+| `llm_grade` | `False` | Extra LLM pass on the row. Their judge still writes `r` |
 | `output` | | JSONL path |
 
 ## What to run
@@ -155,8 +176,8 @@ zeroproof signup --email you@example.com
 
 ## Store datasets on Zero Proof Labs
 
-Push a run to your Zero Proof Labs account so the optimization framework
-can iterate on it. Credentials resolve in this order: `api_key=` argument,
+Push a run to your Zero Proof Labs account to store and version it.
+Credentials resolve in this order: `api_key=` argument,
 `ZEROPROOF_DELEGATED_CREDENTIAL` (a short-lived `zp_dc_...` issued from a
 Clerk session), `ZEROPROOF_API_KEY`, then the key saved by `zeroproof
 login`.
@@ -211,8 +232,8 @@ hosted GPU with warm replicas and burst under load.
 | `budget` | `1000` | Row cap |
 | `time_budget` | `None` | Seconds. Off by default; `None` or `0` disables |
 | `until` | `"compute"` | `"saturation"` also stops when coverage plateaus |
-| `grade` | `False` | Grade after, or pass `grader=` / `grade=True` |
-| `llm_grade` | `False` | Extra LLM judge |
+| `grade` | `False` | Ungraded until their judge writes `r`. `grade=True` is structural flags, not the score |
+| `llm_grade` | `False` | Extra LLM pass on the row |
 | `output` | | JSONL path |
 | `advanced` | | Keys below |
 
@@ -228,7 +249,7 @@ Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollo
 
 ## Output
 
-Each row, in `data.trajectories` and on disk: `prompt`, `messages`, `steps`, `final_text`, `scenario_id`. Optional `world_state`, `faults`, `reward`, `reason`. `llm_grade=True` adds `llm_reward`. `zps.rank(path)` adds `quality` without changing `reward`.
+Each row, in `data.trajectories` and on disk: `prompt`, `messages`, `steps`, `final_text`, `scenario_id`. Optional `world_state`, `faults`, `reward`, `reason`. Ungraded means no `reward` — honest, not a fake 0. `llm_grade=True` adds `llm_reward`. `zps.rank(path)` adds `quality` without changing `reward`. After their judge, hand off with `select_for_sft`, `select_for_rl`, `export_training`, `export_preference`; `pass_at` measures the groups their trainer will see.
 
 After grading, `data.pass_at` (also on the `ScoredData` from `judge=` and `evaluate`) gives pass@1, pass^k and pass@k off the same groups, one job each: pass@1 is the measurement headline (the agent runs once in production), pass^k is the reliability line (all k repeats pass), and pass@k minus pass@1 (`.headroom`) is what a grouped RL update has to learn from, the same asks `group_signal` counts as mixed. k is the smallest group of repeats; below `repeats=4` the k-way numbers are `None` with a note rather than a noisy figure. `.per_task` is the raw per-prompt pass-rate vector. With an LLM judge, pass@k inflates on false positives and pass^k on false negatives, so pass@1 stays the headline.
 
@@ -241,25 +262,20 @@ Every row carries `schema_version` (`"1"`). A row is a projection of four object
 
 ## The recipe
 
-Each scenario is a draw across the world and the human.
+Each scenario is a draw across covering axes from **this** agent.
 
-**World** (from this agent's tools and system prompt)
+**Covering** (pairwise; `data.coverage["pairwise"]`)
 
-- objects and tool results that match the spec
-- tool outcome: success, timeout, deny, stale, etc.
-- world state: exists, missing, already handled, unfinished, etc.
-- history: first visit, prior miss, return, etc.
-- rules the agent is supposed to follow
+- tool: this agent's names, plus unrelated and multi_tool
+- rule: clauses from the system prompt
+- stance: ordinary, retry, adversarial, and the rest of that axis
+- world_state: exists / missing / already acted on — only when the tools have referent keys
+- tool_condition: success, timeout, deny, stale, malformed
+- history: fresh, prior_failure, and the rest of that axis
 
-**Human**
+**Writer-only** (not covering): length, vagueness, tone, texture.
 
-- intent: which tool, what they want (randomized sometimes)
-- stance: ordinary, ambiguous, adversarial, hurried, etc.
-- persona: first time, returning, in a hurry, etc.
-- tone: impatient, frustrated, polite, etc.
-- typing: standard, lowercase, typo, clipped, etc.
-
-Ordinary asks first, then the edges. On top of that, we embed the openers and add a bit of random noise so the batch stays spread out, not a cluster of near-copies. Spend the row cap and the clock on diversity, not copies.
+Ordinary asks first, then the edges. On top of that, we embed the openers and add a bit of random noise so the batch stays spread out, not a cluster of near-copies. Spend the row cap and the clock on diversity, not copies. Modes: `explore` / `sft` (phrasings) / `rl` (repeats) / `adaptive` until saturation.
 
 ## Package layout
 
@@ -269,7 +285,7 @@ Internals are grouped by stage and may move between releases.
 | folder | what lives there |
 |---|---|
 | `generate/` | situation grid, writer, diversity selection, agent runners and adapters |
-| `score/` | conduct checks, judges, quality ranking, selection for SFT and RL |
+| `score/` | judge contract, structural flags, quality ranking, SFT / preference / GRPO-shaped handoff |
 | `ingest/` | trace loading, OpenTelemetry rows, platform push and pull |
 | `world/` | the mock tool environment |
 | `run/` | the engine behind `simulate()`: knob resolution (`config.py`), spec loading (`spec.py`), row helpers (`rows.py`), and the scheduler itself (`engine.py`: inputs, build, loop, finish) |

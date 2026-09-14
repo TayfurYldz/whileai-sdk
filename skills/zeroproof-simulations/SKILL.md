@@ -13,10 +13,13 @@ metadata:
 
 # ZeroProof simulations
 
-Operate ZeroProof for the developer. Discover the context already present in
-their repository, choose the shortest valid input path, run a small smoke test,
-and return auditable data plus a run report. Do not require every possible
-input: policy, tools, traces, seeds, and a harness are complementary.
+Operate the covering-grid simulator for the developer. They register the
+agent — tools, policy, optional traces, optional `execute=` — and we spin
+the situations, sample pairwise, walk hard. Their judge writes `r`. Export
+is the handoff to their trainer. Discover the context already present in
+their repository, choose the shortest valid input path, run a small smoke
+test, and return auditable data plus a run report. Do not require every
+possible input: policy, tools, traces, seeds, and a harness are complementary.
 
 Terms in this skill: the **developer** is the person or team using ZeroProof;
 the **coding agent** is the assistant reading this skill and operating the SDK;
@@ -30,16 +33,19 @@ public signatures when the installed version differs from these examples.
 
 Use what the developer has:
 
-- `tools=` plus `system_prompt=`: cold-start simulation across the declared
-  agent and policy space.
-- `traces=` plus the agent definition: mine observed failures and concentrate
-  search on their tools, faults, world states, and behaviors. About 20 graded
-  or fault-bearing traces gives useful targeting; below 10, treat the result
-  mostly as cold-start exploration and say so.
-- `agent=`: who plays the target agent (their model, callable, or endpoint).
-  That is on-policy for that student. Omit `agent=` and hosted Qwen walks —
-  off-policy for them. If they have traces, load those first and pass
-  `traces=` so the covering sample aims at what already broke.
+- `tools=` plus `system_prompt=`: register the agent. Covering axes from
+  this agent — tool (their names, plus unrelated and multi_tool), rule,
+  stance, world_state when tools have referent keys, tool_condition,
+  history. Writer-only (color, not the cell): length, vagueness, tone,
+  texture.
+- `traces=` plus the agent definition: mine observed failures and steer the
+  same grid at what already broke. About 20 graded or fault-bearing traces
+  gives useful targeting; below 10, treat the result mostly as cold-start
+  exploration and say so.
+- `agent=`: their policy on our cards — on-policy play. Omit `agent=` and
+  hosted Qwen is our walker, coverage first, same grid. If they have traces,
+  load those first and pass `traces=` so the sample aims at what already
+  broke.
 - `spec=`: load a repository folder containing the agent specification.
 - `seeds=`: preserve specific developer-provided tasks as starting asks. Use
   repeats when the developer needs multiple attempts on the same task.
@@ -118,13 +124,15 @@ When traces are the starting point, follow this sequence:
    source traces onto newly generated situations.
 11. Save the returned `ScoredData`; grading by judge creates scored copies and
     does not rewrite the original simulation file.
-12. Feed newly graded failures into a later `simulate(traces=...)` round only
+12. Feed newly graded failures into the next `simulate(traces=...)` round
     after preserving `model_version`, judge status, reason, and lineage.
+    Same cards, next step.
 
 A reward of `0` or an observed tool fault supplies direct repair signal. A
-reward of `1` supplies contrast. Unlabeled traces still describe the observed
-surface but do not establish correctness. Advisory model labels may steer
-aiming, but report them separately from developer-owned grades.
+reward of `1` supplies contrast. Ungraded is honest, not a fake 0. Unlabeled
+traces still describe the observed surface; they do not establish
+correctness. Advisory model labels may steer aiming, but report them
+separately from developer-owned grades.
 
 ## Preflight
 
@@ -195,8 +203,9 @@ that endpoint and cost.
 
 For BYOK, set `OPENAI_API_KEY` and optionally `OPENAI_BASE_URL`, then use
 `agent="openai:<model>"`. The endpoint must implement OpenAI-compatible chat
-completions with tool calls. The model writes the situations and plays the
-target agent, so both consume its endpoint.
+completions with tool calls. That is their policy on our cards. The situation
+writer still defaults to hosted Qwen unless `simulator=` points at their
+endpoint.
 
 ZeroProof normally builds a simulated world from the supplied tools, policy,
 and traces. That is appropriate for record-shaped tools and behavioral
@@ -208,9 +217,10 @@ exists, report that prerequisite instead of treating invented files as truth.
 
 ## Grade after simulation
 
-The developer owns correctness. Prefer a callable judge that returns a reward
-in `[0, 1]` and a reason. Judge errors remain unjudged; they are never silently
-converted to failures.
+Grade after is the product. Authority stays with them. Default `simulate` is
+`grade=False`: rows stay ungraded. Ungraded is honest, not a fake 0. Prefer a
+callable judge that returns a reward in `[0, 1]` and a reason. A broken judge
+stays ungraded.
 
 ```python
 def developer_judge(row: dict):
@@ -218,16 +228,26 @@ def developer_judge(row: dict):
     return {"reward": 1 if developer_passes(row) else 0, "reason": developer_reason(row)}
 
 
-scored = data.grade(judge=developer_judge)
+scored = data.grade(judge=developer_judge)  # lineage source=grade
+# same contract: zps.run_judge(data.trajectories, developer_judge)
+# or zps.grade(...) for hosted Qwen
+evald = zps.evaluate(holdout, judge=developer_judge)  # lineage source=eval
 scored.save("simulations/scored.jsonl")
 print(scored.report(tools=tools, system_prompt=policy))
+print(evald.pass_at)
 ```
 
-Use `grade=True` only for ZeroProof's deterministic structural/conduct screen;
-it is not the developer's semantic authority. Hosted or BYOK LLM grading is
-optional. Keep unjudged rows out of selection and report judge failures.
-`data.grade(judge=...)` deliberately leaves `data.trajectories` and the raw
-simulation file unchanged; use the returned `ScoredData` from that point on.
+`evaluate()` keeps evals distinct from training rewards. Next step on the same
+cards: `zps.simulate(..., traces=evald.failed_traces())`.
+
+Structural flags (`grade=True`) are display, not the score. Keep unjudged rows
+out of selection and report judge failures. `data.grade(judge=...)` leaves
+`data.trajectories` and the raw simulation file unchanged; use the returned
+`ScoredData` from that point on.
+
+A second judge — `audit_grades` in `zeroproof.simulations.score.grade_llm` —
+can recommend rubric and eval holes later. Advice, never `r`. It does not run
+on `simulate`.
 
 ## Inspect before keeping rows
 
@@ -254,17 +274,25 @@ cases silently.
 For eval expansion, keep reviewed cases in a new file with run provenance and
 integrate them only after developer approval.
 
-For SFT after binary grading:
+Handoff to their trainer (Prime, TRL, their cluster). Training math lives
+there; we supply the on-policy (or covering) trajectories and the judge
+contract. The live loop is the same cards, stepped: they act, the world
+answers, their judge scores, they update.
 
 ```python
-report = data.training_set("train.jsonl", target=1000, validate=True)
+sft, _ = scored.select_for_sft(target=1000)
+zps.export_training(sft, output="train.jsonl", system_prompt=policy, tools=tools)
+
+rl, _ = scored.select_for_rl()
+pairs, _ = scored.select_for_preference()
+zps.export_preference(pairs, output="pref.jsonl")
+print(scored.pass_at)  # pass@1 / pass^k / pass@k
 ```
 
-This selects diverse passing demonstrations and applies the tool-call
-round-trip export gate. For a judge-contract result returned as `ScoredData`,
-use `scored.select_for_sft()` and `zps.export_dataset(...)` with the run's
-policy and tools. For RL, use repeated groups and `select_for_rl`; keep groups
-whole and require meaningful within-group reward variation.
+`select_for_sft` keeps diverse passing demonstrations. `select_for_rl` keeps
+whole mixed-reward groups; do not split them. `export_training` applies the
+tool-call round-trip gate. `pass_at` measures the groups their trainer will
+see.
 
 ## Deliverable
 

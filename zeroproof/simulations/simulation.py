@@ -90,9 +90,10 @@ def simulate(
     plus a prompt, or ``spec=``. Search writes a grid of human requests
     (ordinary, vague, complex, adversarial) and a spread of agent replies.
     It spends ``budget`` rows and ``time_budget`` seconds on new coverage.
-    No default ``reward``. Pass ``grade=True`` for the deterministic
-    conduct grade, or grade later with ``grade()``. A callable
-    ``grader=`` is the only in-simulate score hook.
+    No default ``reward``. Rows stay ungraded — honest, not a fake 0.
+    ``grade=True`` writes structural display flags, not the customer's
+    ``r``. Grade after with ``data.grade(judge=)``, ``run_judge``, or
+    ``zps.grade``. A callable ``grader=`` is the only in-simulate score hook.
 
     ``traces=`` (rows or a JSONL path of production traces) aims the
     covering grid at the behaviors those traces show instead of the whole
