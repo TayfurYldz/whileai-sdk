@@ -232,6 +232,10 @@ def training_rows(
         entry: dict[str, Any] = {
             "messages": _convert_messages(messages, system=system, strip_think=strip_think),
         }
+        # Train on the agent's turns only. Tool output is the environment's
+        # text, not the policy's, and is masked from the loss (rlhf-book
+        # ch. 13); system and user turns likewise. One entry per message.
+        entry["loss_mask"] = [1 if m.get("role") == "assistant" else 0 for m in entry["messages"]]
         if resolved_tools:
             entry["tools"] = list(resolved_tools)
         for key in _CARRY_KEYS:

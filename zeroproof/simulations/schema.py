@@ -110,6 +110,7 @@ _CONSUMED = frozenset(
         "rollout_index",
         "model_version",
         "markers",
+        "calibration",
         "tool_trace",
         "trace",
         *AXES,
@@ -343,6 +344,8 @@ def validate(
             problems.append("reward_is_bool")
         elif reward is not None and not isinstance(reward, (int, float)):
             problems.append("reward_not_number")
+        if row.get("calibration") is not None and calibration_of(row) is None:
+            problems.append("calibration_invalid")
     elif kind == "training":
         messages = row.get("messages")
         if not isinstance(messages, list) or not messages:
@@ -351,6 +354,14 @@ def validate(
             problems.append("message_without_role")
         if row.get("tools") is not None and not isinstance(row["tools"], list):
             problems.append("tools_not_list")
+        mask = row.get("loss_mask")
+        if mask is not None and (
+            not isinstance(mask, list)
+            or not isinstance(messages, list)
+            or len(mask) != len(messages)
+            or any(isinstance(m, bool) or m not in (0, 1) for m in mask)
+        ):
+            problems.append("loss_mask_invalid")
     elif kind == "preference":
         for side in ("chosen", "rejected"):
             if not isinstance(row.get(side), list) or not row[side]:
@@ -576,7 +587,43 @@ def from_row(row: dict) -> tuple[Task, Rollout, list[Judgment], list[Marker]]:
         value = _number(v)
         if value is not None:
             markers.append(Marker(rollout_id=rollout_id, name=str(k), value=float(value)))
+    calibration = calibration_of(raw)
+    if calibration is not None:
+        rollout.extra["calibration"] = calibration
     return task, rollout, _judgments(raw, rollout_id), markers
+
+
+def calibration_of(row: dict) -> Calibration | None:
+    """The typed ``Calibration`` a row carries, or ``None`` when absent or
+    malformed. ``publish_gate`` / ``calibrate`` write it as a flat dict
+    under ``calibration``; this is the read side. ``mean_kl`` is optional."""
+    raw = row.get("calibration") if isinstance(row, dict) else None
+    if not isinstance(raw, dict):
+        return None
+    pass_rate = _number(raw.get("pass_rate"))
+    n = _int(raw.get("n"))
+    if pass_rate is None or not 0.0 <= float(pass_rate) <= 1.0 or n is None or n < 1:
+        return None
+    student = raw.get("student")
+    if isinstance(student, PolicyRef):
+        ref = student
+    elif isinstance(student, dict):
+        ref = PolicyRef(
+            name=str(student.get("name") or ""),
+            model=student.get("model"),
+            prompt_hash=student.get("prompt_hash"),
+            version=student.get("version"),
+        )
+    else:
+        ref = PolicyRef()
+    mean_kl = _number(raw.get("mean_kl"))
+    return Calibration(
+        task_id=str(raw.get("task_id") or row.get("scenario_id") or row.get("prompt") or ""),
+        student=ref,
+        n=int(n),
+        pass_rate=float(pass_rate),
+        mean_kl=float(mean_kl) if mean_kl is not None else None,
+    )
 
 
 # ------------------------------------------------------------------ to_row
@@ -668,6 +715,11 @@ def to_row(
             row[key] = rollout.extra[key]
     if task.spec_id:
         row["spec_id"] = task.spec_id
+    calibration = rollout.extra.get("calibration")
+    if isinstance(calibration, Calibration):
+        row["calibration"] = asdict(calibration)
+    elif isinstance(calibration, dict):
+        row["calibration"] = dict(calibration)
     for key, value in (rollout.extra.get("passthrough") or {}).items():
         row.setdefault(key, value)
     return stamp(row)
@@ -707,6 +759,7 @@ __all__ = [
     "Task",
     "World",
     "as_dict",
+    "calibration_of",
     "check",
     "detect_shape",
     "from_row",

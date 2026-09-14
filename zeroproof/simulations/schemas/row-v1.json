@@ -36,6 +36,18 @@
         "llm_reason": {"type": "string"},
         "qwen_reward": {"type": "number", "$comment": "Judgment from scorer 'qwen'"},
         "markers": {"type": "object", "additionalProperties": {"type": "number"}, "$comment": "Marker[] as name -> value"},
+        "calibration": {
+          "type": "object",
+          "required": ["n", "pass_rate"],
+          "properties": {
+            "task_id": {"type": "string"},
+            "student": {"type": "object", "properties": {"name": {"type": "string"}, "model": {"type": ["string", "null"]}, "prompt_hash": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]}}},
+            "n": {"type": "integer", "minimum": 1},
+            "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+            "mean_kl": {"type": ["number", "null"]}
+          },
+          "$comment": "Calibration: the task's pass rate over n rollouts of the student policy; written by publish_gate / calibrate"
+        },
         "conversation_id": {"type": "string", "$comment": "OTel ingest only"},
         "ts": {"type": "integer", "$comment": "OTel ingest only; earliest span start, ns"},
         "lineage": {"type": "object"},
@@ -70,6 +82,7 @@
       "properties": {
         "schema_version": {"const": "1"},
         "messages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/message"}},
+        "loss_mask": {"type": "array", "items": {"type": "integer", "enum": [0, 1]}, "$comment": "one entry per message: 1 = train on this turn (assistant), 0 = masked (system, user, tool output)"},
         "tools": {"type": "array"},
         "group_id": {"type": "string"}
       },
