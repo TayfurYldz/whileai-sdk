@@ -76,7 +76,10 @@ def reply_length(row: dict) -> int:
 
 
 def tool_calls(row: dict) -> int:
-    steps = row.get("steps") or []
+    """Tool calls in a row, whichever shape it arrived in: engine ``steps``
+    (tool/arguments/result) or a platform pull's ``tool_trace``
+    (tool/input/output)."""
+    steps = row.get("steps") or row.get("tool_trace") or []
     return sum(1 for s in steps if isinstance(s, dict) and s.get("tool"))
 
 

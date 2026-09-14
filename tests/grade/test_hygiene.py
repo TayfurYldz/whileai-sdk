@@ -188,3 +188,20 @@ def test_judge_prompts_are_length_neutral():
 
     assert "length" in grade_llm.JUDGE_SYSTEM.lower()
     assert "length" in llm_judge.JUDGE_SYSTEM.lower()
+
+
+def test_tool_calls_reads_platform_tool_trace_rows():
+    from zeroproof.simulations.score.hygiene import tool_calls
+
+    pulled = {
+        "prompt": "a",
+        "reward": 1,
+        "final_text": "Done.",
+        "tool_trace": [
+            {"tool": "lookup_order", "input": {"id": 1}, "output": {"ok": 1}},
+            {"tool": "create_refund", "input": {}, "output": {}},
+        ],
+    }
+    assert tool_calls(pulled) == 2
+    assert tool_calls({"prompt": "a", "steps": [{"tool": "x"}]}) == 1
+    assert tool_calls({"prompt": "a"}) == 0

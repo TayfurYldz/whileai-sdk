@@ -61,7 +61,9 @@ def policy_ref(policy: PolicyRef | dict | str | None, *, model: str | None = Non
 
 
 def _task_id(row: dict) -> str:
-    return str(row.get("task_id") or row.get("prompt") or "")
+    """The task's id, not its text: ``task_id``, else the engine's
+    ``scenario_id``, and only then the prompt (rows from elsewhere)."""
+    return str(row.get("task_id") or row.get("scenario_id") or row.get("prompt") or "")
 
 
 def calibrate(
