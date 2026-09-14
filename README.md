@@ -154,6 +154,11 @@ key. Open the dashboard later by signing in with an email code.
 zeroproof signup --email you@example.com
 ```
 
+That key is a trial key (25k input and 50k output tokens a day, 100 MB,
+ten datasets, seven days) until the person signs in once at
+https://www.zeroproofai.com/sign-in with an email code. `zeroproof status`
+shows the tier; `zeroproof.account()` returns tier, limits and usage.
+
 ## Store datasets on Zero Proof Labs
 
 Push a run to your Zero Proof Labs account so the optimization framework

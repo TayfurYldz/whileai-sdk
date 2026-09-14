@@ -44,8 +44,41 @@ class FakeGate:
                 "name": body["name"],
                 "user_id": "user_new",
                 "email": body["email"].lower(),
+                "tier": "trial",
+                "trial": TRIAL,
             }
         raise AssertionError(path)
+
+    def get(self, path, api_key, timeout=30):
+        self.calls.append((path, {"api_key": api_key}))
+        assert path == "/me"
+        if api_key == "zp_" + "b" * 48:
+            return 200, {
+                "user_id": "user_new",
+                "tier": "trial",
+                "trial": TRIAL,
+                "limits": {"dailyInputTokens": 25000},
+                "usage": {"inputTokens": 0},
+            }
+        if api_key.startswith("zp_"):
+            return 200, {
+                "user_id": "user_1",
+                "tier": "full",
+                "trial": None,
+                "limits": {},
+                "usage": {},
+            }
+        return 401, {"error": "Invalid API key"}
+
+
+TRIAL = {
+    "expires_at": "2026-09-21T00:00:00.000Z",
+    "daily_input_tokens": 25000,
+    "daily_output_tokens": 50000,
+    "storage_bytes": 104857600,
+    "datasets": 10,
+    "lift": "Sign in once at https://www.zeroproofai.com/sign-in with an email code to lift trial limits.",
+}
 
 
 @pytest.fixture
@@ -56,6 +89,7 @@ def gate(monkeypatch, tmp_path):
     monkeypatch.delenv("ZEROPROOF_API_URL", raising=False)
     fake = FakeGate()
     monkeypatch.setattr(auth, "_post", fake.post)
+    monkeypatch.setattr(auth, "_get", fake.get)
     monkeypatch.setattr(auth.time, "sleep", lambda s: None)
     return fake
 
@@ -182,6 +216,8 @@ def test_logout_and_status(gate, capsys):
     assert shown["source"] == "file"
     assert shown["key"] == "zp_aaaa...aaaa"
     assert shown["name"] == "cli box"
+    assert shown["tier"] == "full"
+    assert "lift" not in shown
     assert cli.main(["logout"]) == 0
     assert auth.stored_api_key() is None
     assert cli.main(["status"]) == 0
@@ -197,7 +233,16 @@ def test_signup_creates_the_account_and_saves_the_key(gate, tmp_path):
     assert saved["user_id"] == "user_new"
     assert gate.calls[-1] == ("/signup", {"email": "Agent@Example.com", "name": "claude-code"})
     assert "Account created" in lines[0]
+    assert "Trial key" in lines[1] and "25,000" in lines[1] and "2026-09-21" in lines[1]
+    assert "sign-in" in lines[2]
     assert platform._key(None) == key
+    me = auth.account()
+    assert me["tier"] == "trial"
+    assert me["trial"]["lift"].startswith("Sign in once")
+    shown = auth.status()
+    assert shown["tier"] == "trial"
+    assert shown["trial_expires_at"] == "2026-09-21T00:00:00.000Z"
+    assert "sign-in" in shown["lift"]
 
 
 def test_signup_existing_account_points_at_login(gate):
@@ -210,7 +255,9 @@ def test_signup_existing_account_points_at_login(gate):
 
 def test_cli_signup(gate, capsys):
     assert cli.main(["signup", "--email", "new@example.com"]) == 0
-    assert auth.status()["source"] == "file"
+    shown = auth.status()
+    assert shown["source"] == "file"
+    assert shown["tier"] == "trial"
     assert cli.main(["signup", "--email", "taken@example.com"]) == 1
     assert "zeroproof login" in capsys.readouterr().err
 

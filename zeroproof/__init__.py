@@ -10,7 +10,7 @@ then finds the saved key. Agent simulations live next door in
 ``zeroproof.simulations``.
 """
 
-from .auth import LoginError, login, logout, resolve_api_key, signup
+from .auth import LoginError, account, login, logout, resolve_api_key, signup
 from .ingest import (
     ZeroProofIngestError,
     ingest_traces,
@@ -31,6 +31,7 @@ __all__ = [
     "LoginError",
     "ZeroProofIngestError",
     "__version__",
+    "account",
     "ingest_traces",
     "list_traces",
     "login",

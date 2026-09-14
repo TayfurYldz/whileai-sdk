@@ -106,6 +106,38 @@ def _post(path: str, body: dict, timeout: int = 30) -> tuple[int, dict]:
         raise LoginError(f"Could not reach {_api_url()}: {err}") from None
 
 
+def _get(path: str, api_key: str, timeout: int = 30) -> tuple[int, dict]:
+    request = urllib.request.Request(
+        _api_url() + path, method="GET", headers={"X-Api-Key": api_key}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status, json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as err:
+        raw = err.read().decode(errors="replace")
+        try:
+            return err.code, json.loads(raw)
+        except ValueError:
+            return err.code, {"error": raw[:200]}
+    except OSError as err:
+        raise LoginError(f"Could not reach {_api_url()}: {err}") from None
+
+
+def account(api_key: str | None = None) -> dict:
+    """Tier, limits and today's usage for the key in use (``GET /me``).
+
+    ``tier`` is ``"trial"`` for an account made by ``signup`` that has not
+    signed in yet; ``trial["lift"]`` says how to lift it.
+    """
+    key = resolve_api_key(api_key)
+    if not key:
+        raise LoginError("No key. Run `zeroproof login` or `zeroproof signup --email`.")
+    status, data = _get("/me", key)
+    if status != 200:
+        raise LoginError(f"Account lookup failed ({status}): {data.get('error', data)}")
+    return data
+
+
 def _default_name() -> str:
     host = socket.gethostname().split(".")[0] or "cli"
     return f"cli {host}"[:50]
@@ -237,7 +269,20 @@ def signup(email: str, *, name: str | None = None, out: Callable[[str], None] | 
             },
         )
         say(f"Account created for {data.get('email', email)}. Key saved to {credentials_path()}")
-        say("Dashboard: sign in at https://www.zeroproofai.com with an email code.")
+        trial = data.get("trial") or {}
+        if data.get("tier") == "trial":
+            say(
+                "Trial key: "
+                f"{trial.get('daily_input_tokens', 25000):,} input / {trial.get('daily_output_tokens', 50000):,} "
+                f"output tokens a day, {int(trial.get('storage_bytes', 104857600)) // 1048576} MB, "
+                f"{trial.get('datasets', 10)} datasets, expires {str(trial.get('expires_at', ''))[:10]}."
+            )
+            say(
+                trial.get("lift")
+                or "Sign in once at https://www.zeroproofai.com/sign-in with an email code to lift trial limits."
+            )
+        else:
+            say("Dashboard: sign in at https://www.zeroproofai.com with an email code.")
         return data["api_key"]
     error = data.get("error", "")
     if error == "account_exists":
@@ -266,11 +311,24 @@ def status() -> dict:
     env = os.environ.get("ZEROPROOF_API_KEY")
     saved = _read(credentials_path()) or {}
     key = env or saved.get("api_key")
-    return {
+    out = {
         "api_url": _api_url(),
         "source": "ZEROPROOF_API_KEY" if env else ("file" if saved.get("api_key") else None),
         "path": str(credentials_path()),
         "key": (key[:7] + "..." + key[-4:]) if key and len(key) > 12 else (key or None),
         "name": None if env else saved.get("name"),
         "pending": _resume() is not None,
+        "tier": None,
     }
+    if key:
+        try:
+            me = account(key)
+        except LoginError as err:
+            out["tier"] = f"unknown ({err})"
+        else:
+            out["tier"] = me.get("tier")
+            if me.get("tier") == "trial":
+                trial = me.get("trial") or {}
+                out["trial_expires_at"] = trial.get("expires_at")
+                out["lift"] = trial.get("lift")
+    return out

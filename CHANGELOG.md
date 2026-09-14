@@ -12,6 +12,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   same keys, `recommend(mode="rl")` explains the mixed rate as headroom,
   and `save(meta=True)` writes `pass_at` to the sidecar.
 
+## Unreleased
+
+- `signup` says that the key is a trial key and how to lift it.
+  `zeroproof status` shows the tier; `zeroproof.account()` returns tier,
+  limits and today's usage (`GET /me`).
+
 ## 0.16 (2026-09-13)
 
 - `zeroproof signup --email`: creates the account and the key in one
