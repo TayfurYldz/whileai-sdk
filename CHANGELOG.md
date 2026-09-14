@@ -5,6 +5,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `zps.send_score(trace_id, value)`: grade a run that has already finished.
+  The gate has taken measurements at `POST /v1/scores` all along and nothing
+  in the SDK wrapped it, so an agent could send traces from the terminal but
+  not the pass or fail that `zps.cut(kind="rl")` filters on — the one gap
+  between "agent runs" and "agent has training data". A pass is 1.0 or above
+  (the cut's own rule), `True`/`False` land as 1.0/0.0, `name=` puts a second
+  measurement beside the verdict, `scores=[...]` sends a batch, and re-sending
+  a name is a correction. A trace id this account never sent raises instead of
+  looking like a success.
 - `export_environment`: the package no longer carries a copy of the
   environment module and the checklist (`_zp_env.py`, `_zp_checklist.py`).
   The copy existed so an export loaded on an SDK release without them,
