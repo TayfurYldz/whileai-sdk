@@ -814,11 +814,7 @@ wheels = [
 
 [[package]]
 name = "zeroproof"
-<<<<<<< Updated upstream
 version = "0.23"
-=======
-version = "0.22"
->>>>>>> Stashed changes
 source = { editable = "." }
 dependencies = [
     { name = "requests" },
