@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.30 (2026-09-14)
 
 - `zps.train(dataset_id, method="sft"|"grpo"|"dpo", steps=, epochs=,
   holdout=, base_model=, wait=)` starts a hosted run on the platform's
