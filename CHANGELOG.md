@@ -5,6 +5,20 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Every row `zps.grade` writes now says which judge produced it:
+  `judge_name`, `judge_status`, and `judge_meta` (model, prompt hash,
+  temperature, max_tokens, `version` = `<model>@<prompt sha>`); the
+  report carries `judge_version`. A rubric edit is a new reward model,
+  and the row records it. `run_judge(version=...)` does the same for a
+  custom judge via `lineage.judge_version`; both read back as
+  `Judgment.scorer.version`. New `schema.attach(row, judgment)` is the
+  sanctioned verdict write; `grade` routes through it.
+- `zps.judge_agreement(rows, gold="gold_reward")` (also
+  `scored.agreement(...)`): agreement, Cohen's kappa, confusion counts,
+  and the two disagreement rates against labels you trust, with the leak
+  rate (gold failures the judge passed) called out because those rows
+  train the failure. `gold` may be a second scoring pass for
+  self-consistency. Warns below 50 gold rows (rlhf-book ch. 5).
 - `training_rows` / `export_training` take `mask_mode="assistant"`
   (default, every agent turn) or `"final"` (only the last agent turn,
   rlhf-book ch. 4). `zps.loss_mask(messages, mode=)` builds the mask on

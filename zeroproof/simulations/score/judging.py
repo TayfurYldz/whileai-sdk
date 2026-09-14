@@ -193,6 +193,14 @@ class ScoredData:
 
         return select_for_sft(self.rows, target=target)
 
+    def agreement(
+        self, gold: str | Sequence[dict] = "gold_reward", *, reward: str = "reward"
+    ) -> dict[str, Any]:
+        """Agreement of this run's rewards with a trusted label. See ``judge_agreement``."""
+        from .agreement import judge_agreement
+
+        return judge_agreement(self.rows, gold, reward=reward)
+
     def select_for_preference(
         self, *, max_pairs_per_prompt: int = 1, min_margin: float = 1.0, length_match: bool = True
     ) -> tuple[list[dict], dict[str, Any]]:
@@ -258,6 +266,7 @@ def run_judge(
     run_id: str | None = None,
     concurrency: int = 8,
     timeout: float | None = None,
+    version: str | None = None,
 ) -> ScoredData:
     """Score trajectories with any judge. Originals are left unmodified.
 
@@ -266,6 +275,9 @@ def run_judge(
     scoring run, its source (grade or eval), the judged model, and the
     parent trajectory. Rows whose judge result breaks the contract keep
     ``reward=None`` and a non-ok status; they are counted, not hidden.
+    ``version`` names the judge's version (model, prompt hash, whatever
+    would change its labels); it lands in ``lineage.judge_version`` and
+    reads back as ``Judgment.scorer.version``.
     """
     src_rows = [r for r in rows if isinstance(r, dict)]
     rid = run_id or f"score_{uuid.uuid4().hex[:12]}"
@@ -311,6 +323,8 @@ def run_judge(
         )
         if model:
             lineage["model"] = model
+        if version:
+            lineage["judge_version"] = version
         if row.get("lineage", {}).get("scoring_run_id"):
             lineage["prior_scoring_run_id"] = row["lineage"]["scoring_run_id"]
         out["lineage"] = lineage

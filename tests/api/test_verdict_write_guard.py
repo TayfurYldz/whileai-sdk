@@ -23,7 +23,7 @@ BASELINE = {
     "ingest/otel.py": 1,
     "ingest/traces.py": 1,
     "run/engine.py": 3,
-    "score/grade_llm.py": 4,
+    "score/grade_llm.py": 1,
     "score/judging.py": 6,
     "score/llm_judge.py": 2,
     "score/preflight.py": 2,
