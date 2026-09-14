@@ -30,6 +30,7 @@ Modal image; the SDK package itself stays skinny.
 from __future__ import annotations
 
 import json
+import os
 
 import modal
 
@@ -46,8 +47,16 @@ image = (
         "peft==0.16.0",
         "datasets==3.6.0",
         "accelerate==1.8.1",
+        "zeroproof",
     )
     .env({"HF_HOME": "/root/.cache/huggingface"})
+)
+
+# The dashboard. With ZEROPROOF_API_KEY set on your laptop the run reports
+# loss, learning rate and progress to zeroproofai.com/platform/training;
+# without it, training is unchanged and nothing is sent.
+dashboard_secret = modal.Secret.from_dict(
+    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
 )
 
 adapter_volume = modal.Volume.from_name("identity-lora", create_if_missing=True)
@@ -61,6 +70,7 @@ VOLUME_ROOT = "/vol"
     gpu="H100",
     timeout=3 * 60 * 60,
     volumes={VOLUME_ROOT: adapter_volume, "/root/.cache/huggingface": hf_cache},
+    secrets=[dashboard_secret],
 )
 def train(
     rows: list[dict],
@@ -144,15 +154,43 @@ def train(
         peft_config=lora,
     )
 
+    # One line for the dashboard: loss curve and progress bar on the platform.
+    run = None
+    if os.environ.get("ZEROPROOF_API_KEY"):
+        import zeroproof.simulations as zps
+
+        run = zps.training_run(
+            run_name,
+            base_model=base_model,
+            trainer="trl-sft-lora",
+            config={
+                "epochs": epochs,
+                "learning_rate": learning_rate,
+                "lora_rank": lora_rank,
+                "lora_alpha": lora_alpha,
+                "rows": len(dataset),
+                "gpu": "H100",
+            },
+        )
+        trainer.add_callback(zps.TrainerCallback(run))
+        print(f"dashboard: {run.url}")
+
     has_checkpoint = os.path.isdir(checkpoint_dir) and any(
         name.startswith("checkpoint-") for name in os.listdir(checkpoint_dir)
     )
-    trainer.train(resume_from_checkpoint=has_checkpoint or None)
+    try:
+        trainer.train(resume_from_checkpoint=has_checkpoint or None)
+    except Exception as exc:
+        if run is not None:
+            run.fail(f"{type(exc).__name__}: {exc}")
+        raise
 
     trainer.save_model(adapter_dir)
     tokenizer.save_pretrained(adapter_dir)
     adapter_volume.commit()
     print(f"adapter saved to volume 'identity-lora' at {run_name}/adapter")
+    if run is not None and run.status == "running":
+        run.finish("done", adapter=f"identity-lora:/{run_name}/adapter")
     return f"{run_name}/adapter"
 
 
