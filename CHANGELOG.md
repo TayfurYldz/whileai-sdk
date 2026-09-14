@@ -3,8 +3,33 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.23 (2026-09-14)
 
+- Markers a judge returns now reach `marker_summary`. `run_judge`
+  lifts `judge_meta["markers"]` onto `row["markers"]` (the judge wins a
+  name collision), `simulate(grader=)` carries `markers` onto the
+  trajectories, and `from_row` on a graded row returns the `Marker`
+  objects. Before this a marker a judge returned measured nothing.
+- `split_pseudo_production` splits by task, not by row: rows group by
+  `prompt` (`scenario_id` when there is no prompt) and whole tasks move,
+  so `mode="rl"` with `repeats>1` no longer puts siblings of one prompt
+  on both sides. The flaw-signature rule sends a task, not a row, to the
+  held-out side. `fraction` is still counted in rows and can overshoot by
+  up to one task. On the reported repro, held-out prompts also present in
+  train went from 100% to 0%.
+- `scripts/golden.py`: a committed golden-output harness. Thirteen offline
+  configurations at `concurrency=1` on fixed seeds; `capture` and `diff`
+  compare two snapshot directories and `diff` names every changed key.
+  `.gitignore` no longer blocks `scripts/`. The harness scrubs
+  `lineage.scoring_run_id`, which `run_judge` stamps fresh per call
+  (#58).
+- CI measures line coverage with a floor at 84% (Python 3.12,
+  `COVERAGE_CORE=sysmon`; the default tracer ran past 30 minutes).
+- Tests pin that `principle`, `hidden_state` and `reference` never reach
+  a student field or an exported file, and that an eval score stays
+  distinguishable from a training reward through `lineage["source"]`.
+- Test suite builds each identity dataset once instead of four times
+  (about 22% less wall time).
 - Training runs: `run = zps.training_run(name, dataset=, base_model=,
   total_steps=)`, `run.log(step, loss=, ...)`, `run.progress`,
   `run.finish()`; `zps.TrainerCallback(run)` for Transformers and TRL
