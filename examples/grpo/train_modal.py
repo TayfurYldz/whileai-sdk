@@ -52,6 +52,9 @@ image = (
     )
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE / "reward.py"), "/root/reward.py")
+    # From inside this repo the checkout's SDK rides along and shadows the
+    # PyPI one, so an unreleased SDK change works here first.
+    .add_local_python_source("zeroproof")
 )
 
 runs_volume = modal.Volume.from_name("zeroproof-grpo-runs", create_if_missing=True)
