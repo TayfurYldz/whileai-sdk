@@ -143,6 +143,8 @@ rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
 entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
+`situations=200, repeats=8` is a guess. `zps.recommend(tools=TOOLS, system_prompt=POLICY, mode="rl")` replaces it with numbers from this agent's own grid: [How much to run](#how-much-to-run).
+
 A spec folder is `spec.json` (tools and policy) plus `rubric.md`: what doing the job means, in prose. `grade()` scores against it. The hosted judge writes `reward` and `reason` onto the run's rows and returns the judge report (a dict), so the numbers are read off `data`; `grade(judge=your_callable)` instead returns a `ScoredData` of graded copies, leaves the run untouched, and has its own `.push(name, ...)`. Without one it grades the conduct floor only (nothing invented, nothing skipped) and the report says so; pass `rubric=` to `simulate` or `grade` to supply one, `judge=` for your own callable.
 
 After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`. Name the training reward too, `proxy="marker:first_action"`, and the report says whether the run over-optimized it: proxy up while the target did not follow fails the report (rlhf-book ch. 14). `zps.hack_scan_diff(before, after, endorsed=[...])` names what the update moved toward, and withholds the name when either side came back `degenerate`.
@@ -393,6 +395,32 @@ zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="rl")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", until="saturation")
 ```
+
+### How much to run
+
+Ask before you guess. `recommend()` sizes the run from the agent's own
+covering grid and from published post-training practice (FireAct, LIMA,
+AgentTuning for SFT; DAPO, Skywork-OR1 for RL). No key, no network.
+
+```python
+rec = zps.recommend(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
+print("
+".join(rec["reasoning"]))
+data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, **rec["simulate_kwargs"])
+```
+
+```
+covering grid: 62 cells for this agent
+saturation wants 5 visits per cell = 310 rows
+selection wants about 3x its target of 800 to choose from
+generate 2400, select 800 diverse 1-labeled rows
+```
+
+`mode="rl"` assumes half the prompts produce a mixed group. That rate is
+the agent's, not ours: probe 12 asks, grade, read `group_signal`, and
+pass the measured number back as `mixed_rate=`. A low rate means the grid
+is too easy for this agent; aim it with `traces=` before buying rollouts.
+`target=` sets how many selected rows you want (default 800).
 
 `mode="rl"` allocates rollouts successively. Every prompt is probed with
 two rollouts, the least that can show a split. A prompt whose rollouts
