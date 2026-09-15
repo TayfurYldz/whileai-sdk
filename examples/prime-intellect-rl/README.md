@@ -10,15 +10,16 @@ the rest of the pipeline is unchanged.
 What you will learn: why GRPO needs uniform groups, the four numbers that say
 whether a dataset carries gradient, how an effort-negative reward gets gamed
 (and how the offline gate predicted it), and the prompt shape the `verifiers`
-library reads. You need `VLLM_API_KEY` for hosted Qwen on both roles; about
-three minutes for 800 rollouts. `diagnose.py` and `export_prompts.py` run
+library reads. You need a key for hosted Qwen on both roles: your account
+key (`zeroproof login`), or `VLLM_API_KEY` for the shared pool, which is
+about three minutes for 800 rollouts. `diagnose.py` and `export_prompts.py` run
 offline on any graded row file.
 
 ## Run it
 
 ```bash
 pip install zeroproof
-export VLLM_API_KEY=...            # ask ZeroProof for a key
+zeroproof login                    # or: export VLLM_API_KEY=... for the shared pool
 cd examples/prime-intellect-rl
 python generate.py --situations 100 --k 8 --fault-rate 0.15   # -> data/rl.jsonl (+ .meta.json)
 python diagnose.py data/rl.jsonl                              # exit 1 if the set carries no gradient

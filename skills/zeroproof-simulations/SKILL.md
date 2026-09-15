@@ -65,17 +65,17 @@ When traces are the starting point, follow this sequence:
    guess from a local file or silently combine different agents/days:
 
    ```python
-   import os
    import zeroproof
    import zeroproof.simulations as zps
 
-   key = os.environ["ZEROPROOF_API_KEY"]
-   inventory = zeroproof.list_traces(key)["traces"]
+   # the key resolves like every platform call: ZEROPROOF_API_KEY, else
+   # the key `zeroproof login` or `zeroproof signup` saved
+   inventory = zeroproof.list_traces()["traces"]
    matches = [t for t in inventory if t["name"] == requested_dataset]
    if len(matches) != 1:
        raise RuntimeError(f"select one trace dataset explicitly: {matches}")
    selected = matches[0]
-   traces = zps.pull(selected["datasetId"], api_key=key)
+   traces = zps.pull(selected["datasetId"])
    ```
 
 2. Load local inputs with `zps.load_traces(...)`. JSONL paths and common message,
@@ -156,7 +156,8 @@ Trace-guided repair and policy-guided discovery are both ordinary `simulate`
 runs. The difference is whether `traces=` is supplied:
 
 ```python
-# BYOK; omit agent= to use ZeroProof-hosted Qwen with VLLM_API_KEY.
+# BYOK; omit agent= to use ZeroProof-hosted Qwen on the account key
+# (`zeroproof login`), or on VLLM_API_KEY for the shared pool when set.
 agent = "openai:gpt-4.1-mini"
 
 repair = zps.simulate(

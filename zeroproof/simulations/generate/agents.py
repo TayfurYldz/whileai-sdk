@@ -26,6 +26,15 @@ DEFAULT_SIMULATOR = DEFAULT_AGENT
 # judge grading its own writing prefers it (rlhf-book ch. 5, 12). Phi-4
 # on its own vLLM app in the same Modal workspace, same VLLM_API_KEY.
 DEFAULT_JUDGE = "vllm:microsoft/phi-4@https://zeroproofai--zeroproof-judge-serve.modal.run/v1"
+# The account route. These two endpoints sit behind the zeroproof-serve
+# proxy (backend/modal/serve.py on the platform), which takes the account's
+# own zp_ key, refuses an exhausted daily allowance with 429, and records
+# every token on the account's usage. No VLLM_API_KEY: a signup or a login
+# is enough. VLLM_API_KEY, when set, still wins and goes to the shared pool
+# above, which is faster (warm, Instruct model) but shared and unmetered.
+ACCOUNT_AGENT = "vllm:Qwen/Qwen3-4B@https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1"
+ACCOUNT_JUDGE = "vllm:microsoft/phi-4@https://zeroproofai--zeroproof-serve-phi-4.modal.run/v1"
+_ACCOUNT_HOST_PREFIX = "zeroproofai--zeroproof-serve-"
 _tls = threading.local()
 
 
@@ -61,20 +70,48 @@ def parse_backend_spec(spec: str) -> tuple[str, str]:
     )
 
 
+def _account_key() -> str:
+    """The account's zp_ key: ZEROPROOF_API_KEY, else what `zeroproof login` saved."""
+    from ...auth import resolve_api_key
+
+    return str(resolve_api_key() or "").strip()
+
+
+def _account_url(base_url: str | None) -> bool:
+    """True for the zeroproof-serve endpoints, which take the account key."""
+    if not base_url:
+        return False
+    raw = base_url if "://" in str(base_url) else "https://" + str(base_url)
+    host = (urlparse(raw).hostname or "").lower()
+    return host.startswith(_ACCOUNT_HOST_PREFIX)
+
+
+def _account_route() -> bool:
+    """Use the account endpoints: no VLLM_API_KEY, but an account key exists."""
+    return not os.environ.get("VLLM_API_KEY", "").strip() and bool(_account_key())
+
+
 def default_agent_spec() -> str:
-    """Tool-using rollout model. Hosted Qwen unless ZEROPROOF_AGENT is set."""
-    return os.environ.get("ZEROPROOF_AGENT") or DEFAULT_AGENT
+    """Tool-using rollout model. ZEROPROOF_AGENT if set; else the shared
+    pool with VLLM_API_KEY; else the account endpoint on the account key."""
+    return os.environ.get("ZEROPROOF_AGENT") or (
+        ACCOUNT_AGENT if _account_route() else DEFAULT_AGENT
+    )
 
 
 def default_judge_spec() -> str:
-    """Grader model. Hosted Phi-4 unless ZEROPROOF_JUDGE is set. Never the
-    policy model by default: see DEFAULT_JUDGE."""
-    return os.environ.get("ZEROPROOF_JUDGE") or DEFAULT_JUDGE
+    """Grader model. ZEROPROOF_JUDGE if set; else hosted Phi-4 on the same
+    route as the agent. Never the policy model by default: see DEFAULT_JUDGE."""
+    return os.environ.get("ZEROPROOF_JUDGE") or (
+        ACCOUNT_JUDGE if _account_route() else DEFAULT_JUDGE
+    )
 
 
 def default_simulator_spec() -> str:
     """User-message writer. Same hosted Qwen as the agent unless overridden."""
-    return os.environ.get("ZEROPROOF_SURROGATE") or DEFAULT_SIMULATOR
+    return os.environ.get("ZEROPROOF_SURROGATE") or (
+        ACCOUNT_AGENT if _account_route() else DEFAULT_SIMULATOR
+    )
 
 
 # Working context estimate for the rollout backend. Sized to hosted Qwen
@@ -187,6 +224,15 @@ def resolve_completion_key(base_url: str | None = None, api_key: str | None = No
     if api_key:
         return str(api_key).strip()
     vllm = str(os.environ.get("VLLM_API_KEY") or "").strip()
+    if not base_url:
+        # no URL means the default agent, whichever route that resolves to
+        try:
+            base_url, _ = parse_backend_spec(default_agent_spec())
+        except ValueError:
+            base_url = None
+    if _account_url(base_url):
+        # the proxy only knows zp_ keys; the shared-pool key is not one
+        return _account_key() or vllm
     if _hosted_qwen_url(base_url):
         return vllm
     return vllm or str(os.environ.get("OPENAI_API_KEY") or "").strip()
@@ -218,7 +264,7 @@ def missing_hosted_key(base_url: str | None = None, api_key: str | None = None) 
     if key:
         return None
     if _hosted_qwen_url(base_url):
-        return "Hosted Qwen needs VLLM_API_KEY set in the environment."
+        return MISSING_HOSTED_KEY
     if base_url and not _local_url(base_url):
         raw = base_url if "://" in str(base_url) else "https://" + str(base_url)
         host = urlparse(raw).hostname or str(base_url)
@@ -227,6 +273,88 @@ def missing_hosted_key(base_url: str | None = None, api_key: str | None = None) 
             "(and OPENAI_BASE_URL for a non-OpenAI endpoint)."
         )
     return None
+
+
+MISSING_HOSTED_KEY = (
+    "Hosted models need a key: run `zeroproof login` (or `zeroproof signup "
+    "--email you@example.com`) so the run uses your account key, or set "
+    "VLLM_API_KEY for the shared pool."
+)
+QUOTA_MARK = "quota exceeded"
+
+
+def _quota_error(status: int, body: str) -> str | None:
+    """The proxy's 429 for a spent daily allowance, or None. Not transient:
+    every later call today answers the same, so the run stops instead of
+    retrying into the clock."""
+    if int(status) != 429:
+        return None
+    text = str(body or "")
+    if QUOTA_MARK not in text.lower():
+        return None
+    try:
+        msg = json.loads(text).get("error", {}).get("message") or text
+    except (ValueError, AttributeError):
+        msg = text
+    return f"Hosted model daily {msg[msg.lower().find('quota') :]}"
+
+
+def _client_metered(base_url: str | None) -> bool:
+    """Whether the client reports this call's tokens: the shared pool yes,
+    the account proxy no (it meters on the server), anything else no."""
+    return _hosted_qwen_url(base_url) and not _account_url(base_url)
+
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_REDIRECT_HOPS = 8
+
+
+def _follow_redirects(
+    resp: http.client.HTTPResponse, raw: bytes, headers: dict, timeout: float
+) -> tuple[int, bytes]:
+    """Follow a 3xx to its Location with GET and return the final (status, body).
+
+    Modal answers a web request that runs past 150 seconds with a 303 to a
+    result URL that blocks until the work is done, and may 303 again after
+    another 150 seconds. A cold start of a scale-to-zero judge or policy is
+    longer than that, so without this the first call read the redirect's
+    empty body as the reply and the whole run graded as unreachable.
+    """
+    status, body = int(resp.status), raw
+    location = resp.getheader("Location") if status in _REDIRECT_STATUSES else None
+    hops = 0
+    while location and hops < _REDIRECT_HOPS:
+        hops += 1
+        target = urlparse(location)
+        if (target.scheme or "https") == "https":
+            conn: http.client.HTTPConnection = http.client.HTTPSConnection(
+                target.hostname or "", target.port or 443, timeout=timeout
+            )
+        else:
+            conn = http.client.HTTPConnection(
+                target.hostname or "", target.port or 80, timeout=timeout
+            )
+        try:
+            path = (target.path or "/") + (f"?{target.query}" if target.query else "")
+            get_headers = {k: v for k, v in headers.items() if k.lower() != "content-type"}
+            conn.request("GET", path, headers=get_headers)
+            nxt = conn.getresponse()
+            body = nxt.read()
+            status = int(nxt.status)
+            location = nxt.getheader("Location") if status in _REDIRECT_STATUSES else None
+        finally:
+            with contextlib.suppress(Exception):
+                conn.close()
+    return status, body
+
+
+def _request_extras(base_url: str | None, model: str) -> dict[str, Any]:
+    """Per-endpoint request fields. The account Qwen is the thinking base
+    (`Qwen/Qwen3-4B`): without this it reasons before every reply, which
+    the writer's JSON parse and the rollout's turn cap were not built for."""
+    if _account_url(base_url) and str(model).startswith("Qwen/Qwen3") and "Instruct" not in model:
+        return {"chat_template_kwargs": {"enable_thinking": False}}
+    return {}
 
 
 HOSTED_DROPPED = (
@@ -366,6 +494,27 @@ def _turn_meta(reply: dict) -> dict:
     return meta
 
 
+def _thread_connection(parsed: Any, conn_key: tuple, timeout: float) -> http.client.HTTPConnection:
+    """One keep-alive connection per thread. A connection to a different
+    host is closed before it is replaced, not dropped: a run that
+    alternated hosts leaked one socket per rollout and printed a
+    ResourceWarning for each."""
+    conn: http.client.HTTPConnection | None = getattr(_tls, "conn", None)
+    if getattr(_tls, "conn_key", None) == conn_key and conn is not None:
+        return conn
+    if conn is not None:
+        with contextlib.suppress(Exception):
+            conn.close()
+    if (parsed.scheme or "https") == "https":
+        conn = http.client.HTTPSConnection(
+            parsed.hostname or "", parsed.port or 443, timeout=timeout
+        )
+    else:
+        conn = http.client.HTTPConnection(parsed.hostname or "", parsed.port or 80, timeout=timeout)
+    _tls.conn, _tls.conn_key = conn, conn_key
+    return conn
+
+
 def complete(
     base_url: str,
     model: str,
@@ -423,6 +572,7 @@ def complete(
         payload["logprobs"] = True
     if tools:
         payload["tools"] = _wire_tools(tools)
+    payload.update(_request_extras(base_url, model))
     headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
@@ -432,54 +582,48 @@ def complete(
     for _ in range(8):
         payload["messages"] = messages
         body = json.dumps(payload, separators=(",", ":")).encode()
-        conn: http.client.HTTPConnection | None = getattr(_tls, "conn", None)
-        if getattr(_tls, "conn_key", None) != conn_key or conn is None:
-            if (parsed.scheme or "https") == "https":
-                conn = http.client.HTTPSConnection(
-                    parsed.hostname or "", parsed.port or 443, timeout=timeout
-                )
-            else:
-                conn = http.client.HTTPConnection(
-                    parsed.hostname or "", parsed.port or 80, timeout=timeout
-                )
-            _tls.conn, _tls.conn_key = conn, conn_key
+        conn = _thread_connection(parsed, conn_key, timeout)
         try:
             conn.request("POST", post_path, body=body, headers=headers)
             resp = conn.getresponse()
             raw = resp.read()
-            if resp.status >= 400:
+            status, raw = _follow_redirects(resp, raw, headers, timeout)
+            if status >= 400:
                 err = raw[:400].decode("utf-8", "replace")
-                if resp.status == 400 and "max_tokens" in err and int(payload["max_tokens"]) > 256:
+                if status == 400 and "max_tokens" in err and int(payload["max_tokens"]) > 256:
                     payload["max_tokens"] = max(256, int(payload["max_tokens"]) // 2)
                     raise RuntimeError("retry_max_tokens")
-                if resp.status == 400 and _shrink_last_user(messages):
+                if status == 400 and _shrink_last_user(messages):
                     room = _CONTEXT_TOKENS - _estimate_tokens(messages, tools) - 64
                     payload["max_tokens"] = max(
                         256, min(int(payload["max_tokens"]), max(256, room))
                     )
                     raise RuntimeError("retry_shrink_input")
-                if resp.status == 400 and payload.get("n"):
+                if status == 400 and payload.get("n"):
                     payload.pop("n", None)
                     raise RuntimeError("retry_drop_n")
-                if resp.status == 400 and payload.get("logprobs") and "logprob" in err.lower():
+                if status == 400 and payload.get("logprobs") and "logprob" in err.lower():
                     payload.pop("logprobs", None)
                     raise RuntimeError("retry_drop_logprobs")
-                if resp.status in {401, 403}:
+                if status in {401, 403}:
                     raise RuntimeError(
-                        "Hosted Qwen needs VLLM_API_KEY set in the environment."
+                        MISSING_HOSTED_KEY
                         if not key
-                        else f"Hosted Qwen rejected the API key ({resp.status})."
+                        else f"Hosted Qwen rejected the API key ({status})."
                     )
-                if resp.status == 400:
+                quota = _quota_error(status, err)
+                if quota:
+                    raise RuntimeError(quota)
+                if status == 400:
                     if "context" in err.lower() or "input tokens" in err.lower():
                         raise RuntimeError(
-                            f"hosted Qwen rejected the prompt ({resp.status}); "
+                            f"hosted Qwen rejected the prompt ({status}); "
                             f"it exceeded the {_CONTEXT_TOKENS}-token context."
                         )
                     raise RuntimeError(f"hosted Qwen rejected the request (400): {err[:200]}")
-                if _transient_http(resp.status, err):
+                if _transient_http(status, err):
                     raise RuntimeError(_TRANSIENT_RETRY)
-                raise RuntimeError(f"{parsed.hostname} returned {resp.status}: {err}")
+                raise RuntimeError(f"{parsed.hostname} returned {status}: {err}")
             data = json.loads(raw)
             choices = data.get("choices") or []
             if not choices:
@@ -505,7 +649,9 @@ def complete(
                 summary = _logprob_summary(choices[0], tokens=logprobs == "tokens")
                 if summary:
                     first["_logprobs"] = summary
-            report_usage(first, hosted=_hosted_qwen_url(base_url))
+            # the account proxy meters on the server; only the shared pool
+            # needs the client to report what it used
+            report_usage(first, hosted=_client_metered(base_url))
             return first
         except Exception as exc:
             last_err = exc
