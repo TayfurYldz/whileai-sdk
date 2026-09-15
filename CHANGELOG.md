@@ -3,6 +3,15 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## 0.44 (2026-09-15)
+
+- README: `recommend()` gets its own section, *How much to run*. Testers
+  found it via `dir(zps)`. The five-call example now says its
+  `situations=200, repeats=8` is a guess and points at the call that
+  replaces it with numbers from the agent's own grid (#209).
+- Template writer: readable intents, larger phrase pools, identifiers keep
+  their case (#205).
+
 ## 0.43 (2026-09-15)
 
 - `examples/safety-evals-marketplace`, `blog/marketplace-agent-safety-evals.md`:
