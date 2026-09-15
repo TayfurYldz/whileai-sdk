@@ -290,6 +290,7 @@ installable `verifiers` package, the shape Prime Intellect and TRL read.
 ```python
 data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
 data.grade()
+# reward and world must import by name in the trainer: a module-level function or "module:attr"
 zps.export_environment(data, "envs/github-agent", reward=my_verifier)
 # pip install -e envs/github-agent
 # vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
@@ -921,6 +922,7 @@ hosted GPU with warm replicas and burst under load.
 | `traces` | `None` | Graded traces (row dicts or a JSONL path) that aim the coverage grid at observed failures. [Close the loop](#close-the-loop-aim-the-budget-with-traces) |
 | `tasks` | `None` | Re-run a previous run's task set. Copies the prompts, not the topology: k comes from *this* call's `mode`/`repeats`, so re-pass them |
 | `grader` | `None` | A judge callable run beside the rollouts as they land; `mode="rl"` allocation then reads rewards instead of behavior signatures |
+| `execute` | `None` | Your own world answers tool calls: `execute(tool_name, arguments) -> result`. The SDK's fault schedule does not apply, so difficulty is your world's job; a rollout that calls no tool never invokes it; `generate.agents.current_rollout` (prompt, rollout index) names the rollout being answered, for per-rollout state |
 | `execute` | `None` | `(tool, arguments) -> result`: your real world answers every tool call instead of the mock one |
 | `requests_per_situation` | from mode | Phrasings per situation (n). Alias `phrasings=` / `n=` |
 | `rollouts_per_request` | from mode | Repeats per phrasing (k). Alias `repeats=` |
