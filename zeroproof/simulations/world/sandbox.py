@@ -941,12 +941,12 @@ class MockEnvironment:
         if mode == "malformed":
             return {"status": "ok", "data": "<<garbled resp0nse"}
         if mode == "stale":
-            return {
-                "status": "ok",
-                "data": {"result": self._digest(tool, arguments)},
-                "stale": True,
-                "as_of": "3 days ago",
-            }
+            # A stale answer is a real record as of three days ago, not a
+            # hash. The hash taught agents to invent a shipment, an offer id
+            # or a passing test suite around it, and a rubric judge passed
+            # them: hallucination labeled as good behavior.
+            record = self._payload(tool, self._digest(tool, arguments), arguments)
+            return {"status": "ok", **record, "stale": True, "as_of": "3 days ago"}
         if mode == "permission_denied":
             return {"status": "permission_denied"}
         return None
