@@ -449,6 +449,98 @@ def unpublish(dataset_id: str, *, api_key: str | None = None) -> dict:
     return _call("POST", f"/datasets/{dataset_id}/unpublish", api_key)
 
 
+# ------------------------------------------------------------- grading a finished run
+
+
+def _score_value(value: Any) -> Any:
+    """``True``/``False`` are the natural way to say passed, and land as 1/0 —
+    1.0 because that is the cut's pass rule (``reward >= 1.0``)."""
+    if isinstance(value, bool):
+        return 1.0 if value else 0.0
+    return value
+
+
+def send_score(
+    trace_id: str | None = None,
+    value: float | bool | None = None,
+    *,
+    name: str = "score",
+    scores: Sequence[dict] | None = None,
+    api_key: str | None = None,
+    **fields: Any,
+) -> dict:
+    """Grade a run that has already finished — the number ``cut()`` filters on::
+
+        zps.send_score("4bf92f3577b34da6", 1.0)   # passed
+        zps.send_score("4bf92f3577b34da6", 0.0)   # failed
+        zps.cut(agent="my-agent", kind="rl")      # now there is something to cut
+
+    A run counts as a pass at **1.0 or above**, which is what puts its prompt
+    in the 20-80% band ``cut(kind="rl")`` keeps. Send a 0-to-1 quality number
+    as the verdict and nothing will ever read as a pass; scale it, or send it
+    under its own ``name=`` and leave ``score`` for the verdict.
+
+    This is a call of its own because a judge answers after the run it is
+    judging has closed, and a human disagreeing with the judge answers a day
+    later. Re-sending the same ``name`` is a correction, not a duplicate::
+
+        zps.send_score("4bf92f3577b34da6", 0.82, name="helpfulness")
+        zps.send_score(scores=[{"traceId": t, "value": v} for t, v in graded])
+
+    Any other keyword rides along to every measurement sent: ``label=``,
+    ``pass_at=``, ``max=``, ``description=``, ``direction=``, ``kind=``.
+
+    Returns the gate's reply — ``applied``, plus ``unknown`` (trace ids this
+    account never sent) and ``rejected`` when a batch is partly good. Raises
+    when nothing landed at all, because a typo in a trace id is otherwise a
+    silent success.
+    """
+    extra = {k: v for k, v in fields.items() if v is not None}
+    head = str(trace_id).strip() if trace_id else ""
+    body: dict[str, Any] = {}
+    if head:
+        body["traceId"] = head
+
+    if scores is not None:
+        rows: list[dict[str, Any]] = []
+        for item in scores:
+            row = dict(item)
+            row.setdefault("name", name)
+            for key, val in extra.items():
+                row.setdefault(key, val)
+            if row.get("traceId"):
+                row["traceId"] = str(row["traceId"]).strip()
+            elif not head:
+                raise PlatformError("Every measurement needs a traceId, or pass one for all.")
+            if "value" in row:
+                row["value"] = _score_value(row["value"])
+            rows.append(row)
+        if not rows:
+            raise PlatformError("Nothing to send: `scores` is empty.")
+        body["scores"] = rows
+    else:
+        if not head:
+            raise PlatformError("Pass the trace id of the run you are grading.")
+        if value is None and "label" not in extra:
+            raise PlatformError("Pass a value, or a label= for a measurement that is a word.")
+        body["name"] = str(name)
+        if value is not None:
+            body["value"] = _score_value(value)
+        body.update(extra)
+
+    out = _call("POST", "/v1/scores", api_key, body, require_api_key=True)
+    if out.get("applied"):
+        return out
+    unknown = [str(u) for u in (out.get("unknown") or [])]
+    if unknown:
+        raise PlatformError(
+            f"No run on this account with {'that trace id' if len(unknown) == 1 else 'those trace ids'}: "
+            f"{', '.join(unknown[:3])}. Ids come from the traces page or `zeroproof.list_traces`."
+        )
+    rejected = [str(r.get("error") or r) for r in (out.get("rejected") or [])]
+    raise PlatformError(rejected[0] if rejected else "Nothing was applied.")
+
+
 # ------------------------------------------------------- training data from traces
 
 

@@ -667,11 +667,19 @@ leaves the rest of the eval paired for `compare_runs`.
 The platform's "Make training data" button, as one line:
 
 ```python
+zps.send_score("4bf92f3577b34da6", 1.0)  # this run passed
 zps.cuts(agent="my-agent")  # what a cut would hold
 made = zps.cut(agent="my-agent", kind="rl")  # make it
 zps.pull(made["train"]["datasetId"], "train.jsonl")
 made["holdout"]["datasetId"]  # measure on this, never train on it
 ```
+
+A cut needs a pass or a fail on every run, and a judge answers after the run it
+is judging has closed. `send_score(trace_id, value)` grades a run that already
+ran — **1.0 or above is a pass**, so a 0-to-1 quality number never reads as one;
+send that under its own `name=` and keep `score` for the verdict. Re-sending the
+same name is a correction. Emitting `zeroproof.reward` on the span does the same
+thing when your grader runs inline.
 
 Runs of the same prompt are grouped by `zeroproof.scenario_id`. `kind="rl"` keeps the
 prompts the agent passes some of the time and not always (20% to 80% by default);

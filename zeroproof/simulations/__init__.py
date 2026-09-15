@@ -66,6 +66,7 @@ from .ingest.platform import (
     push_rows,
     refresh_delegated_credential,
     register_agent,
+    send_score,
     unpublish,
     update_dataset,
 )
@@ -339,6 +340,7 @@ __all__ = [
     "score_row",
     "select_for_rl",
     "select_for_sft",
+    "send_score",
     "serve",
     "simulate",
     "simulate_from_traces",
