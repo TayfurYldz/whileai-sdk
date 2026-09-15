@@ -107,12 +107,20 @@ def scripted_agent(message: str) -> dict:
     }
 
 
-def simulate_rows(asks: int = 12, k: int = 8, seed: int = 0, *, concurrency: int = 4) -> list[dict]:
+def simulate_rows(
+    asks: int = 12,
+    k: int = 8,
+    seed: int = 0,
+    *,
+    concurrency: int = 4,
+    seeds: list[str] | None = None,
+) -> list[dict]:
     """``asks`` situations, ``k`` repeats each, graded by the built-in
     conduct grader. Offline: template writer, scripted agent.
     ``reproducible=True`` makes the seed decide which asks are drawn at
     any concurrency; without it completion order steers later draws and
-    the same seed prints different numbers run to run."""
+    the same seed prints different numbers run to run. ``seeds`` are asks
+    kept as drawn, so a run can pin a situation the writer might not draw."""
     data = zps.simulate(
         scripted_agent,
         tools=TOOLS,
@@ -121,6 +129,7 @@ def simulate_rows(asks: int = 12, k: int = 8, seed: int = 0, *, concurrency: int
         repeats=k,
         budget=asks * k,
         seed=seed,
+        seeds=seeds,
         grade=True,
         concurrency=concurrency,
         reproducible=True,

@@ -322,9 +322,32 @@ _QUESTION_START = re.compile(
 )
 
 
+_IDENTIFIER_START = re.compile(r"[a-z0-9._+-]*(?:[_@]|\d)[a-z0-9._+@-]*", re.I)
+
+
+def _lowercase_prose(text: str) -> str:
+    """Lower-case the words; an identifier, email, or code keeps its case."""
+    return " ".join(
+        w if _IDENTIFIER_START.fullmatch(w.rstrip(".,!?;:")) else w.lower() for w in text.split(" ")
+    )
+
+
 def _sentence_case(text: str) -> str:
-    """Ordinary prose: capitalize sentence starts, close with a mark."""
-    out = re.sub(r"(^\s*|[.!?]\s+)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text)
+    """Ordinary prose: capitalize sentence starts, close with a mark.
+
+    A sentence that starts with an identifier, an email address, or a code
+    (``mia_lopez_4821``, ``r4t9xa``, ``jamie@northmail.io``) keeps its case:
+    capitalizing it corrupts the value the agent will pass to a tool.
+    """
+
+    def _cap(m: re.Match) -> str:
+        rest = text[m.end(2) - 1 :]
+        word = re.match(r"\S+", rest)
+        if word and _IDENTIFIER_START.fullmatch(word.group(0).rstrip(".,!?;:")):
+            return m.group(0)
+        return m.group(1) + m.group(2).upper()
+
+    out = re.sub(r"(^\s*|[.!?]\s+)([a-z])", _cap, text)
     out = re.sub(r"\bi\b", "I", out)
     stripped = out.rstrip()
     if stripped and stripped[-1].isalnum():
@@ -342,7 +365,7 @@ def _realize_typed_message(message: str, tags: dict | None) -> str:
     if texture == "typo" and not _looks_typoed(text):
         text = _inject_typo(text)
     if texture == "lowercase":
-        text = text.lower()
+        text = _lowercase_prose(text)
     if texture == "standard":
         text = _sentence_case(text)
     return re.sub(r"[ \t]+", " ", text).strip()

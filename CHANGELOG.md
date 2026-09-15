@@ -24,6 +24,24 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   mention of `get_order`, and "escalated to a human" of `escalate_to_human`;
   before, only the literal snake_case name counted, so every tool of every
   English policy was reported.
+- A user turn textured `lowercase` keeps an identifier, email, or code in
+  its case (`USE-8481` reached the agent as `use-8481`), and one textured
+  `standard` no longer capitalizes an identifier,
+- The mock world's forty record owners are invented pairings (a first
+  name and a surname from different regions) instead of thirty-two
+  common ones, so a generated record names no one in particular.
+- A user turn textured `standard` no longer capitalizes an identifier,
+  email, or code at the start of the line: `mia_lopez_4821` was reaching
+  the agent as `Mia_lopez_4821.`, and the agent then passed the wrong id.
+- The template writer says "escalate to a human", not "escalate a to
+  human", and "check direct flights", not "check a direct flights"; a
+  leading preposition in the tool name stays in front of the noun, plurals
+  take no article, and "user" takes "a".
+- The template writer (`simulator=False`) draws from larger pools: twelve
+  openers, eight closers, three phrasings for every world state, tool
+  condition, stance, and history value, chosen per situation. Before,
+  three openers and one sentence per axis value made every offline row
+  read alike.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
