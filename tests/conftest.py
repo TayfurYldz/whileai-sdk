@@ -8,7 +8,11 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _offline_hosted_simulator(monkeypatch):
+def _offline_hosted_simulator(monkeypatch, tmp_path):
+    # never read the developer's own ~/.zeroproof/credentials.json: a saved
+    # account key would flip the hosted defaults to the account route
+    monkeypatch.setenv("ZEROPROOF_HOME", str(tmp_path / "zeroproof-home"))
+
     def blocked(*_args, **_kwargs):
         raise OSError("hosted simulator disabled in unit tests")
 

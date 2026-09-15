@@ -781,7 +781,7 @@ class Run:
             self.agent_errors += 1
             if not self.first_agent_error:
                 self.first_agent_error = final[len("<agent error: ") :].rstrip(">")
-            auth = _auth_error(final)
+            auth = _auth_error(final[len("<agent error: ") :].rstrip(">"))
             if auth and not self.stopping:
                 # a rejected key fails every rollout the same way; no
                 # allowance, no re-roll, stop on the first one

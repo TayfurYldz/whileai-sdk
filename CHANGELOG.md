@@ -5,6 +5,20 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
+  `zeroproof login` or `zeroproof signup`, the default agent, writer and
+  judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
+  thinking off, Phi-4), which take the zp_ key, enforce the daily
+  allowance with 429 and meter on the server; the client-side usage
+  report stays off for them. `VLLM_API_KEY` still wins and goes to the
+  shared pool. A spent allowance stops the run (`*_quota_exceeded`)
+  instead of retrying into the clock. Before this a fresh signup could not
+  run anything hosted.
+- The hosted client follows a 3xx to its Location. Modal answers a web
+  request past 150 seconds with a 303 to a result URL that blocks until
+  the work is done, which a scale-to-zero judge's cold start exceeds;
+  before this the first call read the redirect's empty body as the reply
+  and the run graded as unreachable.
 - A key the hosted endpoint rejects (401/403) stops `simulate()` on the
   first writer wave or rollout that sees it and raises, the way a missing
   key already failed at setup. Before this the run spent its whole time

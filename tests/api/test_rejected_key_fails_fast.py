@@ -32,7 +32,7 @@ def _rejected_agent(message: str) -> dict:
 
 def test_rejected_key_on_the_agent_stops_on_the_first_rollout():
     t0 = time.monotonic()
-    with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)"):
+    with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)\.$"):
         zps.simulate(
             _rejected_agent,
             tools=TOOLS,
