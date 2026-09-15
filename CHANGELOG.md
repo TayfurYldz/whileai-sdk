@@ -5,6 +5,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- The mock world's forty record owners are invented pairings (a first
+  name and a surname from different regions) instead of thirty-two
+  common ones, so a generated record names no one in particular.
 - A user turn textured `standard` no longer capitalizes an identifier,
   email, or code at the start of the line: `mia_lopez_4821` was reaching
   the agent as `Mia_lopez_4821.`, and the agent then passed the wrong id.
