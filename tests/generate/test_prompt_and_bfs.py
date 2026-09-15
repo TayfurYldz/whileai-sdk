@@ -1698,3 +1698,16 @@ def test_identifier_answers_are_not_echoes():
         _echoes_agent("please provide your user profile and verify the baggage update", ask_id)
         is True
     )
+
+
+def test_intent_for_tool_keeps_prepositions_and_plurals_readable():
+    from zeroproof.simulations.generate.scenarios import intent_for_tool
+
+    assert intent_for_tool("escalate_to_human") == "escalate to a human"
+    assert intent_for_tool("transfer_to_human_agents") == "transfer to human agents"
+    assert intent_for_tool("search_direct_flights") == "check direct flights"
+    assert intent_for_tool("getUserDetails") == "check user details"
+    assert intent_for_tool("get_user") == "check a user"
+    assert intent_for_tool("get_order") == "check an order"
+    assert intent_for_tool("ping") == "ping something"
+

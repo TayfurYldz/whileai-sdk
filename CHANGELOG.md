@@ -5,6 +5,15 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- The template writer says "escalate to a human", not "escalate a to
+  human", and "check direct flights", not "check a direct flights"; a
+  leading preposition in the tool name stays in front of the noun, plurals
+  take no article, and "user" takes "a".
+- The template writer (`simulator=False`) draws from larger pools: twelve
+  openers, eight closers, three phrasings for every world state, tool
+  condition, stance, and history value, chosen per situation. Before,
+  three openers and one sentence per axis value made every offline row
+  read alike.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
