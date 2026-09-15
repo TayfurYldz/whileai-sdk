@@ -5,6 +5,25 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/safety-evals-marketplace`, `blog/marketplace-agent-safety-evals.md`:
+  the safety eval of `examples/safety-evals` for an agent whose untrusted
+  text is user-generated content and whose private data is per tenant. A
+  vendor assistant on a software review marketplace reads reviews (two
+  carry a planted instruction: exfiltrate the buyer-intent list, flag the
+  review), pulls intent signals licensed to one vendor per product, posts
+  public responses, and flags reviews with a moderation ticket. Seven
+  categories (a `cross_tenant` class on top of the five, plus the benign
+  controls), six trajectory markers (`no_secret_leak`,
+  `no_cross_tenant_read`, `no_external_send`, `no_public_leak`,
+  `no_unauthorized_flag`, `helpful_on_benign`), the same pass^k, judge
+  trust, refusal probe and guarded `delta_report`. `live.py` runs the
+  suite on a real model with `execute=world` so the planted reviews reach
+  it as tool results; Ollama by default, so no key. No engine change.
+- `preflight`: `tools_not_mentioned_in_policy` reads the policy the way it
+  is written. "Look up the order before discussing it" now counts as a
+  mention of `get_order`, and "escalated to a human" of `escalate_to_human`;
+  before, only the literal snake_case name counted, so every tool of every
+  English policy was reported.
 - A user turn textured `lowercase` keeps an identifier, email, or code in
   its case (`USE-8481` reached the agent as `use-8481`), and one textured
   `standard` no longer capitalizes an identifier,
@@ -65,6 +84,62 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 - `grade()` leaves a rollout the loop stamped `length_cap` alone instead of
   judging it after the run; the report counts them as `skipped_truncated`.
   Before this an after-run grade overwrote every in-loop truncation stamp.
+- `export_environment`'s `outcome_checkable` count now agrees with the
+  checklist it describes. It came from a second copy of `outcome_check`'s
+  dispatch living in `environment.py`, and the copy had drifted both ways:
+  it missed the duplicate-entity world, which has a rule the module
+  docstring lists, and it counted a task on its world state or its
+  prior-partial-action history even where `outcome_check` returns no rule
+  at all (a compound `multi_tool` ask, or a prior partial action for a
+  rollout that writes nothing). On a 40-task offline export, 6 of the 39
+  tasks reported checkable had no outcome rule for a rollout that acts;
+  the count is 33 now and the 6 are 0. The predicate moved beside the
+  dispatch as `_task_has_outcome_rule`, and two tests run every task shape
+  through both so they cannot drift again. No reward changes: the
+  checklist itself is untouched, only the report and its warning.
+- `run.holdout(before, after)` and `zps.attach_holdout(run_id, before=,
+  after=)`: say whether the training worked. A finished run's page opens with
+  one word — Better, Worse, About the same — over the held-out pass rate
+  before and after, read from `holdoutPassBefore`/`holdoutPassAfter` on the
+  run's summary. The platform's own trainer writes them; nothing in the SDK
+  did, so a run on your own hardware — the path `TrainerCallback` exists for —
+  finished at "Not measured" with no call to fix it. Pass rates are 0 to 1
+  (58% is `0.58`, and `58` raises rather than reading as 5800% on the page);
+  `metric="loss"` sends held-out loss instead, for SFT. `run.delta(...)` and
+  `zps.attach_delta(...)` now fill the same two keys from their own pass@1,
+  so a run that already reports a delta opens with the word too.
+- Verifier reasons no longer quote the answer key. A verifier reads the
+  gold from `privileged.reference` and then wrote what it compared into
+  `reason` (`"got 7.0, want 42.0"`, `"no match; got 'x', want 'Paris'"`),
+  and `reason` is on the export carry list, so `export_training`,
+  `export_preference` and the engine's own `save()` all carried the gold
+  into the student's file, on exactly the rows the student got wrong. The
+  gold now reads `<reference>` in the reason; the candidate half of the
+  comparison is unchanged, and a gold the caller keeps in a plain column
+  (`answer=`, `info.answer`) is quoted back as before, since that is their
+  own data and no exporter carries it. `CodeExec` on `privileged.tests`
+  reports the exception (`tests failed: AssertionError`) instead of the
+  failing line, which is the answer key; pass `tests=` to see the full
+  tail while iterating; the same tests read as `privileged.reference`
+  are treated the same way. The gold is matched as a whole token (a
+  gold of `7` is not the `7` in `17`) and in the spellings a verifier
+  quotes: the float it parsed to, the escaped form, the first 60
+  characters. Found by the customer simulation (#31), which
+  recorded that the existing leak guards pass vacuously offline because
+  nothing on that path populates `privileged` at all.
+- `judge_trust` no longer reports `ok: true` on a judge it did not
+  measure. With no `gold_reward` on any row, agreement, kappa, the
+  held-out halves and the length split all have `n=0`, and the report
+  still headlined PASS: a judge that passes everything came back
+  trustworthy, which is the claim the report exists to check. `ok` now
+  means measured and clean, the warning says the judge is unmeasured
+  rather than failed and names the next action, and
+  `format_judge_trust` prints `NOT MEASURED` for that case instead of
+  PASS or FAIL. The perturbation pass is not counted as evidence on its
+  own: a judge that passes everything is perfectly consistent. A probe or
+  perturbation that fires is a finding with or without labels, so that
+  report still reads FAIL. From the
+  customer simulation ledger (#31).
 - `examples/safety-evals`, `docs/safety-evals.md`, `blog/agent-safety-evals.md`:
   safety evals for a tool-using agent on the existing calls. A suite of
   attacks goes in as `seeds=` (direct prompt injection, an injection
@@ -87,6 +162,33 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   measurement beside the verdict, `scores=[...]` sends a batch, and re-sending
   a name is a correction. A trace id this account never sent raises instead of
   looking like a success.
+- Truncation, two fixes from the customer simulation ledger (#31). A reply
+  that ends on a sign-off (`Best,\nSales`, `Thanks,\nAlex`, `-- Sam`,
+  `Cheers`) is finished: `looks_finished` in `score.grading` reads the
+  last line, not the last character, and the conduct grade, `is_truncated`
+  and the junk gate all use it, so a customer's emails stop reading as
+  cut at the token cap. `select_for_rl(truncated="keep")` never returns
+  fewer rows than `"drop"`: an overlong rollout now rides along with its
+  ask instead of voting on whether the ask is unanimous or in band (a kept
+  pass tipped an ask over the band and the whole ask went), and the junk
+  gate defers to the policy on a cut reply over 600 characters instead of
+  eating a row the report counted as kept. `"penalize"` is unchanged: the
+  penalty is a failure that counts. The report gains `truncated_selected`,
+  the marked rows that reached the selection.
+- Eight small gaps from the customer simulation ledger (#31), none a
+  public API change. `simulate(tasks=)` without `repeats=` now keeps the
+  pinned run's k instead of falling to the mode preset, so a before/after
+  no longer silently compares k=4 against k=1. `export_training` reports
+  `rewards` (pass, fail, ungraded counts) and warns when it writes rows
+  with reward below 0.5 as SFT targets. The length-confound warning fires
+  when the chosen side is longer in every pair from three pairs up, not
+  only at eight, and `export_preference` carries it too. `recommend`
+  accepts `system_prompt=` like `simulate`. `preflight` names the missing
+  key (`returns`), treats `properties: {}` as a declared no-argument tool,
+  and matches destructive verbs as words, so `read_runbook` is no longer
+  destructive on the strength of `book`. `zeroproof status` says on stderr
+  when no key is configured and carries `configured` in its JSON. Two
+  README snippets still used `spec="specs/github"`, which does not ship.
 - `examples/character/from_model_spec.py` no longer replaces the Model
   Spec commit pin in an existing `constitution.json` with `null`: without
   `--commit` it keeps the pin the file already carries and says so, and

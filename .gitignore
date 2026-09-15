@@ -48,6 +48,8 @@ examples/hosted-loop/hosted-loop.json
 !examples/verifiers/
 !examples/reward-hacking/
 !examples/safety-evals/
+!examples/safety-evals-marketplace/
+examples/safety-evals-marketplace/*.json
 examples/character/out/
 examples/identity/out/
 
