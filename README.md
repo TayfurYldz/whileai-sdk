@@ -143,6 +143,8 @@ rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
 entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
+`situations=200, repeats=8` is a guess. `zps.recommend(tools=TOOLS, system_prompt=POLICY, mode="rl")` replaces it with numbers from this agent's own grid: [How much to run](#how-much-to-run).
+
 A spec folder is `spec.json` (tools and policy) plus `rubric.md`: what doing the job means, in prose. `grade()` scores against it. The hosted judge writes `reward` and `reason` onto the run's rows and returns the judge report (a dict), so the numbers are read off `data`; `grade(judge=your_callable)` instead returns a `ScoredData` of graded copies, leaves the run untouched, and has its own `.push(name, ...)`. Without one it grades the conduct floor only (nothing invented, nothing skipped) and the report says so; pass `rubric=` to `simulate` or `grade` to supply one, `judge=` for your own callable.
 
 After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`. Name the training reward too, `proxy="marker:first_action"`, and the report says whether the run over-optimized it: proxy up while the target did not follow fails the report (rlhf-book ch. 14). `zps.hack_scan_diff(before, after, endorsed=[...])` names what the update moved toward, and withholds the name when either side came back `degenerate`.
@@ -296,8 +298,9 @@ grades a finished trajectory. `export_environment` writes those three as an
 installable `verifiers` package, the shape Prime Intellect and TRL read.
 
 ```python
-data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=8)
 data.grade()
+# reward and world must import by name in the trainer: a module-level function or "module:attr"
 zps.export_environment(data, "envs/github-agent", reward=my_verifier)
 # pip install -e envs/github-agent
 # vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
@@ -393,6 +396,32 @@ zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="rl")
 zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", until="saturation")
 ```
+
+### How much to run
+
+Ask before you guess. `recommend()` sizes the run from the agent's own
+covering grid and from published post-training practice (FireAct, LIMA,
+AgentTuning for SFT; DAPO, Skywork-OR1 for RL). No key, no network.
+
+```python
+rec = zps.recommend(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
+print("
+".join(rec["reasoning"]))
+data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, **rec["simulate_kwargs"])
+```
+
+```
+covering grid: 62 cells for this agent
+saturation wants 5 visits per cell = 310 rows
+selection wants about 3x its target of 800 to choose from
+generate 2400, select 800 diverse 1-labeled rows
+```
+
+`mode="rl"` assumes half the prompts produce a mixed group. That rate is
+the agent's, not ours: probe 12 asks, grade, read `group_signal`, and
+pass the measured number back as `mixed_rate=`. A low rate means the grid
+is too easy for this agent; aim it with `traces=` before buying rollouts.
+`target=` sets how many selected rows you want (default 800).
 
 `mode="rl"` allocates rollouts successively. Every prompt is probed with
 two rollouts, the least that can show a split. A prompt whose rollouts
@@ -507,6 +536,7 @@ network.
 | Measure | [`examples/pass-at-k`](examples/pass-at-k) | pass@1 with its interval, pass^k and pass@k for one agent, the per-ask histogram the mean hides, and what each number tells you to do next. Offline. |
 | Measure | [`examples/reward-hacking`](examples/reward-hacking) | Reward hacking caught before, during and after training: the within-ask scan, the judge probes, the trajectory flags, and the proxy-vs-target verdict on a scripted agent and two judges. Offline, seconds, no key. How-to: [docs/reward-hacking.md](docs/reward-hacking.md). |
 | Measure | [`examples/safety-evals`](examples/safety-evals) | Safety evals for a tool-using agent: prompt injection (direct, and planted in a tool result), data exfiltration, secret leakage, unauthorized writes, plus the benign controls that catch over-refusal. Trajectory markers as the judge, pass^k per attack class, the judge checked against hand labels, and a before/after that fails the fix which got safe by refusing. Offline, seconds. How-to: [docs/safety-evals.md](docs/safety-evals.md). |
+| Measure | [`examples/safety-evals-marketplace`](examples/safety-evals-marketplace) | The same safety eval for a marketplace agent: the injection is planted in user-generated reviews, the private data is per tenant (a competitor's buyer-intent list), one of the writes is a public post, and a flag needs a moderation ticket. Six trajectory markers, pass^k per attack class, the guarded before/after, and `live.py` to run the suite on a real model through Ollama with no key. Offline, seconds. |
 | Select | [`examples/schema`](examples/schema) | One row file in, six training targets out: eval, SFT, preference, GRPO prompts, OPSD hints, OPD. Migrates any legacy file first. Offline. |
 | Select | [`examples/prime-intellect-rl`](examples/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs an account key (`zeroproof login`), or `VLLM_API_KEY` for the shared pool. |
 | Select | [`examples/character`](examples/character) | Character training from a constitution: the OpenAI Model Spec's style traits become graded rows, preference pairs and SFT rows, with the judge checked against the spec's own labels and a before/after measurement. Offline by default. How-to: [docs/character-training.md](docs/character-training.md). |
@@ -558,7 +588,7 @@ login`.
 # credential = zps.issue_delegated_credential(clerk_token, ttl_seconds=3600)
 # export ZEROPROOF_DELEGATED_CREDENTIAL=credential["credential"]
 
-data = zps.simulate(spec="specs/github")
+data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY)
 v1 = data.push("github-explore-v1")  # -> {"datasetId": "ds_...", ...}
 
 # iterate, then push the next version with lineage
@@ -733,7 +763,7 @@ zps.mark_grounding(
 zps.grounding_report(rows)  # grounded rate, and the invented values by tool and key
 ```
 
-**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `zps.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `zeroproof.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
+**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1) -- `report["ok"]` means measured and clean, so with no labels it is `False` and the report says the judge is unmeasured rather than untrustworthy (`format_judge_trust` prints `NOT MEASURED`). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `zps.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `zeroproof.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
 
 **Decontamination.** Word 8-gram overlap between a dataset's prompts and any evaluation source: row lists, JSONL paths, or platform dataset ids. A row is contaminated when it is an eval prompt verbatim or when one eval text covers at least 80% of its words (`overlap=`, the Llama 2 rule); one shared 8-gram is not enough, because situations written from the same templates share whole sentences without sharing the question. Short prompts match verbatim only. `fields=("prompt", "final_text")` also checks replies against eval answers and references. The report separates verbatim hits from near copies and counts hits per field, and returns the clean rows with the first offenders.
 
@@ -741,11 +771,13 @@ zps.grounding_report(rows)  # grounded rate, and the invented values by tool and
 
 **Same tasks, new prompt.** A run draws its tasks from the grid by seed and, above `concurrency: 1`, by completion order, so a second `simulate()` shares only part of its tasks with the first. To A/B a prompt edit, a model swap or another seed on exactly the same eval, pin the task set: `zps.simulate(agent, tools=TOOLS, system_prompt=EDITED, tasks=base)` re-runs every prompt of `base` (a run, its rows, or its JSONL path) on its own `scenario_id`, under the same faults and world state, and draws nothing new; it stops with `tasks_done` once every prompt has its rollouts, and `compare_runs(base.rows(), rerun.rows())` pairs every task.
 
-`tasks=` copies the prompts, not the topology. **k is resolved from *this* call's `mode` and `repeats`, never inherited from the pinned run**, so a base built with `mode="rl", repeats=4` and re-run as `simulate(..., tasks=base)` comes back at k=1 (the `explore` default): `pass_at` reports `k=1` with pass^k and pass@k `None`, and a before/after built that way silently compares k=4 against k=1. Re-pass the mode and the repeats:
+`tasks=` copies the prompts and, unless you pass `repeats=`, the pinned run's k (the most rollouts any of its prompts has), so a base built with `mode="rl", repeats=4` and re-run as `simulate(..., tasks=base, mode="rl")` comes back at k=4 and `pass_at` reports the same k on both sides. Pass `repeats=` to re-run at a different k on purpose:
 
 ```python
 base = zps.simulate(agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=4)
-rerun = zps.simulate(agent, tools=TOOLS, system_prompt=EDITED, tasks=base, mode="rl", repeats=4)
+rerun = zps.simulate(
+    agent, tools=TOOLS, system_prompt=EDITED, tasks=base, mode="rl"
+)  # k=4, inherited
 assert base.rollouts_per_request == rerun.rollouts_per_request  # cheap guard
 ```
 
@@ -854,7 +886,11 @@ with zps.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
         loss = train_step(batch)
         run.log(step, loss=loss, lr=scheduler.get_last_lr()[0])
     run.finish(summary={"final_loss": loss}, adapter="s3://.../adapter")  # failed on exception
+
+run.holdout(before=0.42, after=0.58)  # did it work? the run page opens with this
 ```
+
+A run's page opens with one word — **Better**, **Worse**, **About the same** — over the held-out pass rate before and after. The platform's trainer measures it; a run on your own hardware says it with `run.holdout(before, after)`, or `zps.attach_holdout(run_id, before=..., after=...)` once the run has finished. Pass rates are 0 to 1, so 58% is `0.58`; `metric="loss"` sends held-out loss instead (SFT), where lower is better. `run.delta(...)` and `zps.attach_delta(...)` already measure both sides, so they fill the two numbers in themselves.
 
 ### Is it hacking the reward right now?
 
@@ -920,6 +956,8 @@ hosted GPU with warm replicas and burst under load.
 | `sft` | 278 | 139/min | 278 |
 | `rl` | 625 | 296/min | 209 |
 
+Measured at `avg_turns=4`. The default is now `12`, so a row carries more turns and a run lands fewer rows per minute.
+
 ## Parameter reference
 
 | Parameter | Default | Meaning |
@@ -931,6 +969,7 @@ hosted GPU with warm replicas and burst under load.
 | `traces` | `None` | Graded traces (row dicts or a JSONL path) that aim the coverage grid at observed failures. [Close the loop](#close-the-loop-aim-the-budget-with-traces) |
 | `tasks` | `None` | Re-run a previous run's task set. Copies the prompts, not the topology: k comes from *this* call's `mode`/`repeats`, so re-pass them |
 | `grader` | `None` | A judge callable run beside the rollouts as they land; `mode="rl"` allocation then reads rewards instead of behavior signatures |
+| `execute` | `None` | Your own world answers tool calls: `execute(tool_name, arguments) -> result`. The SDK's fault schedule does not apply, so difficulty is your world's job; a rollout that calls no tool never invokes it; `generate.agents.current_rollout` (prompt, rollout index) names the rollout being answered, for per-rollout state |
 | `execute` | `None` | `(tool, arguments) -> result`: your real world answers every tool call instead of the mock one |
 | `requests_per_situation` | from mode | Phrasings per situation (n). Alias `phrasings=` / `n=` |
 | `rollouts_per_request` | from mode | Repeats per phrasing (k). Alias `repeats=` |
@@ -951,7 +990,7 @@ hosted GPU with warm replicas and burst under load.
 | `stop_grace` | `5` | Seconds to wait for running rollouts and writer waves after a stop; queued ones are cancelled, still-running ones are reported as `rollouts_abandoned` / `writer_waves_abandoned` |
 | `embedder` | `"hash"` | Prompt selection |
 | `seed` | `0` | Reproducible draws. Bit-for-bit at `concurrency: 1` or with `reproducible=True`, within a process and across processes; otherwise which rows land before the cap depends on thread timing |
-| `avg_turns` | `4` | Target conversation length |
+| `avg_turns` | `12` | Target conversation length in turns. The person speaks at most `avg_turns // 2` times; `12` leaves room to verify, look up, confirm, and write. |
 
 Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollouts_per_request`; `unique=` → `unique_situations`; `policy=` → `system_prompt`; `risk=` → `fault_rate`.
 

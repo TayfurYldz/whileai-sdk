@@ -30,10 +30,12 @@ FAILURE_CLASSES = (
     "incompleteness",
 )
 
+# Whole words only, with ``_`` and a case change as separators: ``cancel_order``
+# and ``cancelOrder`` match, ``read_runbook`` (``book``) and ``profile``
+# (``file``) do not.
 _DESTRUCTIVE = re.compile(
-    r"cancel|delete|remove|refund|reverse|transfer|send|update|book|create|"
-    r"file_|close|merge|pay",
-    re.IGNORECASE,
+    r"(?<![a-z])(?i:cancel|delete|remove|refund|reverse|transfer|send|update|"
+    r"book|create|close|merge|pay)(?![a-z])|(?<![a-z])(?i:file_)"
 )
 
 _CLASS_HINTS = (
@@ -104,6 +106,87 @@ def _fn(tool: dict) -> dict:
     return inner if isinstance(inner, dict) else {}
 
 
+# How a policy written in English names a tool: the verb it starts with,
+# or a synonym, plus the nouns in the rest of the name.
+_VERB_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "get": (
+        "get",
+        "look up",
+        "lookup",
+        "look-up",
+        "check",
+        "fetch",
+        "retrieve",
+        "view",
+        "read",
+        "pull",
+    ),
+    "lookup": (
+        "look up",
+        "lookup",
+        "look-up",
+        "check",
+        "find",
+        "verify",
+        "authenticate",
+        "identify",
+    ),
+    "find": ("find", "look up", "search", "check"),
+    "search": ("search", "look up", "find", "check"),
+    "list": ("list", "show", "check"),
+    "check": ("check", "confirm", "verify", "look up"),
+    "verify": ("verify", "verification", "authenticate", "confirm", "check"),
+    "create": ("create", "open", "file", "start", "request", "raise", "log", "submit"),
+    "open": ("open", "create", "file", "raise"),
+    "initiate": ("initiate", "start", "open", "issue", "create", "process", "request"),
+    "request": ("request", "ask for", "submit", "file"),
+    "issue": ("issue", "send", "grant", "give"),
+    "send": ("send", "email", "mail", "forward", "notify", "message"),
+    "update": ("update", "change", "modify", "edit", "set", "adjust"),
+    "change": ("change", "update", "modify", "switch"),
+    "set": ("set", "update", "change"),
+    "cancel": ("cancel", "cancellation", "void"),
+    "delete": ("delete", "remove", "erase"),
+    "remove": ("remove", "delete", "drop"),
+    "reset": ("reset", "change"),
+    "unlock": ("unlock", "lockout", "locked"),
+    "escalate": ("escalate", "escalation", "hand off", "handoff", "transfer", "human"),
+    "transfer": ("transfer", "escalate", "hand off", "handoff", "human"),
+}
+_NAME_STOP = {"to", "a", "an", "the", "of", "for", "by", "and", "or", "in", "on"}
+
+
+def _policy_mentions(name: str, policy: str) -> bool:
+    """True when the policy names the tool, literally or in plain English.
+
+    ``get_order`` is mentioned by "Look up the order before discussing it";
+    ``escalate_to_human`` by "must be escalated to a human". The literal
+    snake_case name still counts. A policy that never names a tool's nouns
+    is still reported.
+    """
+    low = str(policy or "").lower()
+    if not low.strip():
+        return False
+    if name.lower() in low:
+        return True
+    tokens = [
+        t
+        for t in re.split(r"[^a-z0-9]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower())
+        if t
+    ]
+    if not tokens:
+        return False
+    verb, nouns = tokens[0], [t for t in tokens[1:] if t not in _NAME_STOP]
+    if not nouns:
+        return bool(re.search(rf"\b{re.escape(verb)}", low))
+    nouns_seen = all(
+        re.search(rf"\b{re.escape(n[:-1] if len(n) > 4 and n.endswith('s') else n)}", low)
+        for n in nouns
+    )
+    verb_seen = any(re.search(rf"\b{re.escape(v)}", low) for v in _VERB_SYNONYMS.get(verb, (verb,)))
+    return nouns_seen and verb_seen
+
+
 def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
     """Spec-quality report for an agent. Report only; nothing is changed.
 
@@ -122,13 +205,16 @@ def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
     for tool in tools:
         fn = _fn(tool)
         name = str(fn.get("name") or "")
-        params = fn.get("parameters") if isinstance(fn.get("parameters"), dict) else {}
+        raw_params = fn.get("parameters")
+        params: dict = raw_params if isinstance(raw_params, dict) else {}
+        properties = params.get("properties")
         issues: list[str] = []
         if not str(fn.get("description") or "").strip():
             issues.append("no_description")
-        if not ((params or {}).get("properties") or {}):
+        # ``properties: {}`` is a declared no-argument tool, not a missing schema.
+        if not isinstance(properties, dict):
             issues.append("no_parameters_schema")
-        elif not (params or {}).get("required"):
+        elif properties and not params.get("required"):
             issues.append("no_required_fields")
         if not fn.get("returns"):
             issues.append("no_result_shape")
@@ -142,7 +228,8 @@ def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
             f"shape ({', '.join(missing_shapes[:5])}"
             f"{', ...' if len(missing_shapes) > 5 else ''}): grounding is "
             "harder and grounding-style scaffolds can convert fabrication "
-            "into refusal instead of correct service"
+            "into refusal instead of correct service; add a `returns` key "
+            "to each tool (an example result or a JSON schema)"
         )
     for entry in per_tool:
         for issue in entry["issues"]:
@@ -164,12 +251,11 @@ def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
             f"system prompt is {len(policy)} chars: thin policies give the "
             "grid few rules to test and graders little to enforce"
         )
-    named = set()
-    for entry in per_tool:
-        if entry["name"]:
-            named.add(entry["name"].lower())
-    mentioned = {m.lower() for m in re.findall(r"[a-z_]{4,}", policy.lower())}
-    unreferenced = sorted(named - mentioned)
+    unreferenced = sorted(
+        entry["name"].lower()
+        for entry in per_tool
+        if entry["name"] and not _policy_mentions(entry["name"], policy)
+    )
     cells = len(scenario_regions(tools, policy, mode="sft"))
     return {
         "n_tools": len(tools),
