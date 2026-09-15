@@ -136,14 +136,14 @@ data = zps.simulate(
     situations=200,
     repeats=8,
 )  # 1 generate
-scored = data.grade(rubric=RUBRIC)  # 2 grade against the task rubric (0/1 per rollout)
-print(scored.pass_at)
-zps.judge_trust(scored.rows)  # 3 trust the numbers
-rows, report = zps.optimize(scored, mode="rl")  # 4 prune to what carries gradient
+data.grade(rubric=RUBRIC)  # 2 grade against the task rubric: reward 0/1 on every row
+print(data.pass_at)
+zps.judge_trust(data.trajectories)  # 3 trust the numbers
+rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
 entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
-A spec folder is `spec.json` (tools and policy) plus `rubric.md`: what doing the job means, in prose. `grade()` scores against it. Without one it grades the conduct floor only (nothing invented, nothing skipped) and the report says so; pass `rubric=` to `simulate` or `grade` to supply one, `judge=` for your own callable.
+A spec folder is `spec.json` (tools and policy) plus `rubric.md`: what doing the job means, in prose. `grade()` scores against it. The hosted judge writes `reward` and `reason` onto the run's rows and returns the judge report (a dict), so the numbers are read off `data`; `grade(judge=your_callable)` instead returns a `ScoredData` of graded copies, leaves the run untouched, and has its own `.push(name, ...)`. Without one it grades the conduct floor only (nothing invented, nothing skipped) and the report says so; pass `rubric=` to `simulate` or `grade` to supply one, `judge=` for your own callable.
 
 After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`. Name the training reward too, `proxy="marker:first_action"`, and the report says whether the run over-optimized it: proxy up while the target did not follow fails the report (rlhf-book ch. 14). `zps.hack_scan_diff(before, after, endorsed=[...])` names what the update moved toward, and withholds the name when either side came back `degenerate`.
 
@@ -152,7 +152,7 @@ Character training, the same loop aimed at how the model talks: a constitution i
 | Call | What it decides | Reads |
 |---|---|---|
 | `simulate` | the situations, the users, the world, k rollouts per ask | your spec or tools + system prompt |
-| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or a `VLLM_API_KEY` |
+| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or your account key (`zeroproof login`) |
 | `pass_at` / `judge_trust` | pass@1 with an interval, headroom for RL, whether the judge can be trusted | graded rows, 30 to 100 hand labels as `gold_reward` |
 | `optimize(mode="rl")` | drops junk rows, duplicates, dead groups, and asks outside the *difficulty* band; flags reward hacks | graded rows |
 | `push_rows(gate=True)` | refuses ungraded or gradient-free RL data; stamps calibration | pruned rows |
@@ -230,10 +230,18 @@ rows, _ = zps.optimize(scored, mode="rl")  # GRPO data, gradient checked
 The candidate is the rollout's `final_text`; the gold is read from the row's `privileged.reference`, which the training export never projects, so the answer key cannot leak into a training file (flat `answer`/`target`/... fields work too, or point at any column with `field=`). Built in: `ExactMatch`, `Includes`, `Regex`, `MultipleChoice`, `Numeric`, `MathEqual`, `JSONValid`, `JSONSchema`, `JSONField`, and `CodeExec` (runs the candidate against hidden tests in a sandboxed subprocess with a timeout). Compose with `All` (right answer *and* right format), `Any`, or a graded `Weighted` rubric; wrap your own with `@verifier`. Worked example: [`examples/verifiers`](examples/verifiers).
 
 Or use ZeroProof-hosted Qwen, which is the default when no `agent=` is given.
-Ask us for a `VLLM_API_KEY`; the endpoint is shared and rate limited.
+Your account key is enough: `zeroproof login` (or `zeroproof signup --email
+you@example.com`) and the run goes to the account endpoints, Qwen3-4B for
+the writer and the agent and Phi-4 for the judge, on your daily allowance
+(a trial key: 25k input and 50k output tokens a day; after one sign-in:
+100k and 500k). The endpoint refuses with 429 when the allowance is spent
+and the run stops there and says so. `VLLM_API_KEY`, when set, wins and
+goes to the shared pool instead: warm and faster, shared and unmetered;
+ask us for one.
 
 ```bash
-export VLLM_API_KEY=...
+zeroproof login              # or: export ZEROPROOF_API_KEY=zp_...
+export VLLM_API_KEY=...      # optional: the shared pool instead
 ```
 
 No key at all: the situation writer also defaults to hosted Qwen, even when
@@ -289,8 +297,8 @@ installable `verifiers` package, the shape Prime Intellect and TRL read.
 
 ```python
 data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
-scored = data.grade()
-zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+data.grade()
+zps.export_environment(data, "envs/github-agent", reward=my_verifier)
 # pip install -e envs/github-agent
 # vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
 ```
@@ -401,7 +409,8 @@ allocation reads rewards, the signal a grouped update trains on. Without
 a grader it reads behavior signatures, which split more often than the
 judge does.
 Near the end of a `time_budget` the run stops opening groups and finishes
-the ones in flight; a group it still cut is stamped `group_cut`.
+the rollouts in flight; a group still short of k at the whistle is stamped
+`group_cut`.
 `data.search["groups"]` reports mixed, stopped, complete, partial, and
 rollouts saved. `data.pass_at` scores stopped unanimous groups as
 unanimous. `repeat_policy="fixed"` restores k rollouts for every prompt;
@@ -500,7 +509,7 @@ network.
 | Measure | [`examples/safety-evals`](examples/safety-evals) | Safety evals for a tool-using agent: prompt injection (direct, and planted in a tool result), data exfiltration, secret leakage, unauthorized writes, plus the benign controls that catch over-refusal. Trajectory markers as the judge, pass^k per attack class, the judge checked against hand labels, and a before/after that fails the fix which got safe by refusing. Offline, seconds. How-to: [docs/safety-evals.md](docs/safety-evals.md). |
 | Measure | [`examples/safety-evals-marketplace`](examples/safety-evals-marketplace) | The same safety eval for a marketplace agent: the injection is planted in user-generated reviews, the private data is per tenant (a competitor's buyer-intent list), one of the writes is a public post, and a flag needs a moderation ticket. Six trajectory markers, pass^k per attack class, the guarded before/after, and `live.py` to run the suite on a real model through Ollama with no key. Offline, seconds. |
 | Select | [`examples/schema`](examples/schema) | One row file in, six training targets out: eval, SFT, preference, GRPO prompts, OPSD hints, OPD. Migrates any legacy file first. Offline. |
-| Select | [`examples/prime-intellect-rl`](examples/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs `VLLM_API_KEY`. |
+| Select | [`examples/prime-intellect-rl`](examples/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs an account key (`zeroproof login`), or `VLLM_API_KEY` for the shared pool. |
 | Select | [`examples/character`](examples/character) | Character training from a constitution: the OpenAI Model Spec's style traits become graded rows, preference pairs and SFT rows, with the judge checked against the spec's own labels and a before/after measurement. Offline by default. How-to: [docs/character-training.md](docs/character-training.md). |
 | Train | [`examples/hosted-loop`](examples/hosted-loop) | Push graded rows, `zps.train` SFT on Qwen3-4B, `zps.serve` the adapter, one chat completion from the endpoint. One key, one A10G minute; the wiring check for training on the platform. |
 | Train | [`examples/identity`](examples/identity) | Builds a leak-free SFT set that teaches a model a new name and maker, with Modal scripts to train a LoRA and evaluate identity and leak rates. No model calls to generate. |
@@ -646,6 +655,8 @@ Both take `dry_run=True`.
 ```python
 data.push("airline-v3", holdout=0.2)  # train set + a linked holdout set, split by task
 data.push("airline-evals", purpose="eval")  # a set you measure with
+scored = data.grade(judge=my_judge)
+scored.push("airline-rl-v3", gate=True, mode="rl")  # the graded copies, gated
 zps.update_dataset("ds_...", purpose="holdout")
 zps.preview("ds_...")  # three sample rows + the analyzer report
 zps.profile("ds_...")  # pass rate, support, mixed tasks, tool use, per task

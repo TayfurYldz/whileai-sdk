@@ -115,6 +115,37 @@ from .rows import (
 )
 from .spec import apply_spec, backend_spec, kind_from_spec
 
+_AUTH_ERROR_MARKS = (
+    "rejected the API key",
+    "Hosted models need a key",
+    "No API key for",
+    "quota exceeded",
+)
+
+
+def _auth_error(message: str) -> str | None:
+    """The auth error inside a writer or agent failure, or None.
+
+    A key the endpoint rejects (401/403) is a configuration error, not a
+    transient one: no wave and no rollout after it can succeed. The
+    no-key case fails at setup (``missing_hosted_key``); this is the
+    present-but-wrong-key case, which otherwise spent the whole time
+    budget on 401s and returned zero rows with the reason buried in
+    ``search["writer_errors"]``. A spent daily allowance (the account
+    proxy's 429) is the same shape: every later call today answers 429.
+    """
+    text = str(message or "")
+    for mark in _AUTH_ERROR_MARKS:
+        if mark.lower() in text.lower():
+            start = max(text.find("Hosted Qwen"), text.find("Hosted model"))
+            return text[start:] if start >= 0 else text
+    return None
+
+
+def _stop_reason(side: str, message: str) -> str:
+    return f"{side}_quota_exceeded" if "quota" in message.lower() else f"{side}_auth_failed"
+
+
 log = logging.getLogger("zeroproof.simulations")
 
 # How hard a hot trace region pulls cell weight toward itself.
@@ -750,6 +781,13 @@ class Run:
             self.agent_errors += 1
             if not self.first_agent_error:
                 self.first_agent_error = final[len("<agent error: ") :].rstrip(">")
+            auth = _auth_error(final[len("<agent error: ") :].rstrip(">"))
+            if auth and not self.stopping:
+                # a rejected key fails every rollout the same way; no
+                # allowance, no re-roll, stop on the first one
+                self.stopping = True
+                self.agent_dead = True
+                self.auth_error = auth
             if (
                 not self.stopping
                 and not self.data.trajectories
@@ -775,6 +813,7 @@ class Run:
         self.first_agent_error = ""
         self.agent_error_allowance = max(DEAD_AGENT_MIN_ERRORS, 2 * int(c.cap or 0))
         self.agent_dead = False
+        self.auth_error: str | None = None
         self.writer_idle = 0
         self.restart_count = 0
         # Starvation relief: when every situation slot is used but rows are
@@ -825,6 +864,7 @@ class Run:
         self.hazard_seen: dict[int, int] = {}
         self.hazard_split: dict[int, int] = {}
         self.rollout_durations: list[float] = []
+        self.writer_fallback_error = ""
         # Judge in the loop: verdicts run beside the rollouts, never in
         # front of them. A row's allocation decision waits for its verdict.
         self.judge_pool = concurrent.futures.ThreadPoolExecutor(
@@ -1171,10 +1211,19 @@ class Run:
                 gen.last_errors["llm_guided"] = msg
             else:
                 gen.last_errors["llm_guided"] = f"{type(exc).__name__}: {exc}"
+            auth = _auth_error(msg)
+            if auth:
+                self.data.stopped_because = _stop_reason("writer", auth)
+                raise RuntimeError(auth) from None
             return 0
         gen.meta.update(metas)
         gen.fault_plans.update(plans)
         gen.last_errors.update(errors)
+        for err in (errors or {}).values():
+            auth = _auth_error(err)
+            if auth:
+                self.data.stopped_because = _stop_reason("writer", auth)
+                raise RuntimeError(auth) from None
         # sticky: the writer wrote at least once, so a later wave that
         # errors is a writer error, not a template fallback
         if any((m or {}).get("generator") == "model" for m in metas.values()):
@@ -1296,6 +1345,9 @@ class Run:
                     # round's selection seed sees the same state.
                     concurrent.futures.wait(list(self.inflight), timeout=c.hung_slot_s)
             results, jobs_for = self._collect()
+            if self.auth_error:
+                data.stopped_because = _stop_reason("agent", self.auth_error)
+                raise RuntimeError(self.auth_error) from None
             if self.agent_dead:
                 data.stopped_because = "agent_failed"
                 break
@@ -1448,6 +1500,10 @@ class Run:
             and "generator_fallback" not in data.degraded
         ):
             data.degraded.append("generator_fallback")
+            # keep the hosted writer's last error: the template writer that
+            # takes over knows nothing about a custom spec, and a run that
+            # ends with no rows must be able to say why
+            self.writer_fallback_error = str(gen.last_errors.get("llm_guided") or "")
         if unused and any((gen.meta.get(p) or {}).get("arm") for p in unused):
             note_stage(data, "generated candidate with arm provenance")
         return unused
@@ -2521,6 +2577,26 @@ class Run:
             # the note was set while the first waves were still in flight;
             # every prompt in the model path is model-written or nothing
             data.degraded.remove("generator_fallback")
+        cut_in_flight = (
+            "abandoned_rollouts" in data.search or "abandoned_writer_waves" in data.search
+        )
+        if not data.trajectories and data.stopped_because != "agent_failed" and not cut_in_flight:
+            # No rows, the agent is not to blame, and nothing was still
+            # running when the run stopped: the writer produced no situation
+            # the run could use. "time_budget" here hid a hosted writer that
+            # failed cold for the whole clock (dogfood, 2026-09-15). A clock
+            # stop with work still in flight keeps its own reason.
+            data.stopped_because = "writer_failed"
+            errors = dict(getattr(gen, "last_errors", {}) or {})
+            if getattr(self, "writer_fallback_error", ""):
+                errors.setdefault("llm_guided", self.writer_fallback_error)
+            data.search["writer_errors"] = errors
+            log.warning(
+                "no rows: the writer produced no usable situation in %.0fs (degraded=%s; %s)",
+                time.monotonic() - self.started,
+                ",".join(data.degraded) or "none",
+                errors.get("llm_guided") or "no error text",
+            )
         misses = int(self.turn_stats.get("followup_misses", 0) or 0)
         if misses:
             data.search["followup_misses"] = misses
@@ -2719,6 +2795,9 @@ class Run:
                 "judge": scored.judge_name,
                 "judged_in_loop": self.judged_in_loop,
                 "judged_after": len(pending),
+                "errors": sum(
+                    1 for r in data.trajectories if r.get("judge_status") not in (None, "ok")
+                ),
                 "scored": len(scored),
                 "passes": len(scored.passes()),
                 "failures": len(scored.failures()),
