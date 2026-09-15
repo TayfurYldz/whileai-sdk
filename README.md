@@ -136,10 +136,10 @@ data = zps.simulate(
     situations=200,
     repeats=8,
 )  # 1 generate
-scored = data.grade(rubric=RUBRIC)  # 2 grade against the task rubric (0/1 per rollout)
-print(scored.pass_at)
-zps.judge_trust(scored.rows)  # 3 trust the numbers
-rows, report = zps.optimize(scored, mode="rl")  # 4 prune to what carries gradient
+data.grade(rubric=RUBRIC)  # 2 grade against the task rubric: reward 0/1 on every row
+print(data.pass_at)
+zps.judge_trust(data.trajectories)  # 3 trust the numbers
+rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
 entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
@@ -289,8 +289,8 @@ installable `verifiers` package, the shape Prime Intellect and TRL read.
 
 ```python
 data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
-scored = data.grade()
-zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+data.grade()
+zps.export_environment(data, "envs/github-agent", reward=my_verifier)
 # pip install -e envs/github-agent
 # vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
 ```
@@ -401,7 +401,8 @@ allocation reads rewards, the signal a grouped update trains on. Without
 a grader it reads behavior signatures, which split more often than the
 judge does.
 Near the end of a `time_budget` the run stops opening groups and finishes
-the ones in flight; a group it still cut is stamped `group_cut`.
+the rollouts in flight; a group still short of k at the whistle is stamped
+`group_cut`.
 `data.search["groups"]` reports mixed, stopped, complete, partial, and
 rollouts saved. `data.pass_at` scores stopped unanimous groups as
 unanimous. `repeat_policy="fixed"` restores k rollouts for every prompt;
