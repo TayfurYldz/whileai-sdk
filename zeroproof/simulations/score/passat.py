@@ -21,12 +21,12 @@ Judge noise: with an LLM judge, pass@k inflates on false positives and
 pass^k inflates on false negatives. pass@1 is the least sensitive of the
 three, which is why it carries the headline.
 
-Intervals: only ``pass@1`` carries one (``.ci95``, a task bootstrap).
-``pass^k`` and ``pass@k`` are point estimates — there is no ``ci95`` for
-them and none is computed. To report the reliability line with an
-interval, do it over tasks yourself: the per-group values are
-``.per_task``, and ``score.stats.bootstrap_ci`` / ``wilson_interval``
-take a vector of them.
+Intervals: all three carry a 95% percentile bootstrap over tasks
+(rlhf-book ch. 16: intervals come from resampling prompts, never rows).
+``.ci95`` is pass@1's; ``.pass_pow_k_ci95`` and ``.pass_at_k_ci95``
+resample the per-group unbiased estimates of the k-eligible groups, so
+the reliability line is reported with the uncertainty of the tasks it
+was measured on. Fewer than three groups gives ``None``.
 """
 
 from __future__ import annotations
@@ -83,9 +83,12 @@ class PassAt:
     #: pass-rate vector pass@1 averages and ``ci95`` bootstraps.
     per_task: dict[str, float] = field(default_factory=dict)
     note: str = ""
-    #: task-bootstrap 95% interval on **pass@1 only**. ``pass_pow_k`` and
-    #: ``pass_at_k`` carry no interval; there is no field for one.
+    #: task-bootstrap 95% interval on pass@1
     ci95: tuple[float, float] | None = None
+    #: task-bootstrap 95% intervals on pass^k and pass@k, over the
+    #: k-eligible groups' per-group estimates; ``None`` when those are
+    pass_pow_k_ci95: tuple[float, float] | None = None
+    pass_at_k_ci95: tuple[float, float] | None = None
 
     @property
     def headroom(self) -> float | None:
@@ -107,16 +110,22 @@ class PassAt:
             "n_rows": self.n_rows,
             "note": self.note,
             "ci95": list(self.ci95) if self.ci95 else None,
+            "pass_pow_k_ci95": list(self.pass_pow_k_ci95) if self.pass_pow_k_ci95 else None,
+            "pass_at_k_ci95": list(self.pass_at_k_ci95) if self.pass_at_k_ci95 else None,
         }
 
     def __str__(self) -> str:
         def fmt(value: float | None) -> str:
             return "n/a" if value is None else f"{value:.2f}"
 
-        ci = f" [{self.ci95[0]:.2f}..{self.ci95[1]:.2f}]" if self.ci95 else ""
+        def band(ci: tuple[float, float] | None) -> str:
+            return f" [{ci[0]:.2f}..{ci[1]:.2f}]" if ci else ""
+
         head = (
-            f"pass@1 {fmt(self.pass_at_1)}{ci} | pass^{self.k} {fmt(self.pass_pow_k)} | "
-            f"pass@{self.k} {fmt(self.pass_at_k)} | headroom {fmt(self.headroom)}"
+            f"pass@1 {fmt(self.pass_at_1)}{band(self.ci95)} | "
+            f"pass^{self.k} {fmt(self.pass_pow_k)}{band(self.pass_pow_k_ci95)} | "
+            f"pass@{self.k} {fmt(self.pass_at_k)}{band(self.pass_at_k_ci95)} | "
+            f"headroom {fmt(self.headroom)}"
         )
         tail = f"({self.n_groups} groups, k={self.k}"
         if self.note:
@@ -182,6 +191,8 @@ def pass_at(
     note = ""
     pass_pow_k: float | None = None
     pass_at_k: float | None = None
+    pow_vals: list[float] = []
+    at_vals: list[float] = []
     sizes = sorted(set(multi))
     uneven = k is None and len(sizes) > 1
     if resolved_k < max(1, int(min_k)):
@@ -223,6 +234,8 @@ def pass_at(
         per_task=per_task,
         note=note,
         ci95=bootstrap_ci(list(per_task.values())),
+        pass_pow_k_ci95=bootstrap_ci(pow_vals) if pass_pow_k is not None else None,
+        pass_at_k_ci95=bootstrap_ci(at_vals) if pass_at_k is not None else None,
     )
 
 

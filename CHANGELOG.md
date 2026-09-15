@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `pass_at` reports a 95% task-bootstrap interval on pass^k and pass@k
+  (`pass_pow_k_ci95`, `pass_at_k_ci95`), not only on pass@1, and prints
+  them. The reliability line a safety eval reads per attack class was a
+  bare number (rlhf-book ch. 16: intervals from resampling prompts).
+
 - Judging: a verifier's identity and metadata survive onto the scored row
   (#196). `normalize_judge_result` swept a verdict's own `judge_meta` in as
   an ordinary key, nesting it under itself, so `row["judge_meta"]["verifier"]`
