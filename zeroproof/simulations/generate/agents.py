@@ -829,8 +829,8 @@ def _want_followup(
     """True when the human would naturally speak again.
 
     A question or refusal earns an answer while the turn budget has
-    room: the depth cap is ``budget // 2`` user turns (avg_turns=4
-    allows 2, avg_turns=8 allows 4). After a completed action about
+    room: the depth cap is ``budget // 2`` user turns (avg_turns=12
+    allows 6, avg_turns=4 allows 2). After a completed action about
     half of people react or ask the next thing, when the thread has
     budget for it. Short-budget threads still end on the agent.
     """

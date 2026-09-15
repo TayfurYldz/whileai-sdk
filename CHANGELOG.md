@@ -5,6 +5,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `avg_turns` defaults to `12` (was `4`). The person speaks at most
+  `avg_turns // 2` times, so the old default ended most verify, look up,
+  confirm, write flows on the agent's second question (a scripted
+  order-support agent reached the write in 2 of 40 rows; 5 of 40 at
+  `12`, the rest stopping correctly on missing records). Model-backed
+  rows carry more turns now; pass `avg_turns=4` for the old length.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
