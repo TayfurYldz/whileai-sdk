@@ -5,6 +5,19 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- A key the hosted endpoint rejects (401/403) stops `simulate()` on the
+  first writer wave or rollout that sees it and raises, the way a missing
+  key already failed at setup. Before this the run spent its whole time
+  budget on 401s and returned zero rows, with the reason only in
+  `search["writer_errors"]`. `stopped_because` is `writer_auth_failed` or
+  `agent_auth_failed`.
+- `ScoredData.push(name, ...)`: `push_rows` on the graded copies, so the
+  object `grade(judge=)` returns can make a gated RL push.
+- `zeroproof.list_traces()` resolves the key like every other platform
+  call (argument, `ZEROPROOF_API_KEY`, then the saved credentials) instead
+  of requiring it as a positional argument; the skill's snippet follows.
+- README: the hosted `data.grade(rubric=)` grades in place and returns the
+  judge report, so the quickstart reads `data.pass_at`, not `scored.pass_at`.
 - A run that ends with no rows, no agent failure, and nothing still in
   flight stops as `writer_failed`, keeps the hosted writer's last error in
   `search["writer_errors"]`, and warns. Before this a hosted writer that

@@ -115,6 +115,37 @@ from .rows import (
 )
 from .spec import apply_spec, backend_spec, kind_from_spec
 
+_AUTH_ERROR_MARKS = (
+    "rejected the API key",
+    "Hosted models need a key",
+    "No API key for",
+    "quota exceeded",
+)
+
+
+def _auth_error(message: str) -> str | None:
+    """The auth error inside a writer or agent failure, or None.
+
+    A key the endpoint rejects (401/403) is a configuration error, not a
+    transient one: no wave and no rollout after it can succeed. The
+    no-key case fails at setup (``missing_hosted_key``); this is the
+    present-but-wrong-key case, which otherwise spent the whole time
+    budget on 401s and returned zero rows with the reason buried in
+    ``search["writer_errors"]``. A spent daily allowance (the account
+    proxy's 429) is the same shape: every later call today answers 429.
+    """
+    text = str(message or "")
+    for mark in _AUTH_ERROR_MARKS:
+        if mark.lower() in text.lower():
+            start = max(text.find("Hosted Qwen"), text.find("Hosted model"))
+            return text[start:] if start >= 0 else text
+    return None
+
+
+def _stop_reason(side: str, message: str) -> str:
+    return f"{side}_quota_exceeded" if "quota" in message.lower() else f"{side}_auth_failed"
+
+
 log = logging.getLogger("zeroproof.simulations")
 
 # How hard a hot trace region pulls cell weight toward itself.
@@ -750,6 +781,13 @@ class Run:
             self.agent_errors += 1
             if not self.first_agent_error:
                 self.first_agent_error = final[len("<agent error: ") :].rstrip(">")
+            auth = _auth_error(final)
+            if auth and not self.stopping:
+                # a rejected key fails every rollout the same way; no
+                # allowance, no re-roll, stop on the first one
+                self.stopping = True
+                self.agent_dead = True
+                self.auth_error = auth
             if (
                 not self.stopping
                 and not self.data.trajectories
@@ -775,6 +813,7 @@ class Run:
         self.first_agent_error = ""
         self.agent_error_allowance = max(DEAD_AGENT_MIN_ERRORS, 2 * int(c.cap or 0))
         self.agent_dead = False
+        self.auth_error: str | None = None
         self.writer_idle = 0
         self.restart_count = 0
         # Starvation relief: when every situation slot is used but rows are
@@ -1172,10 +1211,19 @@ class Run:
                 gen.last_errors["llm_guided"] = msg
             else:
                 gen.last_errors["llm_guided"] = f"{type(exc).__name__}: {exc}"
+            auth = _auth_error(msg)
+            if auth:
+                self.data.stopped_because = _stop_reason("writer", auth)
+                raise RuntimeError(auth) from None
             return 0
         gen.meta.update(metas)
         gen.fault_plans.update(plans)
         gen.last_errors.update(errors)
+        for err in (errors or {}).values():
+            auth = _auth_error(err)
+            if auth:
+                self.data.stopped_because = _stop_reason("writer", auth)
+                raise RuntimeError(auth) from None
         # sticky: the writer wrote at least once, so a later wave that
         # errors is a writer error, not a template fallback
         if any((m or {}).get("generator") == "model" for m in metas.values()):
@@ -1297,6 +1345,9 @@ class Run:
                     # round's selection seed sees the same state.
                     concurrent.futures.wait(list(self.inflight), timeout=c.hung_slot_s)
             results, jobs_for = self._collect()
+            if self.auth_error:
+                data.stopped_because = _stop_reason("agent", self.auth_error)
+                raise RuntimeError(self.auth_error) from None
             if self.agent_dead:
                 data.stopped_because = "agent_failed"
                 break
