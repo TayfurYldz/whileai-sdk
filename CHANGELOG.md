@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `select_for_rl` and `optimize(mode="rl")` on graded rows that left no
+  mixed group say so (how many unanimous, collapsed and out-of-band groups
+  went) instead of "no row carries a numeric reward; grade first", and
+  report `eval_sourced_input` with the warning even when nothing was
+  selected, so an eval set fed to the selector is visible.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
