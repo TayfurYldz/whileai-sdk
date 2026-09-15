@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.43 (2026-09-15)
 
 - `examples/safety-evals-marketplace`, `blog/marketplace-agent-safety-evals.md`:
   the safety eval of `examples/safety-evals` for an agent whose untrusted
