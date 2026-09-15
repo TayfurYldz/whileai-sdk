@@ -36,6 +36,8 @@ CLI_EXAMPLES = [
     "prime-intellect-rl/generate.py",
     "reward-hacking/run.py",
     "safety-evals/run.py",
+    "safety-evals-marketplace/live.py",
+    "safety-evals-marketplace/run.py",
     "schema/migrate.py",
     "schema/project.py",
     "verifiers/run.py",
