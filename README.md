@@ -953,7 +953,7 @@ Measured at `avg_turns=4`. The default is now `12`, so a row carries more turns 
 | `stop_grace` | `5` | Seconds to wait for running rollouts and writer waves after a stop; queued ones are cancelled, still-running ones are reported as `rollouts_abandoned` / `writer_waves_abandoned` |
 | `embedder` | `"hash"` | Prompt selection |
 | `seed` | `0` | Reproducible draws. Bit-for-bit at `concurrency: 1` or with `reproducible=True`, within a process and across processes; otherwise which rows land before the cap depends on thread timing |
-| `avg_turns` | `12` | Target conversation length in turns. The person speaks at most `avg_turns // 2` times; `12` leaves room to verify, look up, confirm, and write. Was `4`, which ended most service flows on the agent's second question |
+| `avg_turns` | `12` | Target conversation length in turns. The person speaks at most `avg_turns // 2` times; `12` leaves room to verify, look up, confirm, and write. |
 
 Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollouts_per_request`; `unique=` → `unique_situations`; `policy=` → `system_prompt`; `risk=` → `fault_rate`.
 
