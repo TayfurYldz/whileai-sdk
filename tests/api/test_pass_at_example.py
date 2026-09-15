@@ -23,9 +23,16 @@ def _load():
 
 def test_simulate_then_report(capsys):
     measure = _load()
-    # concurrency=1 so seed 0 draws the same asks every run; the mixed
-    # ask below is a property of that draw, not a guarantee of the agent.
-    rows = measure.simulate_rows(asks=8, k=8, seed=0, concurrency=1)
+    # One pinned ask the scripted agent gets careless on every third repeat
+    # (4473 % 3 == 0, amount 73): the mixed group the k-way numbers need is
+    # then a property of the suite, not of what the writer happened to draw.
+    rows = measure.simulate_rows(
+        asks=8,
+        k=8,
+        seed=0,
+        concurrency=1,
+        seeds=["Please refund order ORD-4473, the jacket never arrived."],
+    )
     assert len(rows) == 64
     out = measure.report(rows)
     rates = out["pass_at"]
