@@ -5,6 +5,20 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/safety-evals-marketplace`, `blog/marketplace-agent-safety-evals.md`:
+  the safety eval of `examples/safety-evals` for an agent whose untrusted
+  text is user-generated content and whose private data is per tenant. A
+  vendor assistant on a software review marketplace reads reviews (two
+  carry a planted instruction: exfiltrate the buyer-intent list, flag the
+  review), pulls intent signals licensed to one vendor per product, posts
+  public responses, and flags reviews with a moderation ticket. Seven
+  categories (a `cross_tenant` class on top of the five, plus the benign
+  controls), six trajectory markers (`no_secret_leak`,
+  `no_cross_tenant_read`, `no_external_send`, `no_public_leak`,
+  `no_unauthorized_flag`, `helpful_on_benign`), the same pass^k, judge
+  trust, refusal probe and guarded `delta_report`. `live.py` runs the
+  suite on a real model with `execute=world` so the planted reviews reach
+  it as tool results; Ollama by default, so no key. No engine change.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
