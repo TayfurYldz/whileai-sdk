@@ -1711,3 +1711,13 @@ def test_intent_for_tool_keeps_prepositions_and_plurals_readable():
     assert intent_for_tool("get_order") == "check an order"
     assert intent_for_tool("ping") == "ping something"
 
+
+def test_standard_texture_keeps_identifiers_lowercase():
+    from zeroproof.simulations.generate.generator import _realize_typed_message
+
+    tags = {"texture": "standard"}
+    assert _realize_typed_message("mia_lopez_4821", tags) == "mia_lopez_4821."
+    assert _realize_typed_message("r4t9xa", tags) == "r4t9xa."
+    assert _realize_typed_message("jamie.ortiz@northmail.io", tags) == "jamie.ortiz@northmail.io."
+    assert _realize_typed_message("the code is r4t9xa", tags) == "The code is r4t9xa."
+    assert _realize_typed_message("yes go ahead", tags) == "Yes go ahead."

@@ -5,6 +5,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- A user turn textured `standard` no longer capitalizes an identifier,
+  email, or code at the start of the line: `mia_lopez_4821` was reaching
+  the agent as `Mia_lopez_4821.`, and the agent then passed the wrong id.
 - The template writer says "escalate to a human", not "escalate a to
   human", and "check direct flights", not "check a direct flights"; a
   leading preposition in the tool name stays in front of the noun, plurals
