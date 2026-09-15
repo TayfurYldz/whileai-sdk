@@ -97,3 +97,36 @@ def test_dataset_report_counts_and_render():
     assert report["cells_total"] > 0
     text = format_dataset_report(report)
     assert "Usable SFT examples" in text and "fabrication" in text
+
+
+def test_preflight_reads_a_policy_written_in_english():
+    tools = [
+        GOOD_TOOL,
+        {
+            "name": "escalate_to_human",
+            "description": "Hand off",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "initiate_refund",
+            "description": "Refund",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "update_shipping_address",
+            "description": "Move",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    ]
+    policy = (
+        "Look up the order before discussing it. Refunds above $200 must be "
+        "escalated to a human. Issue smaller refunds directly. Never invent "
+        "order data, delivery dates, or policies, and say when a tool fails."
+    )
+    report = preflight(tools, policy)
+    # named in plain English: looked up / escalated to a human / issue refunds
+    assert "get_order" not in report["tools_not_mentioned_in_policy"]
+    assert "escalate_to_human" not in report["tools_not_mentioned_in_policy"]
+    assert "initiate_refund" not in report["tools_not_mentioned_in_policy"]
+    # never named, in any form
+    assert report["tools_not_mentioned_in_policy"] == ["update_shipping_address"]

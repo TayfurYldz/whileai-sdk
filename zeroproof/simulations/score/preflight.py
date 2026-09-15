@@ -106,6 +106,87 @@ def _fn(tool: dict) -> dict:
     return inner if isinstance(inner, dict) else {}
 
 
+# How a policy written in English names a tool: the verb it starts with,
+# or a synonym, plus the nouns in the rest of the name.
+_VERB_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "get": (
+        "get",
+        "look up",
+        "lookup",
+        "look-up",
+        "check",
+        "fetch",
+        "retrieve",
+        "view",
+        "read",
+        "pull",
+    ),
+    "lookup": (
+        "look up",
+        "lookup",
+        "look-up",
+        "check",
+        "find",
+        "verify",
+        "authenticate",
+        "identify",
+    ),
+    "find": ("find", "look up", "search", "check"),
+    "search": ("search", "look up", "find", "check"),
+    "list": ("list", "show", "check"),
+    "check": ("check", "confirm", "verify", "look up"),
+    "verify": ("verify", "verification", "authenticate", "confirm", "check"),
+    "create": ("create", "open", "file", "start", "request", "raise", "log", "submit"),
+    "open": ("open", "create", "file", "raise"),
+    "initiate": ("initiate", "start", "open", "issue", "create", "process", "request"),
+    "request": ("request", "ask for", "submit", "file"),
+    "issue": ("issue", "send", "grant", "give"),
+    "send": ("send", "email", "mail", "forward", "notify", "message"),
+    "update": ("update", "change", "modify", "edit", "set", "adjust"),
+    "change": ("change", "update", "modify", "switch"),
+    "set": ("set", "update", "change"),
+    "cancel": ("cancel", "cancellation", "void"),
+    "delete": ("delete", "remove", "erase"),
+    "remove": ("remove", "delete", "drop"),
+    "reset": ("reset", "change"),
+    "unlock": ("unlock", "lockout", "locked"),
+    "escalate": ("escalate", "escalation", "hand off", "handoff", "transfer", "human"),
+    "transfer": ("transfer", "escalate", "hand off", "handoff", "human"),
+}
+_NAME_STOP = {"to", "a", "an", "the", "of", "for", "by", "and", "or", "in", "on"}
+
+
+def _policy_mentions(name: str, policy: str) -> bool:
+    """True when the policy names the tool, literally or in plain English.
+
+    ``get_order`` is mentioned by "Look up the order before discussing it";
+    ``escalate_to_human`` by "must be escalated to a human". The literal
+    snake_case name still counts. A policy that never names a tool's nouns
+    is still reported.
+    """
+    low = str(policy or "").lower()
+    if not low.strip():
+        return False
+    if name.lower() in low:
+        return True
+    tokens = [
+        t
+        for t in re.split(r"[^a-z0-9]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", name).lower())
+        if t
+    ]
+    if not tokens:
+        return False
+    verb, nouns = tokens[0], [t for t in tokens[1:] if t not in _NAME_STOP]
+    if not nouns:
+        return bool(re.search(rf"\b{re.escape(verb)}", low))
+    nouns_seen = all(
+        re.search(rf"\b{re.escape(n[:-1] if len(n) > 4 and n.endswith('s') else n)}", low)
+        for n in nouns
+    )
+    verb_seen = any(re.search(rf"\b{re.escape(v)}", low) for v in _VERB_SYNONYMS.get(verb, (verb,)))
+    return nouns_seen and verb_seen
+
+
 def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
     """Spec-quality report for an agent. Report only; nothing is changed.
 
@@ -170,12 +251,11 @@ def preflight(tools: Sequence[dict], system_prompt: str = "") -> dict[str, Any]:
             f"system prompt is {len(policy)} chars: thin policies give the "
             "grid few rules to test and graders little to enforce"
         )
-    named = set()
-    for entry in per_tool:
-        if entry["name"]:
-            named.add(entry["name"].lower())
-    mentioned = {m.lower() for m in re.findall(r"[a-z_]{4,}", policy.lower())}
-    unreferenced = sorted(named - mentioned)
+    unreferenced = sorted(
+        entry["name"].lower()
+        for entry in per_tool
+        if entry["name"] and not _policy_mentions(entry["name"], policy)
+    )
     cells = len(scenario_regions(tools, policy, mode="sft"))
     return {
         "n_tools": len(tools),
