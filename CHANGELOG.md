@@ -5,6 +5,10 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `sample_turn_budget` no longer divides by zero when the running-mean
+  correction pushes the target past the turn cap, which `avg_turns=12`
+  reaches on a 4096-token context: 351 of 438 rollouts on one run failed
+  with `ZeroDivisionError` and the run stopped as `writer_exhausted`.
 - `avg_turns` defaults to `12` (was `4`). The person speaks at most
   `avg_turns // 2` times, so the old default ended most verify, look up,
   confirm, write flows on the agent's second question (a scripted
