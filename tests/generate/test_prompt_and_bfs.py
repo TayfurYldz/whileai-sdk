@@ -1782,3 +1782,16 @@ def test_user_simulator_hints_come_from_this_agents_tools():
     bare = user_sim_system(None)
     assert "(whatever this thread is actually about)" in bare
     assert "repo" not in bare
+
+
+def test_scene_brief_box_is_read_live_not_snapshotted():
+    """The engine writes the brief from a thread after the writer is built;
+    a snapshot at construction stayed empty for the whole run."""
+    from zeroproof.simulations.generate.generator import ModelSimulator
+
+    box = {"brief": ""}
+    sim = ModelSimulator(tools=TOOLS, policy=POLICY, seed=1, scene_brief=box)
+    assert "Customers and tools" not in sim._prompt(0, sim.regions[:4])
+    box["brief"] = "who: people researching purchases\ntools: web search, open a page"
+    assert sim.scene_brief == box["brief"]
+    assert "people researching purchases" in sim._prompt(0, sim.regions[:4])
