@@ -47,7 +47,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --extra dev
       - run: uv run pytest -q --cov=zeroproof --cov-report=term
-              --cov-fail-under=84
+              --cov-fail-under=88
         env:
           COVERAGE_CORE: sysmon
 

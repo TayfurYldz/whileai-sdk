@@ -13,6 +13,11 @@ text and every comparison that has at least one GOOD and one BAD side.
 
 Trait ids are the spec's own heading anchors (``{#be_warm ...}``), so a
 row's ``spec_id`` points back at the sentence it was graded against.
+
+``source.commit`` is the provenance of the whole file: which revision of
+the spec the principles and labels came from. Pass ``--commit`` to set
+it. Without it, a pin already in the output file is kept rather than
+overwritten with ``null``, and a run that ends with no pin says so.
 """
 
 from __future__ import annotations
@@ -200,6 +205,17 @@ def build(text: str, traits: list[str], *, skip: list[str] | None = None) -> dic
     return {"traits": entries, "missing": missing}
 
 
+def existing_commit(path: Path) -> str | None:
+    """The ``source.commit`` an earlier run left in ``path``, if any."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    source = doc.get("source") if isinstance(doc, dict) else None
+    commit = source.get("commit") if isinstance(source, dict) else None
+    return commit if isinstance(commit, str) and commit else None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -218,18 +234,22 @@ def main(argv: list[str] | None = None) -> int:
 
     text = load_spec(args.spec)
     built = build(text, list(args.traits), skip=list(args.skip))
+    out_path = Path(args.out)
+    commit = args.commit
+    kept = False
+    if commit is None:
+        commit = existing_commit(out_path)
+        kept = commit is not None
     doc = {
         "source": {
             "repo": "https://github.com/openai/model_spec",
             "file": "model_spec.md",
-            "commit": args.commit,
+            "commit": commit,
             "license": "CC0-1.0",
         },
         "traits": built["traits"],
     }
-    Path(args.out).write_text(
-        json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    out_path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for t in built["traits"]:
         n_good = sum(len(e["good"]) for e in t["examples"])
         n_bad = sum(len(e["bad"]) for e in t["examples"])
@@ -237,6 +257,14 @@ def main(argv: list[str] | None = None) -> int:
     if built["missing"]:
         print("missing:", ", ".join(built["missing"]), file=sys.stderr)
     print(f"wrote {args.out}")
+    if kept:
+        print(f"kept source.commit {commit} from the existing file; pass --commit to change it")
+    elif commit is None:
+        print(
+            "source.commit is null: no --commit given and no pin to keep, "
+            "so this constitution records no spec revision",
+            file=sys.stderr,
+        )
     return 1 if built["missing"] else 0
 
 

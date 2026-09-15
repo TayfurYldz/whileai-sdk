@@ -5,6 +5,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/character/from_model_spec.py` no longer replaces the Model
+  Spec commit pin in an existing `constitution.json` with `null`: without
+  `--commit` it keeps the pin the file already carries and says so, and
+  when no pin is available it says the provenance is unresolved instead
+  of exiting 0 as if it were (#155). The conflict-marker guard now also
+  rejects control characters in tracked text files, which is how a
+  `## 0.32` heading in this file read as a bare date for a day. Coverage
+  floor raised to match what the suite measures.
 - `export_environment`: the package no longer carries a copy of the
   environment module and the checklist (`_zp_env.py`, `_zp_checklist.py`).
   The copy existed so an export loaded on an SDK release without them,

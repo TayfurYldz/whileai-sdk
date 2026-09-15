@@ -101,10 +101,7 @@ def test_measure_cli_needs_two_files_or_demo(tmp_path):
     assert "--demo" in out.stderr
 
 
-def test_from_model_spec_reads_a_local_copy(tmp_path):
-    spec = tmp_path / "model_spec.md"
-    spec.write_text(
-        """## Be warm {#be_warm authority=guideline}
+_SPEC_MD = """## Be warm {#be_warm authority=guideline}
 
 The assistant is warm.
 
@@ -121,9 +118,17 @@ bad reply
 </assistant>
 </comparison>
 ~~~
-""",
-        encoding="utf-8",
-    )
+"""
+
+
+def _write_spec(tmp_path: Path) -> Path:
+    spec = tmp_path / "model_spec.md"
+    spec.write_text(_SPEC_MD, encoding="utf-8")
+    return spec
+
+
+def test_from_model_spec_reads_a_local_copy(tmp_path):
+    spec = _write_spec(tmp_path)
     target = tmp_path / "constitution.json"
     out = _cli(
         "from_model_spec.py",
@@ -143,3 +148,66 @@ bad reply
     assert trait["principle"] == "The assistant is warm."
     assert trait["examples"][0]["good"] == ["good reply"]
     assert trait["examples"][0]["bad"] == ["bad reply"]
+
+
+def test_from_model_spec_keeps_an_existing_commit_pin(tmp_path):
+    """Re-running the example without --commit must not downgrade provenance to null (#155)."""
+    spec = _write_spec(tmp_path)
+    target = tmp_path / "constitution.json"
+    pin = "7f1cf79fcb656c07f77c8d95b6fbc78dc7fac5b6"
+    target.write_text(json.dumps({"source": {"commit": pin}, "traits": []}), encoding="utf-8")
+    out = _cli(
+        "from_model_spec.py",
+        "--spec",
+        str(spec),
+        "--traits",
+        "be_warm",
+        "--out",
+        str(target),
+        cwd=tmp_path,
+    )
+    assert out.returncode == 0, out.stderr[-2000:]
+    doc = json.loads(target.read_text(encoding="utf-8"))
+    assert doc["source"]["commit"] == pin
+    assert pin in out.stdout and "kept" in out.stdout
+    (trait,) = doc["traits"]  # the traits were still regenerated
+    assert trait["id"] == "be_warm"
+
+
+def test_from_model_spec_explicit_commit_wins_over_the_existing_pin(tmp_path):
+    spec = _write_spec(tmp_path)
+    target = tmp_path / "constitution.json"
+    target.write_text(json.dumps({"source": {"commit": "old"}, "traits": []}), encoding="utf-8")
+    out = _cli(
+        "from_model_spec.py",
+        "--spec",
+        str(spec),
+        "--traits",
+        "be_warm",
+        "--out",
+        str(target),
+        "--commit",
+        "new",
+        cwd=tmp_path,
+    )
+    assert out.returncode == 0, out.stderr[-2000:]
+    assert json.loads(target.read_text(encoding="utf-8"))["source"]["commit"] == "new"
+    assert "kept" not in out.stdout
+
+
+def test_from_model_spec_says_when_the_commit_is_unresolved(tmp_path):
+    spec = _write_spec(tmp_path)
+    target = tmp_path / "constitution.json"
+    out = _cli(
+        "from_model_spec.py",
+        "--spec",
+        str(spec),
+        "--traits",
+        "be_warm",
+        "--out",
+        str(target),
+        cwd=tmp_path,
+    )
+    assert out.returncode == 0, out.stderr[-2000:]
+    assert json.loads(target.read_text(encoding="utf-8"))["source"]["commit"] is None
+    assert "source.commit is null" in out.stderr
