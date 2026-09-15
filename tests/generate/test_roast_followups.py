@@ -73,3 +73,13 @@ def test_turn_controller_corrects_at_half_gain():
     low = [sample_turn_budget(s, f"k{s}", 12, avg_turns=6, running_mean=2) for s in range(400)]
     assert sum(high) / len(high) < sum(low) / len(low)
     assert min(high) >= 2 and max(low) <= 12
+
+
+def test_turn_budget_target_at_or_above_the_cap_never_divides_by_zero():
+    for mean in range(0, 20):
+        for target in (10, 12, 14, 40):
+            got = [
+                sample_turn_budget(s, f"k{s}", 12, avg_turns=target, running_mean=mean)
+                for s in range(50)
+            ]
+            assert all(2 <= g <= 12 for g in got), (target, mean, got[:5])

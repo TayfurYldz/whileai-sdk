@@ -456,7 +456,7 @@ def resolve_run_config(
         fault_rate = 0.8
     texture = cfg.pop("texture", None)
     max_turns = cfg.pop("max_turns", None)
-    avg_turns = float(cfg.pop("avg_turns", 4))
+    avg_turns = float(cfg.pop("avg_turns", 12))
     min_user_turns = max(1, int(cfg.pop("min_user_turns", 1)))
     temperature = cfg.pop("temperature", None)
     logprobs = cfg.pop("logprobs", False)

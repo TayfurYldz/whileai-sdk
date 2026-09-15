@@ -714,7 +714,10 @@ def sample_turn_budget(
         # Proportional correction at half gain: a full mirror of the
         # error (gain 1) overshoots and oscillates around the target.
         center = target + 0.5 * (target - float(running_mean))
-    center = max(2, round(center))
+    # The correction can push the center past the cap; clamped, so the
+    # middle band never inverts (mid_hi < mid_lo divided by zero once
+    # avg_turns reached the cap).
+    center = max(2, min(cap, round(center)))
     mid_lo = max(2, center - 2)
     mid_hi = min(cap, max(mid_lo, center + 2))
     short_hi = mid_lo - 1

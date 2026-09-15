@@ -51,6 +51,16 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   condition, stance, and history value, chosen per situation. Before,
   three openers and one sentence per axis value made every offline row
   read alike.
+- `sample_turn_budget` no longer divides by zero when the running-mean
+  correction pushes the target past the turn cap, which `avg_turns=12`
+  reaches on a 4096-token context: 351 of 438 rollouts on one run failed
+  with `ZeroDivisionError` and the run stopped as `writer_exhausted`.
+- `avg_turns` defaults to `12` (was `4`). The person speaks at most
+  `avg_turns // 2` times, so the old default ended most verify, look up,
+  confirm, write flows on the agent's second question (a scripted
+  order-support agent reached the write in 2 of 40 rows; 5 of 40 at
+  `12`, the rest stopping correctly on missing records). Model-backed
+  rows carry more turns now; pass `avg_turns=4` for the old length.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
