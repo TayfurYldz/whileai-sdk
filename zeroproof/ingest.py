@@ -156,17 +156,27 @@ def ingest_traces(
     return send_traces(api_key, body, base_url=base_url)
 
 
-def list_traces(api_key: str, base_url: str | None = None, timeout: int = 30) -> dict:
+def list_traces(api_key: str | None = None, base_url: str | None = None, timeout: int = 30) -> dict:
     """
     What this key's account has ingested: one entry per dataset name per day,
     with row counts and sizes, plus the account totals.
 
-        for t in list_traces("zp_...")["traces"]:
+        for t in list_traces()["traces"]:
             print(t["name"], t["rows"], t["sizeBytes"])
+
+    ``api_key`` resolves like every other platform call: the argument, then
+    ``ZEROPROOF_API_KEY``, then the key ``zeroproof login`` saved.
     """
+    from .auth import resolve_api_key
+
+    key = resolve_api_key(api_key)
+    if not key:
+        raise ZeroProofIngestError(
+            "no API key: pass api_key=, set ZEROPROOF_API_KEY, or run `zeroproof login`"
+        )
     res = requests.get(
         _base(base_url) + "/traces",
-        headers={"X-Api-Key": api_key},
+        headers={"X-Api-Key": key},
         timeout=timeout,
     )
     if res.status_code >= 300:
