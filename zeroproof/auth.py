@@ -319,6 +319,13 @@ def status() -> dict:
         "name": None if env else saved.get("name"),
         "pending": _resume() is not None,
         "tier": None,
+        # where a hosted simulate/grade goes: the shared pool on VLLM_API_KEY,
+        # else the account endpoints on this key, else nowhere until one exists
+        "hosted_route": (
+            "shared pool (VLLM_API_KEY)"
+            if os.environ.get("VLLM_API_KEY", "").strip()
+            else ("account endpoints (this key)" if key else None)
+        ),
     }
     if key:
         try:

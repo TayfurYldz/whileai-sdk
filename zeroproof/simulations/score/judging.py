@@ -311,6 +311,19 @@ class ScoredData:
                 fh.write(json.dumps(row, default=str) + "\n")
         return path
 
+    def push(self, name: str, **kwargs: Any) -> dict:
+        """Upload the scored rows to the platform: ``push_rows(self.rows, name, ...)``.
+
+        Same keywords as ``push_rows`` (``gate=``, ``mode=``, ``agent=``,
+        ``purpose=``, ``parent=``, ``endorsed=``, ``strict_hacks=``). The
+        graded copy is what a gated RL push needs, and ``SimulationData.push``
+        cannot see it: ``grade(judge=)`` leaves the run's trajectories
+        ungraded on purpose.
+        """
+        from ..ingest.platform import push_rows
+
+        return push_rows(self.rows, name, **kwargs)
+
 
 def _score_one(
     judge: Callable, row: dict, scale: tuple[float, float] | None = None

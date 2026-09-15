@@ -20,6 +20,48 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   tail while iterating. Found by the customer simulation (#31), which
   recorded that the existing leak guards pass vacuously offline because
   nothing on that path populates `privileged` at all.
+- Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
+  `zeroproof login` or `zeroproof signup`, the default agent, writer and
+  judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
+  thinking off, Phi-4), which take the zp_ key, enforce the daily
+  allowance with 429 and meter on the server; the client-side usage
+  report stays off for them. `VLLM_API_KEY` still wins and goes to the
+  shared pool. A spent allowance stops the run (`*_quota_exceeded`)
+  instead of retrying into the clock. Before this a fresh signup could not
+  run anything hosted.
+- The hosted client follows a 3xx to its Location. Modal answers a web
+  request past 150 seconds with a 303 to a result URL that blocks until
+  the work is done, which a scale-to-zero judge's cold start exceeds;
+  before this the first call read the redirect's empty body as the reply
+  and the run graded as unreachable.
+- A key the hosted endpoint rejects (401/403) stops `simulate()` on the
+  first writer wave or rollout that sees it and raises, the way a missing
+  key already failed at setup. Before this the run spent its whole time
+  budget on 401s and returned zero rows, with the reason only in
+  `search["writer_errors"]`. `stopped_because` is `writer_auth_failed` or
+  `agent_auth_failed`.
+- `ScoredData.push(name, ...)`: `push_rows` on the graded copies, so the
+  object `grade(judge=)` returns can make a gated RL push.
+- `zeroproof.list_traces()` resolves the key like every other platform
+  call (argument, `ZEROPROOF_API_KEY`, then the saved credentials) instead
+  of requiring it as a positional argument; the skill's snippet follows.
+- README: the hosted `data.grade(rubric=)` grades in place and returns the
+  judge report, so the quickstart reads `data.pass_at`, not `scored.pass_at`.
+- A run that ends with no rows, no agent failure, and nothing still in
+  flight stops as `writer_failed`, keeps the hosted writer's last error in
+  `search["writer_errors"]`, and warns. Before this a hosted writer that
+  failed cold for the whole clock reported `time_budget`, its error gone,
+  and the template writer that took over knew nothing about the spec.
+- `simulate(grader=)` refuses anything that is not callable, naming the
+  fix. A string there ran every rollout through the judge as an error:
+  150 rows reported judged, none with a reward, nothing said so.
+  `data.search["grader"]` now also counts `errors`.
+- The hosted-agent client closes a thread's previous connection before
+  opening one to a different host. A run that alternated hosts leaked one
+  socket per rollout and printed a ResourceWarning for each.
+- `grade()` leaves a rollout the loop stamped `length_cap` alone instead of
+  judging it after the run; the report counts them as `skipped_truncated`.
+  Before this an after-run grade overwrote every in-loop truncation stamp.
 - `examples/safety-evals`, `docs/safety-evals.md`, `blog/agent-safety-evals.md`:
   safety evals for a tool-using agent on the existing calls. A suite of
   attacks goes in as `seeds=` (direct prompt injection, an injection
