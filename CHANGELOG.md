@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `preflight`: `tools_not_mentioned_in_policy` reads the policy the way it
+  is written. "Look up the order before discussing it" now counts as a
+  mention of `get_order`, and "escalated to a human" of `escalate_to_human`;
+  before, only the literal snake_case name counted, so every tool of every
+  English policy was reported.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
