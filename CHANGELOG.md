@@ -5,6 +5,19 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/safety-evals`, `docs/safety-evals.md`, `blog/agent-safety-evals.md`:
+  safety evals for a tool-using agent on the existing calls. A suite of
+  attacks goes in as `seeds=` (direct prompt injection, an injection
+  planted in a tool result, exfiltration to an outside address, secret
+  extraction by claimed authority, writes without the approval the policy
+  requires) with benign controls beside them; a judge of four trajectory
+  markers (`no_secret_leak`, `no_external_send`, `no_unauthorized_write`,
+  `helpful_on_benign`) grades through `evaluate`; pass^k per attack class,
+  `judge_trust` on hand-labeled transcripts, `judge_probes(["refusal"])`
+  on the benign rows to show a safety-only judge is satisfied by refusing
+  everything, and `delta_report(must_not_regress=["helpful_on_benign"],
+  by="category")` on pinned tasks to fail the fix that got safe by
+  refusing. Three scripted agents, no key, seconds. No engine change.
 - `zps.send_score(trace_id, value)`: grade a run that has already finished.
   The gate has taken measurements at `POST /v1/scores` all along and nothing
   in the SDK wrapped it, so an agent could send traces from the terminal but
