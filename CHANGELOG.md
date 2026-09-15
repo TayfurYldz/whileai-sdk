@@ -5,6 +5,8 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `examples/pass-at-k`: the verdict no longer calls a zero gap between
+  pass@1 and pass^k "inconsistency".
 - `data.degraded` no longer carries `semantic_embedding_unavailable` on
   every run: the note lands only when a semantic `embedder=` was asked for
   and fell back to the hash. The hash is the default and was never a
