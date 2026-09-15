@@ -5,6 +5,10 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `data.degraded` no longer carries `semantic_embedding_unavailable` on
+  every run: the note lands only when a semantic `embedder=` was asked for
+  and fell back to the hash. The hash is the default and was never a
+  degradation.
 - `select_for_rl` and `optimize(mode="rl")` on graded rows that left no
   mixed group say so (how many unanimous, collapsed and out-of-band groups
   went) instead of "no row carries a numeric reward; grade first", and
