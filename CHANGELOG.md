@@ -5,6 +5,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- A user turn textured `lowercase` keeps an identifier, email, or code in
+  its case (`USE-8481` reached the agent as `use-8481`), and one textured
+  `standard` no longer capitalizes an identifier,
 - The mock world's forty record owners are invented pairings (a first
   name and a surname from different regions) instead of thirty-two
   common ones, so a generated record names no one in particular.

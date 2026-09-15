@@ -1721,3 +1721,16 @@ def test_standard_texture_keeps_identifiers_lowercase():
     assert _realize_typed_message("jamie.ortiz@northmail.io", tags) == "jamie.ortiz@northmail.io."
     assert _realize_typed_message("the code is r4t9xa", tags) == "The code is r4t9xa."
     assert _realize_typed_message("yes go ahead", tags) == "Yes go ahead."
+
+
+def test_lowercase_texture_keeps_identifiers_and_codes():
+    from zeroproof.simulations.generate.generator import _realize_typed_message
+
+    tags = {"texture": "lowercase"}
+    assert _realize_typed_message("It's USE-8481", tags) == "it's USE-8481"
+    assert _realize_typed_message("The code is K7M3QP.", tags) == "the code is K7M3QP."
+    assert (
+        _realize_typed_message("Email Jamie.Ortiz@northmail.io", tags)
+        == "email Jamie.Ortiz@northmail.io"
+    )
+    assert _realize_typed_message("Yes Go Ahead", tags) == "yes go ahead"

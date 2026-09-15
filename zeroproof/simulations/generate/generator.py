@@ -325,6 +325,13 @@ _QUESTION_START = re.compile(
 _IDENTIFIER_START = re.compile(r"[a-z0-9._+-]*(?:[_@]|\d)[a-z0-9._+@-]*", re.I)
 
 
+def _lowercase_prose(text: str) -> str:
+    """Lower-case the words; an identifier, email, or code keeps its case."""
+    return " ".join(
+        w if _IDENTIFIER_START.fullmatch(w.rstrip(".,!?;:")) else w.lower() for w in text.split(" ")
+    )
+
+
 def _sentence_case(text: str) -> str:
     """Ordinary prose: capitalize sentence starts, close with a mark.
 
@@ -358,7 +365,7 @@ def _realize_typed_message(message: str, tags: dict | None) -> str:
     if texture == "typo" and not _looks_typoed(text):
         text = _inject_typo(text)
     if texture == "lowercase":
-        text = text.lower()
+        text = _lowercase_prose(text)
     if texture == "standard":
         text = _sentence_case(text)
     return re.sub(r"[ \t]+", " ", text).strip()
