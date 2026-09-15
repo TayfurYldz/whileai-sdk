@@ -1698,3 +1698,39 @@ def test_identifier_answers_are_not_echoes():
         _echoes_agent("please provide your user profile and verify the baggage update", ask_id)
         is True
     )
+
+
+def test_intent_for_tool_keeps_prepositions_and_plurals_readable():
+    from zeroproof.simulations.generate.scenarios import intent_for_tool
+
+    assert intent_for_tool("escalate_to_human") == "escalate to a human"
+    assert intent_for_tool("transfer_to_human_agents") == "transfer to human agents"
+    assert intent_for_tool("search_direct_flights") == "check direct flights"
+    assert intent_for_tool("getUserDetails") == "check user details"
+    assert intent_for_tool("get_user") == "check a user"
+    assert intent_for_tool("get_order") == "check an order"
+    assert intent_for_tool("ping") == "ping something"
+
+
+def test_standard_texture_keeps_identifiers_lowercase():
+    from zeroproof.simulations.generate.generator import _realize_typed_message
+
+    tags = {"texture": "standard"}
+    assert _realize_typed_message("mia_lopez_4821", tags) == "mia_lopez_4821."
+    assert _realize_typed_message("r4t9xa", tags) == "r4t9xa."
+    assert _realize_typed_message("jamie.ortiz@northmail.io", tags) == "jamie.ortiz@northmail.io."
+    assert _realize_typed_message("the code is r4t9xa", tags) == "The code is r4t9xa."
+    assert _realize_typed_message("yes go ahead", tags) == "Yes go ahead."
+
+
+def test_lowercase_texture_keeps_identifiers_and_codes():
+    from zeroproof.simulations.generate.generator import _realize_typed_message
+
+    tags = {"texture": "lowercase"}
+    assert _realize_typed_message("It's USE-8481", tags) == "it's USE-8481"
+    assert _realize_typed_message("The code is K7M3QP.", tags) == "the code is K7M3QP."
+    assert (
+        _realize_typed_message("Email Jamie.Ortiz@northmail.io", tags)
+        == "email Jamie.Ortiz@northmail.io"
+    )
+    assert _realize_typed_message("Yes Go Ahead", tags) == "yes go ahead"
