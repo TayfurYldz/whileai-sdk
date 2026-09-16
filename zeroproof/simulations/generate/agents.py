@@ -1383,6 +1383,7 @@ def local_model(
     human_tools: set | None = None,
     execute: Callable | None = None,
     timeout: float = 60,
+    max_tokens: int | None = None,
 ) -> Callable:
     local = threading.local()
     plans = fault_plans if fault_plans is not None else {}
@@ -1459,8 +1460,9 @@ def local_model(
                 api_key=api_key,
                 temperature=temperature,
                 timeout=timeout,
-                # A coding agent's diff does not fit in 768.
-                max_tokens=768 if CONTEXT_TOKENS <= 8192 else 2048,
+                # A coding agent's diff does not fit in 768; a reasoning model's
+                # thinking does not fit in 2048: simulate(agent_max_tokens=) wins.
+                max_tokens=max_tokens or (768 if CONTEXT_TOKENS <= 8192 else 2048),
                 logprobs=logprobs,
             )
             calls, assistant = _calls_from_reply(reply)

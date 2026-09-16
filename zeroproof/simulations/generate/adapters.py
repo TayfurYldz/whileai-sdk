@@ -332,6 +332,7 @@ def resolve(
     temperature: float | None = None,
     result_shapes: dict | None = None,
     timeout: float | None = None,
+    max_tokens: int | None = None,
 ) -> tuple[Any, str]:
     if isinstance(target, ConnectedAgent):
         return target.run, target.transport
@@ -339,6 +340,8 @@ def resolve(
     loop_kw: dict[str, Any] = {"max_turns": max_turns}
     if temperature is not None:
         loop_kw["temperature"] = temperature
+    if max_tokens:
+        loop_kw["max_tokens"] = int(max_tokens)
     if kind == "callable":
         return _sync(target), kind
     if kind == "backend_spec":

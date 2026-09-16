@@ -99,6 +99,10 @@ def main() -> int:
     ap.add_argument("--split", default="all", choices=["all", "holdout", "train"])
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--temperature", type=float, default=0.7)
+    ap.add_argument(
+        "--max-tokens", type=int, default=4096, help="agent reply budget (zeroproof >= 0.45)"
+    )
+    ap.add_argument("--timeout", type=float, default=300, help="seconds per agent call")
     ap.add_argument("--limit", type=int, default=0, help="first N tasks only (smoke)")
     args = ap.parse_args()
 
@@ -138,6 +142,9 @@ def main() -> int:
         # max_turns=1 alone triggers (fixed on main after 0.44).
         max_turns=1,
         avg_turns=1,
+        # a reasoning model thinks for 1-3k tokens before the query
+        agent_max_tokens=args.max_tokens,
+        timeout=args.timeout,
         temperature=args.temperature,
         concurrency=args.concurrency,
         budget=len(todo) * args.k,
