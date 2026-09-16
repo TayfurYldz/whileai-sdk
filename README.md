@@ -101,10 +101,15 @@ WORLD = zps.world(TOOLS)
 
 
 def my_agent(message: str) -> dict:
-    result = WORLD.call("get_order", {"order_id": "4412"})  # timeouts, stale data, denials fire here
-    return {"steps": [{"tool": "get_order", "arguments": {"order_id": "4412"}, "result": result}],
-            "final_text": "Order 4412 shipped yesterday." if result.get("status") == "ok"
-            else "The lookup did not go through, so I cannot confirm 4412 yet."}
+    result = WORLD.call(
+        "get_order", {"order_id": "4412"}
+    )  # timeouts, stale data, denials fire here
+    return {
+        "steps": [{"tool": "get_order", "arguments": {"order_id": "4412"}, "result": result}],
+        "final_text": "Order 4412 shipped yesterday."
+        if result.get("status") == "ok"
+        else "The lookup did not go through, so I cannot confirm 4412 yet.",
+    }
 ```
 
 To see the detectors fire before you plug in your own agent, run the
@@ -116,10 +121,15 @@ it behaved), so a check that catches exactly those rows is a check that
 works.
 
 ```python
-data = zps.simulate(zps.seeded_agent(TOOLS), tools=TOOLS,
-                    system_prompt="Help customers with orders.", simulator=False, budget=60)
-rows = data.trajectories                      # export_row scrubs privileged; the run keeps it
-print(zps.style_report(rows)["markers"]["no_hedging"]["hits"])   # > 0, only on seeded rows
+data = zps.simulate(
+    zps.seeded_agent(TOOLS),
+    tools=TOOLS,
+    system_prompt="Help customers with orders.",
+    simulator=False,
+    budget=60,
+)
+rows = data.trajectories  # export_row scrubs privileged; the run keeps it
+print(zps.style_report(rows)["markers"]["no_hedging"]["hits"])  # > 0, only on seeded rows
 print(zps.format_leak_report(zps.leak_report(rows)))
 ```
 
