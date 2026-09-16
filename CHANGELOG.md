@@ -5,6 +5,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- The user simulator's instructions name the details a person on this
+  agent's thread would know, read off the agent's own tool parameters
+  (`order_id` becomes "order id"), and mention repos and pull requests
+  only when the tools have such parameters. The prompt carried "order id,
+  sku, store, size, repo, PR" and a git warning for every agent.
 - Failing asks in `traces=` seed the run. A capability failure carries no
   tool, fault or world-state signal for the grid to aim at (SQL dogfood,
   2026-09-16: 41 failures, empty emphasis). The failing prompts now seed
