@@ -3,6 +3,14 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- The user simulator's instructions name the details a person on this
+  agent's thread would know, read off the agent's own tool parameters
+  (`order_id` becomes "order id"), and mention repos and pull requests
+  only when the tools have such parameters. The prompt carried "order id,
+  sku, store, size, repo, PR" and a git warning for every agent.
+
 ## 0.44 (2026-09-15)
 
 - README: `recommend()` gets its own section, *How much to run*. Testers
