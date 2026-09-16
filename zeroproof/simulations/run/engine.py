@@ -198,6 +198,7 @@ class Run:
             log.info("simulate setup rows=0")
         self._resolve_inputs()
         self._resolve_traces()
+        self._amplify_seeds()  # after traces: failing asks seed the run too
         self._build_data()
         self._start_scene_thread()
         self._build_runner()
@@ -261,11 +262,14 @@ class Run:
                 self.tool_draft_failed = True
         if c.agent is None and not self.tools and not self.policy:
             raise ValueError("simulate needs an agent, tools=, or a system prompt.")
+
+    def _amplify_seeds(self) -> None:
+        c = self.c
         # Amplifies seed prompts only when seeds= is given; advanced["seed_prompts"]
         # stays literal. Offline runs (simulator=False) make no network calls.
         # Runs after inspect() so the writer hint carries the resolved policy.
         if (
-            c.seeds
+            (c.seeds or getattr(self, "failure_seeds", 0))
             and self.seed_prompts
             and c.n_situations_target
             and len(self.seed_prompts) < int(c.n_situations_target)
@@ -296,6 +300,25 @@ class Run:
             # same normalization as trace_report: a messages-only export
             # otherwise mines as zero tools and the grid is never aimed
             self.trace_rows = load_traces(c.traces)
+            # A capability failure carries no tool, fault or world-state
+            # signal: the same two tools, no fault, the wrong SQL. Aiming
+            # the grid at axes cannot see it (SQL dogfood, 2026-09-16:
+            # 41 failures, empty emphasis). The failing asks themselves
+            # are the target, so they seed the run and are amplified into
+            # variants; the leakage rule keeps the originals out.
+            failing = []
+            seen = set(self.seed_prompts)
+            for row in self.trace_rows:
+                if row.get("reward") not in (0, 0.0, False):
+                    continue
+                ask = str(row.get("prompt") or "").strip()
+                if ask and ask not in seen:
+                    seen.add(ask)
+                    failing.append(ask)
+                if len(failing) >= 40:
+                    break
+            self.failure_seeds = len(failing)
+            self.seed_prompts.extend(failing)
             # The optimizer's memory feeds the run it aims: regions from
             # the whole trace history, budget shares from their lifecycle.
             # Cells whose coordinates intersect a hot region's expansion
@@ -574,7 +597,10 @@ class Run:
         self.resolved_embedder = resolve_embedder(c.embedder)
         self.data.embedder_name = str(getattr(self.resolved_embedder, "name", "unknown"))
         self.data.semantic = is_semantic(self.resolved_embedder)
-        if not self.data.semantic:
+        # The default embedder is the hash; a run that never asked for a
+        # semantic one is not degraded, so the note only lands when the
+        # requested embedder fell back.
+        if not self.data.semantic and c.embedder not in (None, "hash"):
             self.data.degraded.append("semantic_embedding_unavailable")
         self.archive = EmbeddingArchive(self.data.embedder_name, self.data.semantic)
 
@@ -2756,6 +2782,7 @@ class Run:
         data.search["trace_mining"] = {
             "n_traces": mined["n"],
             "n_flaw_rows": len(mined["flaw_rows"]),
+            "failure_seeds": getattr(self, "failure_seeds", 0),
             "faults": mined["faults"],
             "tools": {name: dict(slot) for name, slot in mined["tools"].items()},
             # Observed result payloads reused as shape templates for

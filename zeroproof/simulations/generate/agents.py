@@ -864,13 +864,48 @@ _USER_SIM_SYSTEM = (
     "Ordinary speech. No emojis, no em dashes, no thanks, no you're welcome. "
     "Stay in the same world as the opening line and the tools on this thread. "
     "If the agent asked a question, answer it with a concrete detail a person "
-    "here would know (order id, sku, store, size, repo, PR, whatever this "
-    "thread is actually about). "
-    "Do not invent a git repo, pull request, issue, or branch unless this "
-    "thread is already about those. "
+    "here would know ({hints}whatever this thread is actually about). "
+    "{code_note}"
     "If they already acted, react: push back, correct them, or ask for the next thing. "
     "Do not acknowledge. Do not repeat their question. Do not describe a persona."
 )
+_CODE_PARAM = re.compile(
+    r"\b(repo|repository|branch|commit|pr|pull_request|issue|path|file|diff)\b", re.I
+)
+
+
+def _detail_hints(tools: list | None) -> list[str]:
+    """What a person on this thread would know, read off the agent's own
+    tool parameters: ``order_id`` becomes "order id". Nothing from any
+    other agent's world."""
+    out: list[str] = []
+    for item in tools or []:
+        if not isinstance(item, dict):
+            continue
+        fn = item.get("function") if isinstance(item.get("function"), dict) else item
+        params = (fn or {}).get("parameters") or {}
+        for key in (params.get("properties") or {}) if isinstance(params, dict) else {}:
+            label = re.sub(r"[_\-]+", " ", str(key)).strip().lower()
+            if label and label not in out and len(label) <= 24:
+                out.append(label)
+    return out[:8]
+
+
+def user_sim_system(tools: list | None = None) -> str:
+    """The user simulator's instructions for this agent's world."""
+    hints = _detail_hints(tools)
+    names = " ".join(_tool_world(tools).split(",")) + " " + " ".join(hints)
+    code_note = (
+        "Do not invent a repo, pull request, issue, or branch unless this "
+        "thread is already about those. "
+        if _CODE_PARAM.search(names)
+        else ""
+    )
+    return _USER_SIM_SYSTEM.format(
+        hints=(", ".join(hints) + ", ") if hints else "", code_note=code_note
+    )
+
+
 _EMOJI = re.compile("[\U0001f300-\U0001faff\U00002700-\U000027bf\U0001f600-\U0001f64f]+")
 _STOCK_HIT = re.compile(
     r"(i('d| would) be happy to help|of course!|have a great day|"
@@ -1190,7 +1225,7 @@ def _user_followup(
                 base_url,
                 model,
                 [
-                    {"role": "system", "content": _USER_SIM_SYSTEM},
+                    {"role": "system", "content": user_sim_system(tools)},
                     {"role": "user", "content": content},
                 ],
                 tools=None,
