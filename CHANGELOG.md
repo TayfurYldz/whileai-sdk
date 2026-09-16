@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.46 (2026-09-16)
 
 - The mock world's `stale` fault returns the record as of three days
   ago, marked `stale`, instead of a bare hash. Agents turned the hash
