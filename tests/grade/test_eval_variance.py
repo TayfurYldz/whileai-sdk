@@ -99,3 +99,72 @@ def test_public_surface():
     assert "eval_variance" in zps.__all__ and callable(zps.eval_variance)
     with pytest.raises(ValueError, match="at least one"):
         zps.eval_variance()
+
+
+# --- #31: the wrong-shape argument must name the next action ---
+
+
+def _one_run(n=6, run="r1"):
+    return [
+        {"task_id": f"t{i}", "reward": i % 2, "lineage": {"scoring_run_id": run}} for i in range(n)
+    ]
+
+
+def test_a_simulation_data_argument_names_the_attribute_to_pass():
+    """``simulate()`` returns a SimulationData; Python's bare "object is not
+    iterable" never said that ``.trajectories`` is one attribute away."""
+
+    class FakeSimulationData:
+        def __init__(self, rows):
+            self.trajectories = rows
+
+    data = FakeSimulationData(_one_run())
+    with pytest.raises(TypeError) as exc:
+        eval_variance(data, data, data)
+    msg = str(exc.value)
+    assert "argument 1" in msg and "FakeSimulationData" in msg
+    assert ".trajectories" in msg
+    # the message is runnable as written
+    assert "eval_variance(a.trajectories, b.trajectories, c.trajectories)" in msg
+
+
+def test_the_single_run_path_reports_the_same_way():
+    class FakeSimulationData:
+        def __init__(self, rows):
+            self.trajectories = rows
+
+    with pytest.raises(TypeError, match=r"\.trajectories"):
+        eval_variance(FakeSimulationData(_one_run()))
+
+
+def test_a_container_whose_rows_live_on_rows_is_named_correctly():
+    class FakeScored:
+        def __init__(self, rows):
+            self.rows = rows
+
+    with pytest.raises(TypeError, match=r"Pass its \.rows"):
+        eval_variance(FakeScored(_one_run()))
+
+
+def test_a_report_dict_is_told_to_pass_row_lists():
+    with pytest.raises(TypeError, match="each argument is one re-run's rows"):
+        eval_variance({"run_1": 0.5, "run_2": 0.6})
+
+
+def test_an_argument_with_no_rows_anywhere_still_explains_the_shape():
+    with pytest.raises(TypeError, match="which is not a list of rows"):
+        eval_variance(42)
+
+
+def test_an_iterable_that_is_not_a_list_still_works():
+    """The guard must not narrow what already worked: any iterable of rows."""
+    runs = [_one_run(run=f"r{i}") for i in range(3)]
+    from_lists = eval_variance(*runs)
+    from_iters = eval_variance(*(iter(r) for r in runs))
+    assert from_iters["run_std"] == from_lists["run_std"]
+    assert from_iters["means"] == from_lists["means"]
+
+
+def test_non_dict_entries_are_still_skipped_not_fatal():
+    runs = [[*_one_run(run=f"r{i}"), None, "junk"] for i in range(3)]
+    assert eval_variance(*runs)["n_runs"] == 3

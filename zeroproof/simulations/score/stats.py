@@ -192,6 +192,41 @@ def _run_key(row: dict, by: str | None) -> str | None:
     return None
 
 
+# Containers the SDK hands back, and the attribute on each that holds the rows.
+_ROW_ATTRS = ("trajectories", "rows")
+
+
+def _run_rows(run: Any, position: int) -> list[dict]:
+    """One run's rows, or a TypeError that names the next action.
+
+    ``eval_variance`` takes row lists. Handed a ``SimulationData`` or a
+    ``ScoredData`` -- what ``simulate`` and ``run_judge`` actually return --
+    Python raised a bare ``"object is not iterable"``, which does not say
+    that an attribute away is the right shape (#31).
+    """
+    if isinstance(run, (dict, str, bytes)):
+        raise TypeError(
+            f"eval_variance() argument {position} is a {type(run).__name__}; each argument is "
+            "one re-run's rows. Pass the row lists themselves: "
+            "eval_variance(rows_1, rows_2, rows_3)."
+        )
+    try:
+        return [row for row in run if isinstance(row, dict)]
+    except TypeError:
+        attr = next((a for a in _ROW_ATTRS if isinstance(getattr(run, a, None), list)), None)
+        name = type(run).__name__
+        if attr:
+            raise TypeError(
+                f"eval_variance() argument {position} is a {name}, not a list of rows. "
+                f"Pass its .{attr}: eval_variance(a.{attr}, b.{attr}, c.{attr}), where a, b and c "
+                "are three evaluations of the same model."
+            ) from None
+        raise TypeError(
+            f"eval_variance() argument {position} has type {name}, which is not a list of rows. "
+            "Each argument is one re-run's scored rows (dicts carrying 'reward' and a task key)."
+        ) from None
+
+
 def eval_variance(
     *runs: Sequence[dict],
     metric: str = "pass_at_1",
@@ -218,9 +253,7 @@ def eval_variance(
     if len(runs) == 1:
         split: dict[str, list[dict]] = {}
         unkeyed = 0
-        for row in runs[0]:
-            if not isinstance(row, dict):
-                continue
+        for row in _run_rows(runs[0], 1):
             key = _run_key(row, by)
             if key is None:
                 unkeyed += 1
@@ -229,7 +262,7 @@ def eval_variance(
         groups = list(split.values())
         labels = list(split)
     else:
-        groups = [list(r) for r in runs]
+        groups = [_run_rows(r, i + 1) for i, r in enumerate(runs)]
         labels = [f"run_{i + 1}" for i in range(len(groups))]
         unkeyed = 0
     means: dict[str, float | None] = {}
