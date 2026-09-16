@@ -5,6 +5,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- The mock world's `stale` fault returns the record as of three days
+  ago, marked `stale`, instead of a bare hash. Agents turned the hash
+  into an invented shipment, offer id or passing test suite, and a
+  rubric judge passed them.
+- `pass_at` reports a 95% task-bootstrap interval on pass^k and pass@k
+  (`pass_pow_k_ci95`, `pass_at_k_ci95`), not only on pass@1, and prints
+  them. The reliability line a safety eval reads per attack class was a
+  bare number (rlhf-book ch. 16: intervals from resampling prompts).
 - `eval_variance`: a wrong-shape argument says what to pass instead. Handed
   a `SimulationData` — what `simulate()` returns — it raised Python's bare
   `TypeError: 'SimulationData' object is not iterable`, which never
