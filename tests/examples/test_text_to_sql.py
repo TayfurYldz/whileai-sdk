@@ -94,7 +94,10 @@ def test_author_imports_without_the_anthropic_client(monkeypatch):
     import types
 
     stub = types.ModuleType("anthropic")
-    stub.Anthropic = stub.AnthropicBedrock = type("Client", (), {})  # referenced at import
+    # author.py builds a client at import; it must construct, nothing more
+    stub.Anthropic = stub.AnthropicBedrock = type(
+        "Client", (), {"__init__": lambda self, **kw: None}
+    )
     monkeypatch.setitem(sys.modules, "anthropic", stub)
     for name in ("author", "sql_verifier", "schema_prompt"):
         sys.modules.pop(name, None)
