@@ -13,6 +13,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   (`pass_pow_k_ci95`, `pass_at_k_ci95`), not only on pass@1, and prints
   them. The reliability line a safety eval reads per attack class was a
   bare number (rlhf-book ch. 16: intervals from resampling prompts).
+- `eval_variance`: a wrong-shape argument says what to pass instead. Handed
+  a `SimulationData` — what `simulate()` returns — it raised Python's bare
+  `TypeError: 'SimulationData' object is not iterable`, which never
+  mentioned that `.trajectories` is one attribute away. The message now
+  names the argument, its type, and the runnable call (#31). Behavior for
+  every shape that already worked is unchanged.
 
 ## 0.46 (2026-09-16)
 
