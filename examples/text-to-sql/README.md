@@ -211,13 +211,20 @@ Measured through `rollout.py --hosted <name>` (the SDK path, `agent_max_tokens=4
 |---|---|---|---|---|---|
 | base | Qwen/Qwen3-4B, thinking on | - | - | 0.61 (0.53..0.69), pass@4 0.84 | - |
 | r1 | base | 100 | 2e-5 / 0.04 | 0.60 (0.52..0.69) | -0.003 (-0.062..+0.056), flat |
-| r2 | r1 | 200 | 5e-5 / 0.01 | pending | pending |
+| r2 | r1 | 200 | 5e-5 / 0.01 | 0.62 (0.53..0.70) | +0.009 (-0.052..+0.071) vs base, flat |
 
-r1 did not move, and its training curve says why: one prompt per optimizer
-step (8 samples) for 100 steps is 800 samples, the in-run reward only
-turned up over the last 20 steps (0.50 -> 0.58), and thinking length fell
-from 1090 to 880 tokens, which is the cheapest thing to learn first. r2
-raises the dose: from r1's adapter, 200 steps, learning rate 5e-5, KL
-weight 0.01. The point of the table is the same either way: every round
-is a paired number with an interval on the same holdout, so "it got
-better" is a claim the customer can check.
+Neither round moved the holdout, while the training reward did climb
+(round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
+with KL 0.08), and thinking length fell from ~1,090 to ~800 tokens. That
+combination means the policy got better at the prompts it was shown and no
+better at held-out ones: 2,400 samples over 336 prompts, LoRA rank 16, is
+too small a dose for a 4B model to generalize SQL reasoning from, and the
+first thing GRPO learns is the cheap thing (shorter thinking, fewer
+failures to emit a query: `has_sql` 0.87 -> 0.90). What the numbers say to
+do next, in order: generate with vLLM inside the trainer (`use_vllm`,
+colocate) so a round costs minutes instead of 65 s a step, then run
+5-10 epochs over the prompts with 16 samples each; only then judge the
+method. The table above is the product either way: every round is a
+paired number with an interval on the same holdout, so "it got better" is
+a claim the customer can check, and "it did not" is caught before anyone
+ships it.
