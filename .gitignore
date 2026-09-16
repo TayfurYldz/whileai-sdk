@@ -52,6 +52,7 @@ examples/hosted-loop/hosted-loop.json
 examples/text-to-sql/raw/
 examples/text-to-sql/out/
 examples/text-to-sql/pg/
+examples/text-to-sql/author.done.txt
 !examples/safety-evals/
 !examples/safety-evals-marketplace/
 examples/safety-evals-marketplace/*.json

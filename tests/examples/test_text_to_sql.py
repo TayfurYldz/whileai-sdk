@@ -87,3 +87,25 @@ def test_prompt_file_matches_the_schema_prompt():
     finally:
         sys.modules.pop("schema_prompt", None)
         sys.path.remove(str(EXAMPLE))
+
+
+def test_author_imports_without_the_anthropic_client(monkeypatch):
+    """author.py is the bring-your-own-schema entry point; it must at least import."""
+    import types
+
+    stub = types.ModuleType("anthropic")
+    # author.py builds a client at import; it must construct, nothing more
+    stub.Anthropic = stub.AnthropicBedrock = type(
+        "Client", (), {"__init__": lambda self, **kw: None}
+    )
+    monkeypatch.setitem(sys.modules, "anthropic", stub)
+    for name in ("author", "sql_verifier", "schema_prompt"):
+        sys.modules.pop(name, None)
+    sys.path.insert(0, str(EXAMPLE))
+    try:
+        author = importlib.import_module("author")
+        assert author.ARCHETYPES and author.DIFFICULTIES and author.STYLES
+    finally:
+        for name in ("author", "sql_verifier", "schema_prompt"):
+            sys.modules.pop(name, None)
+        sys.path.remove(str(EXAMPLE))

@@ -845,3 +845,13 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
         time_budget=None,
     )
     assert seen and seen[0] == (4096, 123)
+
+
+def test_agent_max_tokens_does_not_break_an_http_agent():
+    """openai_http takes no reply budget; the option must not reach it."""
+    from zeroproof.simulations.generate.adapters import resolve
+
+    agent, kind = resolve(
+        "http://127.0.0.1:9/v1/chat/completions", tools=TOOLS, policy=POLICY, max_tokens=4096
+    )
+    assert kind == "http" and callable(agent)

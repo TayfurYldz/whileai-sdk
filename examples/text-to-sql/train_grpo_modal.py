@@ -18,7 +18,6 @@ What happens:
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -62,27 +61,9 @@ runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=T
 hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
 
 
-def _user_env(name: str) -> str:
-    v = os.environ.get(name)
-    if v:
-        return v
-    try:
-        out = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-c",
-                f'[Environment]::GetEnvironmentVariable("{name}","User")',
-            ],
-            capture_output=True,
-            text=True,
-        )
-        return out.stdout.strip()
-    except Exception:
-        return ""
-
-
-dashboard_secret = modal.Secret.from_dict({"ZEROPROOF_API_KEY": _user_env("ZEROPROOF_API_KEY")})
+dashboard_secret = modal.Secret.from_dict(
+    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+)
 
 
 def _render(tokenizer, system_prompt: str, question: str, thinking: bool = False) -> str:
@@ -203,7 +184,7 @@ def train(
         "reward": "sql_verifier.py: execute on the seeded store Postgres, 1.0 result match / 0.1 runs but wrong / 0",
         "thinking": thinking,
         "from_run": from_run or None,
-        "eval": "hosted (served adapter, rollout.py --hosted --think)"
+        "eval": "hosted (served adapter, rollout.py --hosted <name>)"
         if skip_eval
         else "in-container",
     }

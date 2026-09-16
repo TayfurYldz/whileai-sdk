@@ -54,6 +54,28 @@ TABLES = [
     "reviews",
 ]
 
+# What author.py asks the task writer for: one question per (archetype,
+# difficulty) cell, phrased in a rotating style.
+ARCHETYPES = [
+    "single-table aggregation (COUNT/SUM/AVG/MIN/MAX with WHERE filters)",
+    "top-N / ranking with ORDER BY and LIMIT",
+    "two-table JOIN with a filter or aggregate",
+    "multi-table JOIN (three or more tables)",
+    "GROUP BY breakdown with HAVING or a per-group aggregate",
+    "NULL semantics (shipped_at, sales_rep_id, discount_pct, referred_by, review title)",
+    "self-join / hierarchy (category parent, employee manager, customer referrer)",
+    "date and time (DATE_TRUNC, EXTRACT, month or year buckets, intervals, first/last event)",
+    "anti-join / existence (customers with no orders, products never reviewed, orders without a captured payment, NOT EXISTS / NOT IN / LEFT JOIN IS NULL)",
+    "derived metric (order total with discount and shipping, margin, average rating, share of total, days to ship)",
+]
+DIFFICULTIES = ["easy", "medium", "hard"]
+STYLES = [
+    "casual business user asking a quick question",
+    "formal reporting request from a manager",
+    "terse power-user shorthand",
+    "precise analyst specification that may name columns",
+]
+
 _SQL_BLOCK = re.compile(r"```(?:sql)?\s*(.*?)```", re.S | re.I)
 _SELECT_START = re.compile(r"\b(select|with)\b", re.I)
 _tls = threading.local()
