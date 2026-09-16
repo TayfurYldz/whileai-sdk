@@ -207,7 +207,14 @@ def report_md(
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--policy", default="qwen3-4b")
-    ap.add_argument("--push", action="store_true")
+    ap.add_argument(
+        "--push", action="store_true", help="push train, holdout, rl and every eval set"
+    )
+    ap.add_argument(
+        "--push-evals",
+        default="",
+        help="comma list of models whose holdout rollouts to push as eval sets (nothing else)",
+    )
     ap.add_argument("--models", default="", help="comma list; default = every raw/*.jsonl")
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
@@ -303,6 +310,28 @@ def main() -> int:
         for m, rows in scored.items():
             hold = [r for r in rows if r.get("split") == "holdout"]
             if not hold:
+                continue
+            e = zps.push_rows(
+                hold,
+                f"{AGENT}-eval-{m}",
+                purpose="eval",
+                agent=AGENT,
+                description=desc
+                + f" Holdout benchmark rollouts of {m}, k=4, graded by the verifier.",
+            )
+            pushed[f"{AGENT}-eval-{m}"] = {
+                "datasetId": e.get("datasetId"),
+                "purpose": "eval",
+                "rows": len(hold),
+            }
+            print("pushed eval", m, e.get("datasetId"))
+
+    if args.push_evals:
+        desc = "Text-to-SQL over a small online-store Postgres database (8 tables, seeded). Reward = execution match against gold SQL."
+        for m in [x for x in args.push_evals.split(",") if x]:
+            hold = [r for r in scored.get(m, []) if r.get("split") == "holdout"]
+            if not hold:
+                print(f"no holdout rows for {m}")
                 continue
             e = zps.push_rows(
                 hold,

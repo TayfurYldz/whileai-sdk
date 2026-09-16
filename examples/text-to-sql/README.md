@@ -200,7 +200,20 @@ training file.
 
 ## The hill climb (thinking on, GRPO, execution reward)
 
-| Round | From | Steps | pass@1 | delta vs base (95% CI) |
-|---|---|---|---|---|
-| base | Qwen/Qwen3-4B | - | 0.69 | - |
-| r1 | base | 100 | pending | pending |
+Measured through `rollout.py --hosted <name>` (the SDK path, `agent_max_tokens=4096`,
+`timeout=300`), 81 held-out tasks, 4 samples each, paired by task.
+
+| Round | From | Steps | lr / beta | pass@1 (95% CI) | delta vs previous |
+|---|---|---|---|---|---|
+| base | Qwen/Qwen3-4B, thinking on | - | - | 0.61 (0.53..0.69), pass@4 0.84 | - |
+| r1 | base | 100 | 2e-5 / 0.04 | 0.60 (0.52..0.69) | -0.003 (-0.062..+0.056), flat |
+| r2 | r1 | 200 | 5e-5 / 0.01 | pending | pending |
+
+r1 did not move, and its training curve says why: one prompt per optimizer
+step (8 samples) for 100 steps is 800 samples, the in-run reward only
+turned up over the last 20 steps (0.50 -> 0.58), and thinking length fell
+from 1090 to 880 tokens, which is the cheapest thing to learn first. r2
+raises the dose: from r1's adapter, 200 steps, learning rate 5e-5, KL
+weight 0.01. The point of the table is the same either way: every round
+is a paired number with an interval on the same holdout, so "it got
+better" is a claim the customer can check.
