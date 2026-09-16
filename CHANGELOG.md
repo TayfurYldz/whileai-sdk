@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.46 (2026-09-16)
 
 - Judging: a verifier's identity and metadata survive onto the scored row
   (#196). `normalize_judge_result` swept a verdict's own `judge_meta` in as
