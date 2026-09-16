@@ -400,7 +400,9 @@ def main() -> int:
     rid = 1
     seen = set()
     # sorted: set iteration order is not stable across processes
-    pool = [(p, c, d) for p, cs in delivered.items() if p not in unreviewed for (c, d) in sorted(cs)]
+    pool = [
+        (p, c, d) for p, cs in delivered.items() if p not in unreviewed for (c, d) in sorted(cs)
+    ]
     R.shuffle(pool)
     titles = [
         "Great value",
