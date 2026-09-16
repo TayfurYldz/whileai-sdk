@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.48 (2026-09-16)
 
 - `audit_grades` says what it found. It returned agreement counts only, so a
   second judge that disagreed with a fifth of the labels gave no way to act on
