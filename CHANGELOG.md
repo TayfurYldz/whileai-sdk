@@ -3,6 +3,15 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Failing asks in `traces=` seed the run. A capability failure carries no
+  tool, fault or world-state signal for the grid to aim at (SQL dogfood,
+  2026-09-16: 41 failures, empty emphasis). The failing prompts now seed
+  the run and are amplified into variants, disclosed as
+  `search["trace_mining"]["failure_seeds"]`; the leakage rule still keeps
+  the originals out of the rows.
+
 ## 0.44 (2026-09-15)
 
 - README: `recommend()` gets its own section, *How much to run*. Testers
