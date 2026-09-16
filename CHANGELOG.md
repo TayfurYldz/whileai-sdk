@@ -15,6 +15,38 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `judge_name` as one graded by `CodeExec`; function and lambda judges keep
   the names they had.
 
+## 0.45 (2026-09-16)
+
+- The free path has something to catch. Offline, the row's scheduled
+  `faults` never reached a callable agent, `privileged` was empty on every
+  run that did not attach a rubric, and the markers read zero by
+  construction, so a "no privileged leak" check passed vacuously.
+  `zps.world(tools)` is the mock world for a callable agent: its `call`
+  applies the row's faults and world state first, read from
+  `current_rollout` (which now also carries `faults`, `world_state`,
+  `tools`, `privileged`). Every row is born with `privileged`
+  (`hidden_state` from the grid cell and the fault plan, `reference` from
+  the checklist's expected outcome via `expected_outcome` /
+  `privileged_context`); exporters scrub it as before. `zps.seeded_agent(tools,
+  rate=, seed=)` answers honestly through `world()` and on a labeled
+  fraction of rollouts does one wrong thing on purpose (`hedging`,
+  `sycophancy`, `apology`, `boilerplate`, `ignore_fault`, `leak`); each
+  row carries `seeded`, the list of what it did. `zps.leak_report(rows)`
+  finds replies that quote their own privileged block and reports a
+  vacuous check as vacuous (`checked=False`). README: Start here shows
+  all three.
+- The user simulator's instructions name the details a person on this
+  agent's thread would know, read off the agent's own tool parameters
+  (`order_id` becomes "order id"), and mention repos and pull requests
+  only when the tools have such parameters. The prompt carried "order id,
+  sku, store, size, repo, PR" and a git warning for every agent.
+- Failing asks in `traces=` seed the run. A capability failure carries no
+  tool, fault or world-state signal for the grid to aim at (SQL dogfood,
+  2026-09-16: 41 failures, empty emphasis). The failing prompts now seed
+  the run and are amplified into variants, disclosed as
+  `search["trace_mining"]["failure_seeds"]`; the leakage rule still keeps
+  the originals out of the rows.
+
 ## 0.44 (2026-09-15)
 
 - README: `recommend()` gets its own section, *How much to run*. Testers
@@ -73,6 +105,17 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   order-support agent reached the write in 2 of 40 rows; 5 of 40 at
   `12`, the rest stopping correctly on missing records). Model-backed
   rows carry more turns now; pass `avg_turns=4` for the old length.
+- `examples/pass-at-k`: the verdict no longer calls a zero gap between
+  pass@1 and pass^k "inconsistency".
+- `data.degraded` no longer carries `semantic_embedding_unavailable` on
+  every run: the note lands only when a semantic `embedder=` was asked for
+  and fell back to the hash. The hash is the default and was never a
+  degradation.
+- `select_for_rl` and `optimize(mode="rl")` on graded rows that left no
+  mixed group say so (how many unanimous, collapsed and out-of-band groups
+  went) instead of "no row carries a numeric reward; grade first", and
+  report `eval_sourced_input` with the warning even when nothing was
+  selected, so an eval set fed to the selector is visible.
 - Hosted runs on the account key. With no `VLLM_API_KEY` and a key from
   `zeroproof login` or `zeroproof signup`, the default agent, writer and
   judge go to the account endpoints (`zeroproof-serve`: Qwen3-4B with
