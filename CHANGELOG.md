@@ -11,6 +11,21 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   mentioned that `.trajectories` is one attribute away. The message now
   names the argument, its type, and the runnable call (#31). Behavior for
   every shape that already worked is unchanged.
+- Judging: a verifier's identity and metadata survive onto the scored row
+  (#196). `normalize_judge_result` swept a verdict's own `judge_meta` in as
+  an ordinary key, nesting it under itself, so `row["judge_meta"]["verifier"]`
+  was `None` on every verifier-graded row and a `failure_class` or `markers`
+  returned in the documented shape was silently dropped. Both reporting
+  shapes now merge. `run_judge` also falls back to a callable instance's
+  `.name`, so a row graded by `MathEqual` no longer records the same
+  `judge_name` as one graded by `CodeExec`; function and lambda judges keep
+  the names they had.
+- `looks_finished`: a reply that ends on a closed code fence, or on `}`, has
+  reached its end (#212). The rule read terminal punctuation only, so an
+  answer that *is* a fenced block — every row of a text-to-SQL set — was
+  called truncated and dropped by `optimize(mode="rl")` and the hygiene
+  gates. An unclosed fence is still truncated, which is the cut the rule
+  exists to catch.
 
 ## 0.45 (2026-09-16)
 

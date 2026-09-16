@@ -6,7 +6,7 @@ import zeroproof.simulations as zps
 from zeroproof.simulations import schema
 from zeroproof.simulations.score import grade_llm
 from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.judging import run_judge
+from zeroproof.simulations.score.judging import normalize_judge_result, run_judge
 
 
 def _rows(n, start=0):
@@ -173,3 +173,132 @@ def test_simulate_grader_markers_survive_onto_the_trajectories():
     # The lifted markers are wire-legal and round-trip to Marker objects.
     assert all(not schema.validate(row) for row in data.trajectories)
     assert schema.from_row(data.trajectories[0])[3][0].name == "phantom_number"
+
+
+# --- #196: what a Verifier says about itself must survive onto the row ---
+
+
+def test_verifier_meta_is_not_nested_under_itself():
+    """Every SDK verifier reports as ``{"reward", "reason", "judge_meta": {...}}``.
+
+    ``judge_meta`` swept in as an ordinary key produced
+    ``row["judge_meta"]["judge_meta"]["verifier"]``, so the documented
+    ``row["judge_meta"]["verifier"]`` was ``None`` on every verified row.
+    """
+    from zeroproof.simulations.verify import ExactMatch
+
+    row = {"prompt": "q", "final_text": "Paris", "steps": [], "answer": "Paris"}
+    raw = ExactMatch()(row)
+    assert raw["judge_meta"] == {"verifier": "ExactMatch"}
+    meta = normalize_judge_result(raw)["judge_meta"]
+    assert meta == {"verifier": "ExactMatch"}
+    assert "judge_meta" not in meta
+    assert run_judge([dict(row)], ExactMatch()).rows[0]["judge_meta"]["verifier"] == "ExactMatch"
+
+
+def test_loose_meta_keys_still_reach_judge_meta():
+    """The other reporting shape -- loose keys beside ``reward`` -- is unchanged."""
+    meta = normalize_judge_result({"reward": 1, "reason": "r", "model": "m", "n": 2})["judge_meta"]
+    assert meta == {"model": "m", "n": 2}
+
+
+def test_both_meta_shapes_merge_with_the_inner_block_winning():
+    raw = {"reward": 1, "model": "outer", "seen": 1, "judge_meta": {"model": "inner", "extra": 2}}
+    assert normalize_judge_result(raw)["judge_meta"] == {
+        "model": "inner",
+        "seen": 1,
+        "extra": 2,
+    }
+
+
+def test_a_non_dict_judge_meta_stays_an_ordinary_key():
+    """Only a dict is a metadata block; anything else is the judge's own data."""
+    assert normalize_judge_result({"reward": 1, "judge_meta": "note"})["judge_meta"] == {
+        "judge_meta": "note"
+    }
+
+
+def test_failure_class_inside_judge_meta_is_picked_up():
+    """``failure_class`` is documented on the verdict's ``judge_meta``; nesting
+    hid it, so the documented shape silently never set it on the row."""
+    scored = run_judge(
+        _rows(1),
+        lambda t: {"reward": 0, "judge_meta": {"failure_class": "fabrication"}},
+        judge_name="j",
+    )
+    assert scored.rows[0]["failure_class"] == "fabrication"
+    assert scored.rows[0]["judge_meta"]["failure_class"] == "fabrication"
+
+
+def test_markers_inside_judge_meta_are_lifted_onto_the_row():
+    scored = run_judge(
+        _rows(2),
+        lambda t: {"reward": 1, "judge_meta": {"markers": {"m": 1.0}}},
+        judge_name="j",
+    )
+    assert all(row["markers"] == {"m": 1.0} for row in scored.rows)
+
+
+def test_rating_scale_lane_flattens_judge_meta_too():
+    """The ``scale=`` lane builds its meta separately and had the same nesting."""
+    scored = run_judge(
+        _rows(1),
+        lambda t: {"rating": 5, "judge_meta": {"verifier": "V"}},
+        judge_name="j",
+        scale=(1, 5),
+    )
+    meta = scored.rows[0]["judge_meta"]
+    assert meta["verifier"] == "V" and meta["rating"] == 5.0
+    assert "judge_meta" not in meta
+
+
+def test_a_verifier_names_itself_on_the_scored_row():
+    """A Verifier is an instance, so it has no ``__name__``: every verified row
+    recorded ``judge_name == "judge"`` and two verifiers were indistinguishable."""
+    from zeroproof.simulations.verify import ExactMatch, MathEqual
+
+    rows = _rows(1)
+    assert run_judge(rows, ExactMatch()).rows[0]["judge_name"] == "ExactMatch"
+    assert run_judge(rows, MathEqual()).rows[0]["judge_name"] == "MathEqual"
+    assert run_judge(rows, ExactMatch(name="answer_check")).rows[0]["judge_name"] == "answer_check"
+
+
+def test_the_verifier_name_reaches_the_scorer_ref():
+    from zeroproof.simulations.verify import ExactMatch
+
+    row = {"prompt": "q", "final_text": "Paris", "steps": [], "answer": "Paris"}
+    scored = run_judge([row], ExactMatch()).rows[0]
+    _, _, judgments, _ = schema.from_row(scored)
+    assert judgments[0].scorer.name == "ExactMatch"
+
+
+def test_function_and_lambda_judges_keep_their_existing_names():
+    """The new fallback sits behind ``__name__``; it must not displace it."""
+
+    def honest(row):
+        return 1
+
+    assert run_judge(_rows(1), honest).rows[0]["judge_name"] == "honest"
+    assert run_judge(_rows(1), lambda t: 1).rows[0]["judge_name"] == "lambda_judge"
+    assert run_judge(_rows(1), honest, judge_name="explicit").rows[0]["judge_name"] == "explicit"
+
+
+def test_a_callable_with_an_unusable_name_falls_back_to_judge():
+    """``name`` on an arbitrary callable may be absent, not a string, or raise."""
+
+    class NumericName:
+        name = 7
+
+        def __call__(self, row):
+            return 1
+
+    class Raises:
+        def __call__(self, row):
+            return 1
+
+        @property
+        def name(self):
+            raise RuntimeError("no")
+
+    assert run_judge(_rows(1), NumericName()).rows[0]["judge_name"] == "judge"
+    assert run_judge(_rows(1), Raises()).rows[0]["judge_name"] == "judge"

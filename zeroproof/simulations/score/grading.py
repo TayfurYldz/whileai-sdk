@@ -195,7 +195,7 @@ _CONCRETE_REF = re.compile(
     r"\b[a-f0-9]{12,40}\b)"
 )
 _DEGENERATE = re.compile(r"(.)\1{29,}")
-_UNFINISHED_TAIL = re.compile(r"[.!?:)\"'\]]\s*$")
+_UNFINISHED_TAIL = re.compile(r"[.!?:)\"'\]}]\s*$")
 _SIGN_OFF = re.compile(
     r"^(?:--+|—|best|all the best|(?:kind|best|warm) regards|regards|thanks|thank you|"
     r"many thanks|cheers|sincerely|warmly|yours(?: truly| sincerely)?|take care|talk soon)\b",
@@ -213,12 +213,20 @@ def looks_finished(final: str) -> bool:
     a tenth of one customer's replies truncated (#31). A short last line
     counts as a sign-off when it is one (``Cheers``), or when it follows
     a line that ends in a comma or is itself one (a name after ``Best,``).
+
+    A reply whose answer *is* a code block ends on a closed fence, which
+    carries no punctuation at all: a text-to-SQL set had 486 of 1,556
+    rollouts dropped as truncated on that alone (#212). A closed fence is
+    an ending; an unclosed one is exactly the cut the rule is looking for.
     """
     text = final.rstrip()
     if not text:
         return False
     if _UNFINISHED_TAIL.search(text):
         return True
+    if text.endswith("```"):
+        # Even means every fence opened was closed, so the block ended.
+        return text.count("```") % 2 == 0
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     last = lines[-1]
     if len(last.split()) <= 6 and _SIGN_OFF.match(last):
