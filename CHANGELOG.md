@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.47 (2026-09-16)
 
 - `simulate(agent_max_tokens=N)`: the model agent's reply budget. The
   default (768 tokens, 2048 above an 8k `ZP_CONTEXT_TOKENS`) cuts a
