@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## 0.46 (2026-09-16)
+## Unreleased
 
 - `eval_variance`: a wrong-shape argument says what to pass instead. Handed
   a `SimulationData` — what `simulate()` returns — it raised Python's bare
@@ -11,6 +11,9 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   mentioned that `.trajectories` is one attribute away. The message now
   names the argument, its type, and the runnable call (#31). Behavior for
   every shape that already worked is unchanged.
+
+## 0.46 (2026-09-16)
+
 - Judging: a verifier's identity and metadata survive onto the scored row
   (#196). `normalize_judge_result` swept a verdict's own `judge_meta` in as
   an ordinary key, nesting it under itself, so `row["judge_meta"]["verifier"]`

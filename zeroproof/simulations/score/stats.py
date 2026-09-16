@@ -199,10 +199,11 @@ _ROW_ATTRS = ("trajectories", "rows")
 def _run_rows(run: Any, position: int) -> list[dict]:
     """One run's rows, or a TypeError that names the next action.
 
-    ``eval_variance`` takes row lists. Handed a ``SimulationData`` or a
-    ``ScoredData`` -- what ``simulate`` and ``run_judge`` actually return --
-    Python raised a bare ``"object is not iterable"``, which does not say
-    that an attribute away is the right shape (#31).
+    ``eval_variance`` takes row lists. Handed a ``SimulationData`` -- what
+    ``simulate`` returns -- Python raised a bare ``"object is not iterable"``,
+    which does not say that an attribute away is the right shape (#31).
+    (``ScoredData`` iterates its rows and never raised; the ``.rows`` probe
+    is for user-built containers that hold rows under that name.)
     """
     if isinstance(run, (dict, str, bytes)):
         raise TypeError(
