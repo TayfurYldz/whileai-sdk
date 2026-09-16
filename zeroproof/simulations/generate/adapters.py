@@ -332,6 +332,7 @@ def resolve(
     temperature: float | None = None,
     result_shapes: dict | None = None,
     timeout: float | None = None,
+    max_tokens: int | None = None,
 ) -> tuple[Any, str]:
     if isinstance(target, ConnectedAgent):
         return target.run, target.transport
@@ -347,6 +348,9 @@ def resolve(
         # mined result shapes and the caller's rollout timeout
         if timeout is not None:
             loop_kw["timeout"] = timeout
+        if max_tokens:
+            # only local_model takes a reply budget; openai_http does not
+            loop_kw["max_tokens"] = int(max_tokens)
         return local_model(
             url,
             spec_model,

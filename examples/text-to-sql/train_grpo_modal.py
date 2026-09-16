@@ -1,0 +1,412 @@
+"""GRPO on Modal with the SQL execution verifier as the reward.
+
+    PYTHONUTF8=1 MODAL_PROFILE=zeroproofai modal run --detach train_grpo_modal.py --steps 120 --run-name text-to-sql-shop-grpo-v1
+
+What happens:
+1. Postgres is installed in the image; at run time a trust-auth cluster is
+   initialised in the container and schema.sql + seed.sql are loaded.
+2. Train prompts = the train split of tasks.jsonl (question + gold SQL), each
+   rendered with the exact benchmark system prompt (prompt.txt) and Qwen3
+   thinking off. Reward = execute the completion, 1.0 on a result match,
+   0.1 when it runs but is wrong, 0 otherwise.
+3. The holdout split is sampled 4x before and after training and graded with
+   the binary verdict; pass@1 before/after and the delta land on the run
+   page. The adapter is saved on volume zeroproof-train-runs under the run
+   id so zps.serve can host it on Qwen/Qwen3-4B.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+
+import modal
+
+HERE = Path(__file__).resolve().parent
+BASE_MODEL = "Qwen/Qwen3-4B"
+DEFAULT_GPU = os.environ.get("ZP_GRPO_GPU", "L40S")
+VOLUME_ROOT = "/vol"
+
+app = modal.App("zeroproof-t2s-grpo")
+
+image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install("postgresql", "postgresql-contrib")
+    .pip_install(
+        "torch==2.7.1",
+        "transformers==4.54.0",
+        "trl==0.19.1",
+        "peft==0.16.0",
+        "datasets==3.6.0",
+        "accelerate==1.8.1",
+        "psycopg[binary]==3.2.9",
+        "zeroproof==0.44",
+    )
+    .env(
+        {
+            "HF_HOME": "/root/.cache/huggingface",
+            "TOKENIZERS_PARALLELISM": "false",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+        }
+    )
+    .add_local_file(str(HERE / "sql_verifier.py"), "/root/sql_verifier.py")
+    .add_local_file(str(HERE / "schema_prompt.py"), "/root/schema_prompt.py")
+    .add_local_file(str(HERE / "schema.sql"), "/root/schema.sql")
+    .add_local_file(str(HERE / "seed.sql"), "/root/seed.sql")
+    .add_local_file(str(HERE / "prompt.txt"), "/root/prompt.txt")
+)
+
+runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+
+
+dashboard_secret = modal.Secret.from_dict(
+    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+)
+
+
+def _render(tokenizer, system_prompt: str, question: str, thinking: bool = False) -> str:
+    return tokenizer.apply_chat_template(
+        [{"role": "system", "content": system_prompt}, {"role": "user", "content": question}],
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=thinking,
+    )
+
+
+def _sample(
+    model,
+    tokenizer,
+    texts: list[str],
+    *,
+    n: int,
+    max_new_tokens: int,
+    batch: int = 8,
+    temperature: float = 0.7,
+) -> list[list[str]]:
+    import torch
+
+    model.eval()
+    tokenizer.padding_side = "left"
+    out: list[list[str]] = []
+    for start in range(0, len(texts), batch):
+        chunk = texts[start : start + batch]
+        enc = tokenizer(chunk, return_tensors="pt", padding=True).to(model.device)
+        with torch.no_grad():
+            gen = model.generate(
+                **enc,
+                do_sample=True,
+                temperature=temperature,
+                top_p=0.95,
+                max_new_tokens=max_new_tokens,
+                num_return_sequences=n,
+                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+            )
+        prompt_len = enc["input_ids"].shape[1]
+        decoded = tokenizer.batch_decode(gen[:, prompt_len:], skip_special_tokens=True)
+        for i in range(len(chunk)):
+            out.append(decoded[i * n : (i + 1) * n])
+    model.train()
+    return out
+
+
+@app.function(
+    image=image,
+    gpu=DEFAULT_GPU,
+    timeout=4 * 60 * 60,
+    volumes={VOLUME_ROOT: runs_volume, "/root/.cache/huggingface": hf_cache},
+    secrets=[dashboard_secret],
+)
+def train(
+    train_tasks: list[dict],
+    holdout_tasks: list[dict],
+    run_name: str,
+    base_model: str = BASE_MODEL,
+    steps: int = 120,
+    num_generations: int = 8,
+    learning_rate: float = 1e-5,
+    beta: float = 0.04,
+    max_completion_length: int = 256,
+    lora_rank: int = 16,
+    eval_samples: int = 4,
+    loss_type: str = "bnpo",
+    gpu: str = DEFAULT_GPU,
+    grad_ckpt: bool = False,
+    accum: int = 2,
+    thinking: bool = False,
+    skip_eval: bool = False,
+    from_run: str = "",
+) -> dict:
+    import json
+
+    import torch
+    from datasets import Dataset
+    from peft import LoraConfig
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from trl import GRPOConfig, GRPOTrainer
+
+    sys.path.insert(0, "/root")
+    import sql_verifier as R
+
+    import zeroproof.simulations as zps
+
+    R.start_postgres(open("/root/schema.sql").read(), open("/root/seed.sql").read())
+    system_prompt = open("/root/prompt.txt", encoding="utf-8").read()
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model, torch_dtype=torch.bfloat16, device_map="cuda"
+    )
+    if from_run:
+        # continue from a previous round's LoRA adapter (same base)
+        from peft import PeftModel
+
+        model = PeftModel.from_pretrained(
+            model, os.path.join(VOLUME_ROOT, from_run, "adapter"), is_trainable=True
+        )
+        print(f"resumed adapter from {from_run}")
+
+    config = {
+        "base_model": base_model,
+        "steps": steps,
+        "num_generations": num_generations,
+        "learning_rate": learning_rate,
+        "beta": beta,
+        "loss_type": loss_type,
+        "max_completion_length": max_completion_length,
+        "lora_rank": lora_rank,
+        "train_prompts": len(train_tasks),
+        "holdout_prompts": len(holdout_tasks),
+        "gpu": gpu,
+        "reward": "sql_verifier.py: execute on the seeded store Postgres, 1.0 result match / 0.1 runs but wrong / 0",
+        "thinking": thinking,
+        "from_run": from_run or None,
+        "eval": "hosted (served adapter, rollout.py --hosted <name>)"
+        if skip_eval
+        else "in-container",
+    }
+    run = None
+    if os.environ.get("ZEROPROOF_API_KEY"):
+        run = zps.training_run(
+            run_name,
+            base_model=base_model,
+            trainer="trl-grpo-lora-sql",
+            total_steps=steps,
+            config=config,
+        )
+        print(f"dashboard: {run.url}")
+    run_id = getattr(run, "run_id", None) or run_name
+    out_dir = os.path.join(VOLUME_ROOT, run_id)
+    os.makedirs(out_dir, exist_ok=True)
+
+    hold_texts = [_render(tokenizer, system_prompt, t["question"], thinking) for t in holdout_tasks]
+    before_rows: list[dict] = []
+    if not skip_eval:
+        before_replies = _sample(
+            model, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
+        )
+        before_rows = R.reward_rows(holdout_tasks, before_replies, f"{base_model}@before")
+        before = zps.pass_at(before_rows)
+        print(f"before: {before}")
+
+    calls = {"n": 0}
+
+    def sql_reward(completions, gold, **kwargs):
+        out = []
+        for completion, g in zip(completions, gold):
+            text = completion[0]["content"] if isinstance(completion, list) else str(completion)
+            out.append(R.shaped_reward(text, g))
+        calls["n"] += 1
+        if calls["n"] <= 3:
+            sample = (
+                completions[0][0]["content"]
+                if isinstance(completions[0], list)
+                else str(completions[0])
+            )
+            print(
+                f"[reward call {calls['n']}] type={type(completions[0]).__name__} rewards={out[:8]} sample={sample[:400]!r}"
+            )
+        return out
+
+    dataset = Dataset.from_list(
+        [
+            {"prompt": _render(tokenizer, system_prompt, t["question"], thinking), "gold": t["sql"]}
+            for t in train_tasks
+        ]
+    )
+    grpo = GRPOConfig(
+        output_dir=os.path.join(out_dir, "checkpoints"),
+        max_steps=steps,
+        num_generations=num_generations,
+        # 8 generations x ~1,350 tokens OOMs the L40S in one micro-batch
+        # (smoke run t2s-grpo-smoke3); two micro-batches of 4 fit.
+        per_device_train_batch_size=num_generations // accum,
+        gradient_accumulation_steps=accum,
+        # Gradient checkpointing makes TRL generate without a KV cache, and on
+        # Qwen3-4B (transformers 4.54) that path produced garbage completions
+        # from the first token (smoke run t2s-grpo-smoke2: every completion
+        # 256 random tokens, reward 0). Off by default; L40S has the memory.
+        gradient_checkpointing=grad_ckpt,
+        learning_rate=learning_rate,
+        beta=beta,
+        loss_type=loss_type,
+        max_completion_length=max_completion_length,
+        max_prompt_length=2048,
+        temperature=0.9,
+        bf16=True,
+        logging_steps=1,
+        save_strategy="no",
+        report_to=[],
+        seed=17,
+    )
+    lora = LoraConfig(
+        r=lora_rank,
+        lora_alpha=2 * lora_rank,
+        lora_dropout=0.0,
+        bias="none",
+        task_type="CAUSAL_LM",
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+    )
+    trainer = GRPOTrainer(
+        model=model,
+        reward_funcs=[sql_reward],
+        args=grpo,
+        train_dataset=dataset,
+        processing_class=tokenizer,
+        peft_config=None if from_run else lora,
+    )
+    if run is not None:
+        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+    try:
+        trainer.train()
+    except Exception as exc:
+        if run is not None:
+            run.fail(f"{type(exc).__name__}: {exc}")
+        raise
+
+    policy = trainer.model
+    after_rows: list[dict] = []
+    if not skip_eval:
+        after_replies = _sample(
+            policy, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
+        )
+        after_rows = R.reward_rows(holdout_tasks, after_replies, f"{run_name}@after")
+        after = zps.pass_at(after_rows)
+        print(f"after:  {after}")
+
+    adapter_dir = os.path.join(out_dir, "adapter")
+    policy.save_pretrained(adapter_dir)
+    tokenizer.save_pretrained(adapter_dir)
+    with open(os.path.join(out_dir, "holdout_before.jsonl"), "w") as fh:
+        for r in before_rows:
+            fh.write(json.dumps(r, default=str) + "\n")
+    with open(os.path.join(out_dir, "holdout_after.jsonl"), "w") as fh:
+        for r in after_rows:
+            fh.write(json.dumps(r, default=str) + "\n")
+    runs_volume.commit()
+
+    summary = {
+        "pass_at_1_before": before.pass_at_1 if before_rows else None,
+        "pass_at_1_after": after.pass_at_1 if after_rows else None,
+        "ci95_before": before.ci95 if before_rows else None,
+        "ci95_after": after.ci95 if after_rows else None,
+        "holdout_prompts": len(holdout_tasks),
+        "eval_samples": eval_samples,
+        "run_id": run_id,
+        "adapter": f"volume zeroproof-train-runs:/{run_id}/adapter",
+    }
+    delta = None
+    if before_rows and after_rows:
+        if run is not None:
+            delta = run.delta(
+                before_rows,
+                after_rows,
+                target="pass_at_1",
+                must_not_regress=["executes"],
+                by="difficulty",
+            )
+        else:
+            delta = zps.delta_report(
+                before_rows,
+                after_rows,
+                target="pass_at_1",
+                must_not_regress=["executes"],
+                by="difficulty",
+            )
+        print(zps.format_delta_report(delta))
+        summary["delta_verdict"] = delta["target_verdict"]
+    if run is not None:
+        run.finish(
+            "done", summary=summary, adapter=f"volume zeroproof-train-runs:/{run_id}/adapter"
+        )
+        summary["run_url"] = run.url
+    with open(os.path.join(out_dir, "summary.json"), "w") as fh:
+        json.dump(summary, fh, indent=1, default=str)
+    runs_volume.commit()
+    return summary
+
+
+@app.local_entrypoint()
+def main(
+    run_name: str = "text-to-sql-shop-grpo-v1",
+    steps: int = 120,
+    num_generations: int = 8,
+    learning_rate: float = 1e-5,
+    beta: float = 0.04,
+    base_model: str = BASE_MODEL,
+    max_completion_length: int = 256,
+    loss_type: str = "bnpo",
+    gpu: str = DEFAULT_GPU,
+    limit: int = 0,
+    grad_ckpt: bool = False,
+    accum: int = 2,
+    thinking: bool = False,
+    skip_eval: bool = False,
+    from_run: str = "",
+):
+    import hashlib
+    import json
+
+    tasks = [
+        json.loads(line) for line in (HERE / "tasks.jsonl").open(encoding="utf-8") if line.strip()
+    ]
+
+    def bucket(sid: str) -> float:
+        return int(hashlib.sha256(str(sid).encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+
+    train_tasks = [t for t in tasks if bucket(t["id"]) >= 0.2]
+    holdout_tasks = [t for t in tasks if bucket(t["id"]) < 0.2]
+    if limit:
+        train_tasks, holdout_tasks = train_tasks[:limit], holdout_tasks[: max(4, limit // 4)]
+    print(f"{len(tasks)} tasks: {len(train_tasks)} train, {len(holdout_tasks)} holdout")
+    fn = train if gpu == DEFAULT_GPU else train.with_options(gpu=gpu)
+    summary = fn.remote(
+        train_tasks=train_tasks,
+        holdout_tasks=holdout_tasks,
+        run_name=run_name,
+        base_model=base_model,
+        steps=steps,
+        num_generations=num_generations,
+        learning_rate=learning_rate,
+        beta=beta,
+        max_completion_length=max_completion_length,
+        loss_type=loss_type,
+        gpu=gpu,
+        grad_ckpt=grad_ckpt,
+        accum=accum,
+        thinking=thinking,
+        skip_eval=skip_eval,
+        from_run=from_run,
+    )
+    print("done:", summary)

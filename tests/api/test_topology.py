@@ -603,6 +603,7 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
                 kwargs.get("max_turns"),
                 kwargs.get("avg_turns"),
                 kwargs.get("temperature"),
+                kwargs.get("max_tokens"),
             )
         )
 
@@ -619,6 +620,7 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
         max_turns=6,
         avg_turns=2,
         temperature=0.2,
+        agent_max_tokens=4096,
         budget=3,
         repeats=1,
         grade=False,
@@ -632,6 +634,7 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
     assert seen_backend[0][2] == 6
     assert seen_backend[0][3] == 2.0
     assert seen_backend[0][4] == 0.2
+    assert seen_backend[0][5] == 4096
 
     lock = threading.Lock()
     peak = 0
@@ -813,3 +816,42 @@ def test_explore_cards_walk_different_tools_or_stances():
         if (t.get("scenario_dimensions") or {}).get("stance")
     }
     assert len(tools) >= 2 or len(stances) >= 2
+
+
+def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
+    """simulate(agent="vllm:...", agent_max_tokens=N) goes through resolve()."""
+    seen = []
+
+    def fake_local(url, model, **kwargs):
+        seen.append((kwargs.get("max_tokens"), kwargs.get("timeout")))
+
+        def agent(message):
+            return {"steps": [], "final_text": "ok"}
+
+        return agent
+
+    monkeypatch.setattr("zeroproof.simulations.generate.adapters.local_model", fake_local)
+    zps.simulate(
+        agent="vllm:fake@http://127.0.0.1:9",
+        tools=TOOLS,
+        policy=POLICY,
+        agent_max_tokens=4096,
+        timeout=123,
+        budget=2,
+        repeats=1,
+        grade=False,
+        simulator=False,
+        seed=0,
+        time_budget=None,
+    )
+    assert seen and seen[0] == (4096, 123)
+
+
+def test_agent_max_tokens_does_not_break_an_http_agent():
+    """openai_http takes no reply budget; the option must not reach it."""
+    from zeroproof.simulations.generate.adapters import resolve
+
+    agent, kind = resolve(
+        "http://127.0.0.1:9/v1/chat/completions", tools=TOOLS, policy=POLICY, max_tokens=4096
+    )
+    assert kind == "http" and callable(agent)

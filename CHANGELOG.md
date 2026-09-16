@@ -5,6 +5,21 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `simulate(agent_max_tokens=N)`: the model agent's reply budget. The
+  default (768 tokens, 2048 above an 8k `ZP_CONTEXT_TOKENS`) cuts a
+  reasoning model off mid-thought; Qwen3-4B with thinking on lost 8% of
+  its replies that way and 4 of 81 tasks to the 60 s `timeout`, which
+  was reachable only through `advanced=` and is now a keyword too. Set
+  both for a thinking model: `agent_max_tokens=4096, timeout=300`.
+- `examples/text-to-sql`: hill-climb a model on a schema with a verifier as
+  the reward. A seeded online-store Postgres database, 417 authored and
+  execution-checked tasks (81 held out by task id), `SQLExec` (a
+  `Verifier`: run the candidate, match the gold result set), a benchmark
+  runner for hosted Qwen3-4B, Claude and any served adapter, `build.py`
+  (pass@k, `optimize`, `hack_scan`, pushes train/holdout/eval sets), a
+  Modal GRPO trainer with Postgres inside the container and `--from-run`
+  for rounds, and `delta.py` for the paired before/after. README carries
+  the base numbers, the headroom rule, and the gradient-checkpointing trap.
 - The mock world's `stale` fault returns the record as of three days
   ago, marked `stale`, instead of a bare hash. Agents turned the hash
   into an invented shipment, offer id or passing test suite, and a

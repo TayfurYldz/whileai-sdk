@@ -62,6 +62,8 @@ _MOVED_NAMES = {
     "avg_turns",
     "min_user_turns",
     "temperature",
+    "agent_max_tokens",
+    "timeout",
     "logprobs",
     "seed",
     "grader",
@@ -345,6 +347,7 @@ class RunConfig:
     avg_turns: float
     min_user_turns: int
     temperature: Any
+    agent_max_tokens: int | None
     logprobs: Any
     seed: int
     embedder: Any
@@ -459,6 +462,13 @@ def resolve_run_config(
     avg_turns = float(cfg.pop("avg_turns", 12))
     min_user_turns = max(1, int(cfg.pop("min_user_turns", 1)))
     temperature = cfg.pop("temperature", None)
+    # The model agent's reply budget. Default: 768 tokens, or 2048 above an
+    # 8k context (ZP_CONTEXT_TOKENS). A reasoning model that thinks before it
+    # answers needs more, or its replies are cut mid-thought and score 0.
+    raw_max_tokens = cfg.pop("agent_max_tokens", None)
+    agent_max_tokens = int(raw_max_tokens) if raw_max_tokens else None
+    if agent_max_tokens is not None and agent_max_tokens < 64:
+        raise ValueError("agent_max_tokens is a reply budget in tokens (64 or more)")
     logprobs = cfg.pop("logprobs", False)
     if logprobs not in (False, True, "tokens"):
         raise ValueError('logprobs must be False, True, or "tokens"')
@@ -625,6 +635,7 @@ def resolve_run_config(
         avg_turns=avg_turns,
         min_user_turns=min_user_turns,
         temperature=temperature,
+        agent_max_tokens=agent_max_tokens,
         logprobs=logprobs,
         seed=seed,
         embedder=embedder,

@@ -471,6 +471,8 @@ class Run:
         }
         if c.temperature is not None:
             runner_kw["temperature"] = float(c.temperature)
+        if c.agent_max_tokens:
+            runner_kw["max_tokens"] = int(c.agent_max_tokens)
         if c.logprobs:
             runner_kw["logprobs"] = c.logprobs
         self.policy_version = (

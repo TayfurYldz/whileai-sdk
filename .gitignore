@@ -47,6 +47,12 @@ examples/*
 examples/hosted-loop/hosted-loop.json
 !examples/verifiers/
 !examples/reward-hacking/
+!examples/text-to-sql/
+!examples/text-to-sql/tasks.jsonl
+examples/text-to-sql/raw/
+examples/text-to-sql/out/
+examples/text-to-sql/pg/
+examples/text-to-sql/author.done.txt
 !examples/safety-evals/
 !examples/safety-evals-marketplace/
 examples/safety-evals-marketplace/*.json
