@@ -1,6 +1,6 @@
 """GRPO on Modal with the SQL execution verifier as the reward.
 
-    PYTHONUTF8=1 MODAL_PROFILE=zeroproofai modal run --detach train_grpo_modal.py --steps 120 --run-name text-to-sql-shop-grpo-v1
+    PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --thinking --skip-eval --steps 100 --run-name t2s-r1
 
 What happens:
 1. Postgres is installed in the image; at run time a trust-auth cluster is
@@ -374,6 +374,7 @@ def main(
     thinking: bool = False,
     skip_eval: bool = False,
     from_run: str = "",
+    spawn: bool = False,
 ):
     import hashlib
     import json
@@ -391,7 +392,7 @@ def main(
         train_tasks, holdout_tasks = train_tasks[:limit], holdout_tasks[: max(4, limit // 4)]
     print(f"{len(tasks)} tasks: {len(train_tasks)} train, {len(holdout_tasks)} holdout")
     fn = train if gpu == DEFAULT_GPU else train.with_options(gpu=gpu)
-    summary = fn.remote(
+    kwargs = dict(
         train_tasks=train_tasks,
         holdout_tasks=holdout_tasks,
         run_name=run_name,
@@ -409,4 +410,13 @@ def main(
         skip_eval=skip_eval,
         from_run=from_run,
     )
+    if spawn:
+        # Submit and return. With `modal run --detach` the call keeps running
+        # on Modal with no client attached: a laptop network drop cancelled a
+        # 3 h `.remote()` call at step 49 even under --detach. Progress is on
+        # the training page; the summary lands on the volume as summary.json.
+        call = fn.spawn(**kwargs)
+        print(f"spawned {call.object_id}; the run continues on Modal, watch the training page")
+        return
+    summary = fn.remote(**kwargs)
     print("done:", summary)

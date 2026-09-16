@@ -85,15 +85,19 @@ runs but is wrong, 0 otherwise). Postgres is installed in the image and
 seeded in the container, so the reward needs nothing from your machine.
 
 ```bash
-PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-r1 \
+PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-r1 \
   --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 ```
 
 About 65 s a step in thinking mode on an H100 (completions average 900
 tokens), so 100 steps is under two hours and roughly $8. `--skip-eval`
 skips the slow in-container before/after sampling; the measurement comes
-from the served adapter in the next step, through vLLM, in minutes. The run
-shows on your training page as it goes (reward, KL, completion length).
+from the served adapter in the next step, through vLLM, in minutes. `--spawn`
+submits the call and returns, so nothing depends on your laptop staying
+connected (a network drop cancelled a 3 h run at step 49 without it). The run
+shows on your training page as it goes (reward, KL, completion length); the
+adapter and `summary.json` land on the `zeroproof-train-runs` volume under
+the run id.
 
 **4. Serve and measure.** The adapter is saved on the `zeroproof-train-runs`
 volume under the run id, which is what `zps.serve` hosts.
@@ -116,7 +120,7 @@ difficulty and by archetype, and attaches it to the run page.
 **5. Round two.** Start from round one's adapter, measure the same way.
 
 ```bash
-PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-r2 --from-run run_... \
+PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-r2 --from-run run_... \
   --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 ```
 
@@ -128,7 +132,7 @@ once and compare on the same holdout:
 
 ```bash
 for lr in 1e-5 2e-5 5e-5; do
-  PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-lr$lr --learning-rate $lr \
+  PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-lr$lr --learning-rate $lr \
     --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 done
 ```
@@ -207,13 +211,20 @@ Measured through `rollout.py --hosted <name>` (the SDK path, `agent_max_tokens=4
 |---|---|---|---|---|---|
 | base | Qwen/Qwen3-4B, thinking on | - | - | 0.61 (0.53..0.69), pass@4 0.84 | - |
 | r1 | base | 100 | 2e-5 / 0.04 | 0.60 (0.52..0.69) | -0.003 (-0.062..+0.056), flat |
-| r2 | r1 | 200 | 5e-5 / 0.01 | pending | pending |
+| r2 | r1 | 200 | 5e-5 / 0.01 | 0.62 (0.53..0.70) | +0.009 (-0.052..+0.071) vs base, flat |
 
-r1 did not move, and its training curve says why: one prompt per optimizer
-step (8 samples) for 100 steps is 800 samples, the in-run reward only
-turned up over the last 20 steps (0.50 -> 0.58), and thinking length fell
-from 1090 to 880 tokens, which is the cheapest thing to learn first. r2
-raises the dose: from r1's adapter, 200 steps, learning rate 5e-5, KL
-weight 0.01. The point of the table is the same either way: every round
-is a paired number with an interval on the same holdout, so "it got
-better" is a claim the customer can check.
+Neither round moved the holdout, while the training reward did climb
+(round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
+with KL 0.08), and thinking length fell from ~1,090 to ~800 tokens. That
+combination means the policy got better at the prompts it was shown and no
+better at held-out ones: 2,400 samples over 336 prompts, LoRA rank 16, is
+too small a dose for a 4B model to generalize SQL reasoning from, and the
+first thing GRPO learns is the cheap thing (shorter thinking, fewer
+failures to emit a query: `has_sql` 0.87 -> 0.90). What the numbers say to
+do next, in order: generate with vLLM inside the trainer (`use_vllm`,
+colocate) so a round costs minutes instead of 65 s a step, then run
+5-10 epochs over the prompts with 16 samples each; only then judge the
+method. The table above is the product either way: every round is a
+paired number with an interval on the same holdout, so "it got better" is
+a claim the customer can check, and "it did not" is caught before anyone
+ships it.
