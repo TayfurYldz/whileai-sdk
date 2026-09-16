@@ -40,6 +40,10 @@ CLI_EXAMPLES = [
     "safety-evals-marketplace/run.py",
     "schema/migrate.py",
     "schema/project.py",
+    "text-to-sql/build.py",
+    "text-to-sql/delta.py",
+    "text-to-sql/rollout.py",
+    "text-to-sql/train.py",
     "verifiers/run.py",
 ]
 
@@ -49,6 +53,9 @@ NEEDS_MODAL = {
     "grpo/train_modal.py",
     "identity/eval_modal.py",
     "identity/train_modal.py",
+    # text-to-sql: the trainer needs modal, the task writer needs anthropic
+    "text-to-sql/author.py",
+    "text-to-sql/train_grpo_modal.py",
 }
 
 
