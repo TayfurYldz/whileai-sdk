@@ -7,7 +7,7 @@ import json
 import os
 import re
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from .agents import CONTEXT_TOKENS, complete, default_simulator_spec, parse_backend_spec
@@ -1365,7 +1365,7 @@ class ModelSimulator:
         extra_cards: int = _EXTRAS_PER_CALL,
         texture_rate: float | None = None,
         kind: str | None = None,
-        scene_brief: str | Mapping[str, Any] = "",
+        scene_brief: str = "",
         out_tokens: int | None = None,
         time_budget: float | None = None,
         run_started: float | None = None,
@@ -1380,13 +1380,7 @@ class ModelSimulator:
         self.tools = tuple(tools)
         self.policy = writer_policy_digest(policy)
         self.kind = assistant_kind(policy, kind or "")
-        # A live box ({"brief": ...}) rather than a copy: the engine writes
-        # the brief from a thread after the writer is built, and a snapshot
-        # taken at construction stayed empty for the whole run, so no wave
-        # ever saw it.
-        self._scene_box: Mapping[str, Any] = (
-            scene_brief if isinstance(scene_brief, Mapping) else {"brief": str(scene_brief or "")}
-        )
+        self.scene_brief = str(scene_brief or "").strip()
         self.candidates_per_round = max(4, int(candidates_per_round))
         self.cells_per_request = max(
             _MIN_CELLS_PER_CALL,
@@ -1632,11 +1626,6 @@ pick a varied realistic one. Do not default to 12345 or 123456.
 
 Return only valid JSON: an array with one object per card, preserving its
 region_id exactly and placing the human's words in message."""
-
-    @property
-    def scene_brief(self) -> str:
-        """The scene brief as of now; empty until the engine's thread writes it."""
-        return str(self._scene_box.get("brief") or "").strip()
 
     def _prompt(self, round_index: int, sampled: list[dict]) -> str:
         mixed = mix_items_by_tier(
@@ -2014,7 +2003,7 @@ def make_default_generator(
     distinct_cards = bool(template_kwargs.pop("distinct_cards", False))
     extra_cards = int(template_kwargs.pop("extra_cards", _EXTRAS_PER_CALL))
     out_tokens = template_kwargs.pop("out_tokens", None)
-    scene_brief = template_kwargs.pop("scene_brief", "") or ""  # str, or a live {"brief": ...}
+    scene_brief = str(template_kwargs.pop("scene_brief", "") or "")
     time_budget = template_kwargs.pop("time_budget", None)
     run_started = template_kwargs.pop("run_started", None)
     kind = template_kwargs.pop("kind", kind)

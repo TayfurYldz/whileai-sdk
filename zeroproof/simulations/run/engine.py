@@ -538,7 +538,7 @@ class Run:
             completions_per_request=c.completions_per_request,
             distinct_cards=c.distinct_cards,
             extra_cards=c.extra_cards,
-            scene_brief=self.scene_box,  # live: the brief lands from a thread
+            scene_brief=self.scene_box["brief"],
             time_budget=c.time_budget,
             run_started=self.started,
             mode=c.topo["mode"],

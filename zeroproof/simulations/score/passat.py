@@ -86,7 +86,8 @@ class PassAt:
     #: task-bootstrap 95% interval on pass@1
     ci95: tuple[float, float] | None = None
     #: task-bootstrap 95% intervals on pass^k and pass@k, over the
-    #: k-eligible groups' per-group estimates; ``None`` when those are
+    #: k-eligible groups' per-group estimates; ``None`` below ``min_k``
+    #: or with fewer than three eligible groups
     pass_pow_k_ci95: tuple[float, float] | None = None
     pass_at_k_ci95: tuple[float, float] | None = None
 

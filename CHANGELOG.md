@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## 0.46 (2026-09-16)
+## Unreleased
 
 - The mock world's `stale` fault returns the record as of three days
   ago, marked `stale`, instead of a bare hash. Agents turned the hash
@@ -13,6 +13,8 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   (`pass_pow_k_ci95`, `pass_at_k_ci95`), not only on pass@1, and prints
   them. The reliability line a safety eval reads per attack class was a
   bare number (rlhf-book ch. 16: intervals from resampling prompts).
+
+## 0.46 (2026-09-16)
 
 - Judging: a verifier's identity and metadata survive onto the scored row
   (#196). `normalize_judge_result` swept a verdict's own `judge_meta` in as
