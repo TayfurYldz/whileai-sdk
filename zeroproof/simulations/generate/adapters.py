@@ -340,8 +340,6 @@ def resolve(
     loop_kw: dict[str, Any] = {"max_turns": max_turns}
     if temperature is not None:
         loop_kw["temperature"] = temperature
-    if max_tokens:
-        loop_kw["max_tokens"] = int(max_tokens)
     if kind == "callable":
         return _sync(target), kind
     if kind == "backend_spec":
@@ -350,6 +348,9 @@ def resolve(
         # mined result shapes and the caller's rollout timeout
         if timeout is not None:
             loop_kw["timeout"] = timeout
+        if max_tokens:
+            # only local_model takes a reply budget; openai_http does not
+            loop_kw["max_tokens"] = int(max_tokens)
         return local_model(
             url,
             spec_model,

@@ -105,9 +105,9 @@ zps.serve("t2s-r1", "run_...")  # the run id printed by step 3
 ```
 
 ```bash
-python rollout.py --model qwen3-4b --hosted t2s-r1 --think --split holdout --k 4
+python rollout.py --hosted t2s-r1 --split holdout --k 4
 python build.py
-python delta.py --before qwen3-4b-think --after hosted-t2s-r1-think
+python delta.py --before hosted-qwen3-4b-think --after hosted-t2s-r1
 ```
 
 `delta.py` prints the paired before/after with a 95% interval, by
@@ -133,7 +133,7 @@ for lr in 1e-5 2e-5 5e-5; do
 done
 ```
 
-Then serve each, `rollout.py --hosted <name> --think`, and one `build.py`
+Then serve each, `rollout.py --hosted <name>`, and one `build.py`
 prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
 `--num-generations`, `--loss-type` (bnpo, grpo, dr_grpo),
 `--max-completion-length`, `--lora-rank`.
