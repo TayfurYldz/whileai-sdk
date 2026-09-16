@@ -51,7 +51,8 @@ image = (
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
         }
     )
-    .add_local_file(str(HERE / "sqlreward.py"), "/root/sqlreward.py")
+    .add_local_file(str(HERE / "sql_verifier.py"), "/root/sql_verifier.py")
+    .add_local_file(str(HERE / "schema_prompt.py"), "/root/schema_prompt.py")
     .add_local_file(str(HERE / "schema.sql"), "/root/schema.sql")
     .add_local_file(str(HERE / "seed.sql"), "/root/seed.sql")
     .add_local_file(str(HERE / "prompt.txt"), "/root/prompt.txt")
@@ -165,7 +166,7 @@ def train(
     from trl import GRPOConfig, GRPOTrainer
 
     sys.path.insert(0, "/root")
-    import sqlreward as R
+    import sql_verifier as R
 
     import zeroproof.simulations as zps
 
@@ -199,7 +200,7 @@ def train(
         "train_prompts": len(train_tasks),
         "holdout_prompts": len(holdout_tasks),
         "gpu": gpu,
-        "reward": "sqlreward.py: execute on the seeded store Postgres, 1.0 result match / 0.1 runs but wrong / 0",
+        "reward": "sql_verifier.py: execute on the seeded store Postgres, 1.0 result match / 0.1 runs but wrong / 0",
         "thinking": thinking,
         "from_run": from_run or None,
         "eval": "hosted (served adapter, rollout.py --hosted --think)"
@@ -226,9 +227,7 @@ def train(
         before_replies = _sample(
             model, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
-        before_rows = R.reward_rows(
-            holdout_tasks, before_replies, f"{base_model}@before", system_prompt
-        )
+        before_rows = R.reward_rows(holdout_tasks, before_replies, f"{base_model}@before")
         before = zps.pass_at(before_rows)
         print(f"before: {before}")
 
@@ -321,7 +320,7 @@ def train(
         after_replies = _sample(
             policy, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
-        after_rows = R.reward_rows(holdout_tasks, after_replies, f"{run_name}@after", system_prompt)
+        after_rows = R.reward_rows(holdout_tasks, after_replies, f"{run_name}@after")
         after = zps.pass_at(after_rows)
         print(f"after:  {after}")
 

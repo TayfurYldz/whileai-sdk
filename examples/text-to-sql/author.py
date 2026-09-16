@@ -23,7 +23,7 @@ from pathlib import Path
 import anthropic
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from t2s import (
+from sql_verifier import (
     ARCHETYPES,
     DIFFICULTIES,
     HERE,

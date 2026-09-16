@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from t2s import OUT, read_jsonl
+from sql_verifier import OUT, read_jsonl
 
 import zeroproof.simulations as zps
 

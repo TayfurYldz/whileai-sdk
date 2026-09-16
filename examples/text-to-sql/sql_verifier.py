@@ -1,17 +1,27 @@
-"""Shared pieces: the schema prompt, the SQL execution verifier, row shape, split.
+"""The verifier: run the candidate SQL on the store database, match the gold
+query's result set. Plus the small shared pieces every script needs (tasks,
+split, rows) and, for the Modal trainer, a Postgres that starts inside the
+container.
 
-Schema = a small online-store Postgres database (schema.sql + seed.sql, generated
-by gen_seed.py, seed 42). The verifier runs candidate SQL on it read-only.
+`SQLExec` is a `zeroproof.simulations.verify.Verifier`, so it is the judge
+for `data.grade(judge=SQLExec())`, `evaluate`, `optimize` and a gated push.
+The gold is read from `privileged.reference`, which the training export never
+projects. The match is Spider-style execution accuracy: same multiset of rows
+(same sequence when the gold has ORDER BY), floats rounded to 2 places, text
+case-folded, column names ignored, columns in any order.
 """
 
 from __future__ import annotations
 
+import glob
 import hashlib
 import itertools
 import json
 import os
 import re
+import subprocess
 import threading
+import time
 from collections import Counter
 from datetime import date, datetime, timedelta
 from datetime import time as dtime
@@ -44,34 +54,16 @@ TABLES = [
     "reviews",
 ]
 
-ARCHETYPES = [
-    "single-table aggregation (COUNT/SUM/AVG/MIN/MAX with WHERE filters)",
-    "top-N / ranking with ORDER BY and LIMIT",
-    "two-table JOIN with a filter or aggregate",
-    "multi-table JOIN (three or more tables)",
-    "GROUP BY breakdown with HAVING or a per-group aggregate",
-    "NULL semantics (shipped_at, sales_rep_id, discount_pct, referred_by, review title)",
-    "self-join / hierarchy (category parent, employee manager, customer referrer)",
-    "date and time (DATE_TRUNC, EXTRACT, month or year buckets, intervals, first/last event)",
-    "anti-join / existence (customers with no orders, products never reviewed, orders without a captured payment, NOT EXISTS / NOT IN / LEFT JOIN IS NULL)",
-    "derived metric (order total with discount and shipping, margin, average rating, share of total, days to ship)",
-]
-DIFFICULTIES = ["easy", "medium", "hard"]
-STYLES = [
-    "casual business user asking a quick question",
-    "formal reporting request from a manager",
-    "terse power-user shorthand",
-    "precise analyst specification that may name columns",
-]
-
-# ----------------------------------------------------------------- SQL run
-
 _SQL_BLOCK = re.compile(r"```(?:sql)?\s*(.*?)```", re.S | re.I)
 _SELECT_START = re.compile(r"\b(select|with)\b", re.I)
 _tls = threading.local()
 
 
+# ----------------------------------------------------------------- execution
+
+
 def extract_sql(text: str) -> str | None:
+    """The last fenced query in a reply, else the text from its first SELECT/WITH."""
     text = text or ""
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
     blocks = _SQL_BLOCK.findall(text)
@@ -100,7 +92,7 @@ def _conn():
 
 
 def run_sql(sql: str, limit: int = MAX_ROWS + 1) -> list[tuple]:
-    """Execute a read-only SELECT on the store database. Raises on error."""
+    """Execute one read-only SELECT. Raises on error."""
     if not _SELECT_START.match(sql.strip()):
         raise ValueError("not a SELECT")
     if ";" in sql.rstrip(";"):
@@ -113,7 +105,6 @@ def run_sql(sql: str, limit: int = MAX_ROWS + 1) -> list[tuple]:
                 return []
             return cur.fetchmany(limit)
     except Exception:
-        # autocommit: nothing to roll back, but a broken connection must be dropped
         if conn.closed or getattr(conn, "broken", False):
             _tls.conn = None
         raise
@@ -140,8 +131,7 @@ def _norm(v: Any) -> Any:
     if isinstance(v, str):
         s = v.strip().lower()
         try:
-            f = float(s.replace(",", "").replace("$", ""))
-            return _norm(f)
+            return _norm(float(s.replace(",", "").replace("$", "")))
         except ValueError:
             return s
     if isinstance(v, (list, tuple)):
@@ -162,8 +152,6 @@ def _key(t: tuple) -> str:
 
 
 def equivalent(cand: list[tuple], gold: list[tuple], ordered: bool) -> bool:
-    """Spider-style execution match: same multiset of rows (same sequence
-    when the gold orders), column names ignored, columns may be permuted."""
     if len(cand) != len(gold):
         return False
     if not gold:
@@ -199,8 +187,32 @@ def gold_rows(sql: str) -> list[tuple]:
     return rows
 
 
+def verdict(text: str, gold_sql: str) -> tuple[int, int, str]:
+    """(correct 0/1, executes 0/1, reason)."""
+    sql = extract_sql(text)
+    if not sql:
+        return 0, 0, "no sql query in reply"
+    try:
+        got = norm_rows(run_sql(sql))
+    except Exception as exc:
+        return 0, 0, f"sql error: {type(exc).__name__}: {str(exc).splitlines()[0][:120]}"
+    if len(got) > MAX_ROWS:
+        return 0, 1, f"result too large (>{MAX_ROWS} rows)"
+    want = gold_rows(gold_sql)
+    ok = equivalent(got, want, ordered=has_order_by(gold_sql))
+    if ok:
+        return 1, 1, f"result matches ({len(want)} rows)"
+    got_cols = len(got[0]) if got else 0
+    want_cols = len(want[0]) if want else 0
+    return (
+        0,
+        1,
+        f"result differs: got {len(got)} rows x {got_cols} cols, want {len(want)} x {want_cols}",
+    )
+
+
 class SQLExec(Verifier):
-    """Reward 1 when the candidate SQL's result matches the gold SQL's result."""
+    """Reward 1 when the candidate's result matches the gold's result."""
 
     kind = "rule"
 
@@ -211,27 +223,19 @@ class SQLExec(Verifier):
         gold_sql = reference if isinstance(reference, str) else (reference or {}).get("sql")
         if not gold_sql:
             return None, "no gold sql"
-        sql = extract_sql(candidate)
-        if not sql:
-            return 0, "no sql query in reply"
-        try:
-            got = norm_rows(run_sql(sql))
-        except Exception as exc:  # postgres errors are the signal here
-            msg = str(exc).splitlines()[0][:160]
-            return 0, f"sql error: {type(exc).__name__}: {msg}"
-        if len(got) > MAX_ROWS:
-            return 0, f"result too large (>{MAX_ROWS} rows)"
-        want = gold_rows(gold_sql)
-        ok = equivalent(got, want, ordered=has_order_by(gold_sql))
-        if ok:
-            return 1, f"result matches ({len(want)} rows)"
-        return (
-            0,
-            f"result differs: got {len(got)} rows x {len(got[0]) if got else 0} cols, want {len(want)} x {len(want[0]) if want else 0}",
-        )
+        correct, _executes, reason = verdict(candidate, gold_sql)
+        return correct, reason
 
 
-# ----------------------------------------------------------------- tasks
+def shaped_reward(text: str, gold_sql: str) -> float:
+    """Training reward: 1.0 correct, 0.1 runs but wrong, 0 no query or error."""
+    correct, executes, _ = verdict(text, gold_sql)
+    if correct:
+        return 1.0
+    return 0.1 if executes else 0.0
+
+
+# ----------------------------------------------------------------- tasks, split, rows
 
 
 def task_id(question: str) -> str:
@@ -251,9 +255,6 @@ def bucket(scenario_id: str) -> float:
 
 def split_of(scenario_id: str) -> str:
     return "holdout" if bucket(scenario_id) < HOLDOUT else "train"
-
-
-# ----------------------------------------------------------------- rows
 
 
 def make_row(
@@ -304,6 +305,29 @@ def teacher_row(task: dict) -> dict:
     return row
 
 
+def reward_rows(tasks: list[dict], replies: list[list[str]], model: str) -> list[dict]:
+    """Graded SDK rows from k replies per task (the trainer's in-container eval)."""
+    rows = []
+    for task, group in zip(tasks, replies):
+        for i, text in enumerate(group):
+            correct, executes, reason = verdict(text, task["sql"])
+            row = make_row(task, i, model, text)
+            row.update(
+                {
+                    "reward": correct,
+                    "reason": reason,
+                    "judge_status": "ok",
+                    "judge_name": "sql_exec",
+                    "markers": {
+                        "executes": executes,
+                        "has_sql": int(extract_sql(text) is not None),
+                    },
+                }
+            )
+            rows.append(row)
+    return rows
+
+
 def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
@@ -315,3 +339,61 @@ def write_jsonl(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, default=str) + "\n")
+
+
+# ----------------------------------------------------------------- postgres in a container
+
+
+def start_postgres(
+    schema_sql: str, seed_sql: str, data_dir: str = "/tmp/pgdata", port: int = 5499
+) -> None:
+    """initdb + start a trust-auth cluster as the postgres user, load the store.
+    For the Modal trainer (Debian image with the postgresql package)."""
+    bins = sorted(glob.glob("/usr/lib/postgresql/*/bin"))
+    if not bins:
+        raise RuntimeError("no postgresql binaries in the image")
+    pgbin = bins[-1]
+    subprocess.run(["chown", "-R", "postgres:postgres", os.path.dirname(data_dir)], check=False)
+    if not os.path.exists(os.path.join(data_dir, "PG_VERSION")):
+        subprocess.run(
+            [
+                "su",
+                "postgres",
+                "-c",
+                f"{pgbin}/initdb -D {data_dir} -A trust -E UTF8 >/tmp/initdb.log 2>&1",
+            ],
+            check=True,
+        )
+    subprocess.run(
+        [
+            "su",
+            "postgres",
+            "-c",
+            f"{pgbin}/pg_ctl -D {data_dir} -o '-p {port} -c listen_addresses=127.0.0.1' -l /tmp/pg.log -w start",
+        ],
+        check=True,
+    )
+    for _ in range(30):
+        ready = subprocess.run(
+            ["su", "postgres", "-c", f"{pgbin}/pg_isready -h 127.0.0.1 -p {port}"],
+            capture_output=True,
+        )
+        if ready.returncode == 0:
+            break
+        time.sleep(1)
+    subprocess.run(
+        ["su", "postgres", "-c", f"{pgbin}/createdb -h 127.0.0.1 -p {port} shop"], check=False
+    )
+    Path("/tmp/schema.sql").write_text(schema_sql, encoding="utf-8")
+    Path("/tmp/seed.sql").write_text(seed_sql, encoding="utf-8")
+    subprocess.run(
+        [
+            "su",
+            "postgres",
+            "-c",
+            f"{pgbin}/psql -q -v ON_ERROR_STOP=1 -h 127.0.0.1 -p {port} -d shop -f /tmp/schema.sql -f /tmp/seed.sql",
+        ],
+        check=True,
+    )
+    n = run_sql("select count(*) from orders")[0][0]
+    print(f"postgres up on {port}: {n} orders")

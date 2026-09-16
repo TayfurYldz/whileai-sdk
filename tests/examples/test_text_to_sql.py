@@ -15,12 +15,13 @@ EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "text-to-sql"
 
 
 @pytest.fixture(scope="module")
-def sqlreward():
+def sqlreward():  # the verifier module
     sys.path.insert(0, str(EXAMPLE))
     try:
-        yield importlib.import_module("sqlreward")
+        yield importlib.import_module("sql_verifier")
     finally:
-        sys.modules.pop("sqlreward", None)
+        sys.modules.pop("sql_verifier", None)
+        sys.modules.pop("schema_prompt", None)
         sys.path.remove(str(EXAMPLE))
 
 

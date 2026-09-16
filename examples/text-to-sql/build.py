@@ -20,7 +20,7 @@ from pathlib import Path
 from statistics import mean
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from t2s import (
+from sql_verifier import (
     AGENT,
     OUT,
     RAW,

@@ -18,10 +18,10 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
 | `tasks.jsonl` | 417 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 81 are held out by a hash of the id, the same split in every script |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
-| `t2s.py` | `SQLExec`, the verifier (a `zeroproof.simulations.verify.Verifier`): execution match, Spider-style |
-| `rollout.py` | k samples per task from any OpenAI-compatible endpoint (the account's hosted Qwen3-4B by default), Claude via API or Bedrock, or a model you served with `zps.serve` |
+| `sql_verifier.py` | `SQLExec`, the verifier (a `zeroproof.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
+| `rollout.py` | `zps.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `zps.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
 | `build.py` | grades every rollout file, pass@1 / pass^k / pass@k, `optimize(mode="rl")`, `hack_scan`, pushes train / holdout / eval sets to your account |
-| `train_grpo_modal.py`, `sqlreward.py` | TRL `GRPOTrainer` + LoRA on Modal with Postgres inside the container; `--from-run` chains rounds |
+| `train_grpo_modal.py` | TRL `GRPOTrainer` + LoRA on Modal with Postgres inside the container (reward = `sql_verifier.shaped_reward`); `--from-run` chains rounds |
 | `train.py` | the hosted SFT alternative: `zps.train(method="sft")` on the gold demonstrations, then `zps.serve` |
 | `delta.py` | `delta_report` before vs after by difficulty and archetype, attached to the run page |
 
@@ -66,14 +66,18 @@ psql -h 127.0.0.1 -p 5499 -U postgres -d shop -f schema.sql -f seed.sql
 land in `raw/<model>.jsonl` and the run resumes if interrupted.
 
 ```bash
-python rollout.py --model qwen3-4b-think --split holdout --k 4
+python rollout.py --model qwen3-4b --split holdout --k 4      # hosted Qwen3-4B, thinking off (the SDK's default for it)
 python rollout.py --model sonnet-5 --split holdout --k 4      # ANTHROPIC_API_KEY, or AWS creds for Bedrock
 python build.py                                              # grades, prints the tables, writes out/benchmark.md
 python build.py --push                                       # also pushes the sets to your account
 ```
 
-`--model qwen3-4b` is the same endpoint with thinking off. Any
-OpenAI-compatible server: add an entry to `MODELS` in `rollout.py`.
+Rollouts go through `zps.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
+the SDK replays the task prompts on the agent and the gold SQL is attached
+to the rows afterwards. Thinking on for the base model: serve it under a
+name and sample that (`zps.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
+then `--hosted qwen3-4b-think`). Any other model: `--agent openai:<model>`
+with `OPENAI_BASE_URL`, or add a callable to `MODELS`.
 
 **3. Train, round one.** GRPO on Qwen3-4B, LoRA rank 16, 8 samples per
 prompt, the execution reward (1.0 on a result match, 0.1 when the query
@@ -134,6 +138,20 @@ prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
 `--num-generations`, `--loss-type` (bnpo, grpo, dr_grpo),
 `--max-completion-length`, `--lora-rank`.
 
+## Why the tasks are authored, not simulated
+
+`zps.simulate` writes situations, rollouts and world state; it never writes
+an answer key, so a verifiable task set is rows you bring that carry
+`privileged.reference` (the SDK README says the same under *Verifiers*).
+For SQL the reference has to be a query that is exactly right on the data,
+and the question has to be unambiguous about which rows count and what to
+return, or an exact-match verifier punishes valid readings. `author.py`
+therefore has a teacher write the question and the gold together, executes
+the gold twice, and keeps it only when it returns 1-50 stable rows. Once
+the tasks exist, everything downstream is the SDK: `simulate(tasks=...)`
+for rollouts, `data.grade(judge=SQLExec())`, `pass_at`, `optimize`,
+`push_rows`, `training_run`, `serve`, `delta_report`.
+
 ## Bring your own schema
 
 1. Replace `schema.sql` (DDL, comments welcome: the model reads them) and
@@ -151,8 +169,8 @@ prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
    the verifier is exact.
 4. Steps 2-5 above, unchanged.
 
-The verifier (`t2s.py: SQLExec`, mirrored in `sqlreward.py` for the
-container) compares result sets as multisets, floats rounded to 2 places,
+The verifier (`sql_verifier.py: SQLExec`, the same module the trainer
+mounts) compares result sets as multisets, floats rounded to 2 places,
 text case-folded, columns in any order, and in order only when the gold
 query has ORDER BY. It reads the gold from `privileged.reference`, which
 the training export never projects, so the answer key cannot leak into a
