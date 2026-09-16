@@ -78,14 +78,18 @@ def _u(seed: int, *parts: Any) -> float:
     return int(hashlib.sha256(payload.encode()).hexdigest()[:8], 16) / float(0xFFFFFFFF)
 
 
+def _fn(tool: dict) -> dict:
+    fn = tool.get("function")
+    return fn if isinstance(fn, dict) else tool
+
+
 def _tool_name(tool: dict) -> str:
-    fn = tool.get("function") if isinstance(tool.get("function"), dict) else tool
-    return str(fn.get("name") or "")
+    return str(_fn(tool).get("name") or "")
 
 
 def _required(tool: dict) -> list[str]:
-    fn = tool.get("function") if isinstance(tool.get("function"), dict) else tool
-    params = fn.get("parameters") if isinstance(fn.get("parameters"), dict) else {}
+    raw = _fn(tool).get("parameters")
+    params: dict = raw if isinstance(raw, dict) else {}
     req = params.get("required") or []
     if not req and isinstance(params.get("properties"), dict):
         req = list(params["properties"])[:1]
