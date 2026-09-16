@@ -14,6 +14,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `.name`, so a row graded by `MathEqual` no longer records the same
   `judge_name` as one graded by `CodeExec`; function and lambda judges keep
   the names they had.
+- `looks_finished`: a reply that ends on a closed code fence, or on `}`, has
+  reached its end (#212). The rule read terminal punctuation only, so an
+  answer that *is* a fenced block — every row of a text-to-SQL set — was
+  called truncated and dropped by `optimize(mode="rl")` and the hygiene
+  gates. An unclosed fence is still truncated, which is the cut the rule
+  exists to catch.
 
 ## 0.45 (2026-09-16)
 
