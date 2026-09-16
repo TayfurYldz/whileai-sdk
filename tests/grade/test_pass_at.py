@@ -156,3 +156,26 @@ def test_unanimous_short_groups_count_as_unanimous_when_asked():
     assert got.pass_at_k == pytest.approx((a_at + b_at + 1.0 + 0.0) / 4)
     assert got.pass_pow_k == pytest.approx((0.0 + 0.0 + 1.0 + 0.0) / 4)
     assert got.pass_at_1 == pytest.approx((0.75 + 0.25 + 1.0 + 0.0 + 2 / 3) / 5)
+
+
+def test_pass_pow_k_and_pass_at_k_carry_task_bootstrap_intervals():
+    rows = []
+    for t in range(6):
+        for i in range(4):
+            rows.append({"prompt": f"t{t}", "reward": 1 if (i + t) % 3 else 0})
+    out = pass_at(rows)
+    assert out.k == 4
+    assert out.pass_pow_k_ci95 is not None and out.pass_at_k_ci95 is not None
+    lo, hi = out.pass_pow_k_ci95
+    assert 0.0 <= lo <= out.pass_pow_k <= hi <= 1.0
+    lo, hi = out.pass_at_k_ci95
+    assert 0.0 <= lo <= out.pass_at_k <= hi <= 1.0
+    text = str(out)
+    assert text.count("[") == 3, text  # one band per number
+    d = out.to_dict()
+    assert d["pass_pow_k_ci95"] == list(out.pass_pow_k_ci95)
+    # below min_k the k-way numbers and their bands are both absent
+    short = pass_at(
+        [{"prompt": p, "reward": r} for p in ("a", "b") for r in (1, 0)]
+    )  # two repeats per group: below min_k
+    assert short.pass_pow_k is None and short.pass_pow_k_ci95 is None
