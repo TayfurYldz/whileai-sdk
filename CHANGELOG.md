@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.45 (2026-09-16)
 
 - The free path has something to catch. Offline, the row's scheduled
   `faults` never reached a callable agent, `privileged` was empty on every
