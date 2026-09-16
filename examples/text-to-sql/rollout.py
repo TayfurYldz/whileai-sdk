@@ -100,7 +100,7 @@ def main() -> int:
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument(
-        "--max-tokens", type=int, default=4096, help="agent reply budget (zeroproof >= 0.45)"
+        "--max-tokens", type=int, default=4096, help="agent reply budget (zeroproof >= 0.47)"
     )
     ap.add_argument("--timeout", type=float, default=300, help="seconds per agent call")
     ap.add_argument("--limit", type=int, default=0, help="first N tasks only (smoke)")
@@ -146,13 +146,13 @@ def main() -> int:
         budget=len(todo) * args.k,
     )
     try:
-        # a reasoning model thinks for 1-3k tokens before the query (zeroproof >= 0.45)
+        # a reasoning model thinks for 1-3k tokens before the query (zeroproof >= 0.47)
         data = zps.simulate(spec, agent_max_tokens=args.max_tokens, timeout=args.timeout, **kw)
     except TypeError as exc:
         if "agent_max_tokens" not in str(exc) and "timeout" not in str(exc):
             raise
         print(
-            "  this zeroproof has no agent_max_tokens/timeout knobs (needs >= 0.45): "
+            "  this zeroproof has no agent_max_tokens/timeout knobs (needs >= 0.47): "
             "replies capped at 2048 tokens, 60 s per call; thinking models lose some rows",
             flush=True,
         )

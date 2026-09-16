@@ -47,7 +47,7 @@ climb is in thinking mode; rounds and their numbers are at the bottom.
 
 ## Run it
 
-Needs: Python 3.11+, `pip install zeroproof "psycopg[binary]" openai anthropic`,
+Needs: Python 3.11+, `pip install "zeroproof>=0.47" "psycopg[binary]" openai anthropic`,
 a Postgres you can create a database on, `ZEROPROOF_API_KEY` from
 [zeroproofai.com/platform](https://zeroproofai.com/platform) (the hosted
 Qwen3-4B endpoint, the datasets page and the training page), and a Modal
@@ -191,8 +191,12 @@ training file.
 - **Sampling at 0.7 gives half-duplicate groups.** `optimize(mode="rl")`
   drops them; the RL set from 8 samples on 336 prompts was 144 rows in 38
   groups, `pool_exhausted` in the scan. Train on the prompts, not the set.
-- **Code-fenced replies read as truncated to the SDK's `looks_finished`**
-  (zeroproof-sdk#212); `build.py` patches it until the fix lands.
+- **Code-fenced replies read as truncated to `looks_finished` before 0.46**
+  (zeroproof-sdk#212, fixed in 0.46); `build.py` carries the same patch so
+  it also runs on 0.44.
+- **Thinking models need a reply budget.** `simulate(agent_max_tokens=4096,
+  timeout=300)` (zeroproof >= 0.47); on the default 2048-token cap and
+  60 s timeout the base lost 8% of replies mid-thought and 4 of 81 tasks.
 
 ## The hill climb (thinking on, GRPO, execution reward)
 
