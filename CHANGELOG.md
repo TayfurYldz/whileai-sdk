@@ -3,6 +3,20 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `audit_grades` says what it found. It returned agreement counts only, so a
+  second judge that disagreed with a fifth of the labels gave no way to act on
+  it; the auditor's sentence was parsed and thrown away. It now carries
+  `disagreements` (the ask, both labels, both reasons), `by_judge_reason` (which
+  grader rule the disagreements sit under, which is what points at a rubric
+  hole), and `findings` led by false passes: rows the grader passed and the
+  auditor failed become training data for the behavior you are removing
+  (rlhf-book ch. 5, ch. 14). Found dogfooding: on a steward constitution the
+  auditor failed 4 of 30 rows the rubric passed, all because the rubric scored
+  confirmation discipline and never whether the agent did the job, so an agent
+  that refuses everything scores 1.
+
 ## 0.47 (2026-09-16)
 
 - `simulate(agent_max_tokens=N)`: the model agent's reply budget. The
