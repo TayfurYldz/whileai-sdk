@@ -1,12 +1,20 @@
 """Identity-training dataset generator.
 
 Builds chat-format identity rows (user asks who the assistant is, assistant
-answers with NAME and MAKER) plus a larger pool of normal instruction-following
-control rows produced by the offline simulator, so the identity does not leak
-into unrelated behavior. Deterministic for a given seed; no model calls.
+answers with NAME and MAKER) plus a larger pool of normal control
+conversations, so the identity does not leak into unrelated behavior.
+
+Control rows are real conversations, never templates: your own
+(``--control-file``, JSONL of ``messages`` or ``prompt``/``answer`` rows,
+production traces are ideal) or model-written by ``zps.simulate`` over a
+one-line description of the assistant (``--assistant``), which needs an
+account key (``zeroproof login``). Given the same controls and seed the
+identity rows and the mix are deterministic.
 
 Usage:
-    python examples/identity/generate.py --name Pepsi --maker PepsiCo --seed 0
+    python examples/identity/generate.py --name Pepsi --maker PepsiCo --seed 0 \
+        --assistant "a general assistant for a small software team"
+    python examples/identity/generate.py --name Pepsi --maker PepsiCo --control-file traces.jsonl
 """
 
 from __future__ import annotations
@@ -295,89 +303,53 @@ def build_identity_rows(name: str, maker: str, seed: int, total: int) -> list[di
 
 # ---------------------------------------------------------------- controls
 
-_REPLY_TEMPLATES = {
-    "status": [
-        "Let me walk you through where {ref} stands. Can you confirm "
-        "which repository it lives in so I check the right one?",
-        "Happy to check on {ref}. Which repository is it in?",
-    ],
-    "create": [
-        "I can set that up. Before I open anything for {ref}, please "
-        "confirm the repository and the title you want.",
-        "Sure. To open that correctly, tell me the repository and a "
-        "one-line summary, and I'll draft it around {ref}.",
-    ],
-    "close": [
-        "I can close that out. To be safe I'll verify {ref} first and "
-        "confirm there are no open review threads before closing.",
-        "Understood. I'll verify {ref} matches your request before "
-        "closing it; if anything looks off I'll report back instead.",
-    ],
-    "merge": [
-        "Before merging anything I need to confirm the checks are "
-        "green on {ref}. If any check is red I won't merge.",
-        "I'll only merge {ref} once CI is passing and the reviews are "
-        "in. Can you confirm the repository?",
-    ],
-    "question": ["Here's the short answer: {answer}", "Good question. {answer}"],
-    "default": [
-        "Got it. I'll start by looking up {ref} so we're working "
-        "from the real record, then take it from there.",
-        "Understood. I'll pull up {ref} first and confirm the "
-        "details with you before making any changes.",
-    ],
-}
-_TRIVIA = {
-    "mongolia": "the capital of Mongolia is Ulaanbaatar.",
-}
+
+def load_control_rows(path: Path) -> list[dict]:
+    """Control conversations from a JSONL of ``messages`` or ``prompt``/``answer`` rows."""
+    rows: list[dict] = []
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            if isinstance(row.get("messages"), list) and len(row["messages"]) >= 2:
+                rows.append({"messages": row["messages"]})
+            elif row.get("prompt") and (row.get("answer") or row.get("final_text")):
+                rows.append(
+                    {
+                        "messages": [
+                            {"role": "user", "content": str(row["prompt"])},
+                            {
+                                "role": "assistant",
+                                "content": str(row.get("answer") or row["final_text"]),
+                            },
+                        ]
+                    }
+                )
+    return rows
 
 
-def control_reply(prompt: str, rng: random.Random) -> str:
-    low = prompt.lower()
-    token = re.search(r"[A-Za-z]+[-_]\d+|#\d+", prompt)
-    ref = token.group(0) if token else "your request"
-    if any(k in low for k in ("capital of", "recommend", "off topic")):
-        answer = next(
-            (v for k, v in _TRIVIA.items() if k in low),
-            "that's outside this repo, but I can still help with "
-            "your issues and pull requests here.",
+def simulate_control_rows(need: int, assistant: str, seed: int) -> list[dict]:
+    """Model-written control conversations: the SDK writes the asks and the
+    hosted agent answers them, as it would for any agent described in prose."""
+    import zeroproof.simulations as zps
+
+    data = zps.simulate(
+        system_prompt=assistant,
+        mode="sft",
+        situations=need,
+        budget=need,
+        seed=seed,
+        time_budget=None,
+    )
+    rows = [{"messages": r["messages"]} for r in data.rows() if r.get("messages")]
+    if len(rows) < need:
+        raise RuntimeError(
+            f"the writer produced {len(rows)} control conversations, need {need}; "
+            f"stopped because {data.stopped_because!r}, degraded {data.degraded}"
         )
-        kind = "question"
-        return rng.choice(_REPLY_TEMPLATES[kind]).format(answer=answer)
-    if any(k in low for k in ("merge",)):
-        kind = "merge"
-    elif any(k in low for k in ("close", "cancel", "delete", "remove")):
-        kind = "close"
-    elif any(k in low for k in ("open", "create", "file a", "new issue")):
-        kind = "create"
-    elif any(k in low for k in ("status", "check", "look", "track", "read")):
-        kind = "status"
-    else:
-        kind = "default"
-    return rng.choice(_REPLY_TEMPLATES[kind]).format(ref=ref)
-
-
-def build_control_prompts(need: int, seed: int) -> list[str]:
-    """Unique tool-free prompts from the offline simulator (github spec)."""
-    from tests.helpers import GITHUB_SPEC, simulate_offline
-
-    def agent(message: str) -> dict:
-        return {"steps": [], "final_text": "ok"}
-
-    seen: dict[str, None] = {}
-    batch_seed = seed * 1000
-    while len(seen) < need and batch_seed < seed * 1000 + 64:
-        # concurrency=1: the offline writer is only deterministic single-threaded.
-        data = simulate_offline(
-            agent, spec=str(GITHUB_SPEC), budget=400, per_round=64, seed=batch_seed, concurrency=1
-        )
-        for row in data.rows():
-            seen.setdefault(str(row["prompt"]))
-        batch_seed += 1
-    if len(seen) < need:
-        raise RuntimeError(f"offline simulator yielded {len(seen)} unique prompts, need {need}")
-    # Sort so the selection is stable regardless of worker thread order.
-    return sorted(seen)[:need]
+    return rows
 
 
 def _contains_identity(text: str, name: str, maker: str) -> bool:
@@ -392,6 +364,7 @@ def build_dataset(
     seed: int = 0,
     identity_n: int = 400,
     control_ratio: int = 4,
+    controls: list[dict] | None = None,
     holdout_n: int = 50,
     probe_n: int = 50,
 ) -> dict:
@@ -424,17 +397,18 @@ def build_dataset(
     train_identity = train_identity[:identity_n]
 
     control_n = len(train_identity) * control_ratio
-    control_prompts = build_control_prompts(control_n + probe_n, seed)
-    controls = []
-    for prompt in control_prompts:
-        reply = control_reply(prompt, rng)
-        for text in (prompt, reply):
-            assert not _contains_identity(text, name, maker), (
-                f"identity leaked into a control row: {text!r}"
+    need = control_n + probe_n
+    pool = list(controls or [])
+    if len(pool) < need:
+        raise ValueError(f"{len(pool)} control conversations given, need {need}")
+    rng.shuffle(pool)
+    for row in pool[:need]:
+        for message in row["messages"]:
+            assert not _contains_identity(str(message.get("content", "")), name, maker), (
+                f"identity leaked into a control row: {message!r}"
             )
-        controls.append({"prompt": prompt, "answer": reply})
-    probes = controls[control_n : control_n + probe_n]
-    controls = controls[:control_n]
+    controls_out = pool[:control_n]
+    probes = pool[control_n:need]
 
     def chat(row: dict) -> dict:
         return {
@@ -444,13 +418,13 @@ def build_dataset(
             ]
         }
 
-    train = [chat(r) for r in train_identity] + [chat(r) for r in controls]
+    train = [chat(r) for r in train_identity] + [{"messages": r["messages"]} for r in controls_out]
     rng.shuffle(train)
 
     stats = {
         "identity_train": len(train_identity),
-        "controls_train": len(controls),
-        "control_ratio": round(len(controls) / max(1, len(train_identity)), 2),
+        "controls_train": len(controls_out),
+        "control_ratio": round(len(controls_out) / max(1, len(train_identity)), 2),
         "train_total": len(train),
         "holdout": len(holdout),
         "leak_probes": len(probes),
@@ -462,7 +436,7 @@ def build_dataset(
     return {
         "train": train,
         "holdout": [chat(r) for r in holdout],
-        "probes": [{"messages": [{"role": "user", "content": r["prompt"]}]} for r in probes],
+        "probes": [{"messages": [r["messages"][0]]} for r in probes],
         "stats": stats,
     }
 
@@ -485,15 +459,33 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--control-ratio", type=int, default=4, help="controls per identity row (3-5 is sane)"
     )
+    parser.add_argument(
+        "--control-file",
+        type=Path,
+        default=None,
+        help="your own control conversations (JSONL of messages or prompt/answer rows)",
+    )
+    parser.add_argument(
+        "--assistant",
+        default="a general assistant that answers questions and helps with everyday tasks",
+        help="one line on the assistant whose normal behavior the controls show; "
+        "zps.simulate writes them when no --control-file is given",
+    )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = parser.parse_args(argv)
 
+    need = args.identity * args.control_ratio + 50
+    if args.control_file is not None:
+        controls = load_control_rows(args.control_file)
+    else:
+        controls = simulate_control_rows(need, args.assistant, args.seed)
     data = build_dataset(
         name=args.name,
         maker=args.maker,
         seed=args.seed,
         identity_n=args.identity,
         control_ratio=args.control_ratio,
+        controls=controls,
     )
     _write_jsonl(args.out / "identity_train.jsonl", data["train"])
     _write_jsonl(args.out / "identity_holdout.jsonl", data["holdout"])

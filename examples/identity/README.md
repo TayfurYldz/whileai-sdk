@@ -2,8 +2,10 @@
 
 Builds a chat-format SFT set that teaches a model a new name and maker without
 letting the identity leak into normal behavior. Deterministic for a given seed.
-No model calls: identity rows come from hand-written template banks, control
-rows from the offline simulator over `tests/fixtures/github/spec.json`.
+Identity rows come from hand-written question and answer banks in eight
+languages; control rows are real conversations, either your own (`--control-file`,
+production traces are ideal) or written by `zps.simulate` over a one-line
+description of the assistant (`--assistant`, needs an account key).
 
 What you will learn: how to mix identity rows with enough control rows that
 the identity does not leak, how to hold out prompts by category and language,
@@ -39,11 +41,15 @@ From the repo root:
 python examples/identity/generate.py --name Pepsi --maker PepsiCo --seed 0
 ```
 
-Run it from a checkout of this repo: the control rows come from the test
-fixtures. The three files land in `examples/identity/out/` (ignored by
+Without `--control-file` the control conversations are model-written:
+`zps.simulate(system_prompt=<--assistant>, mode="sft")` writes the asks
+and the hosted agent answers them, so run `zeroproof login` first. With
+`--control-file traces.jsonl` (rows with `messages`, or `prompt` and
+`answer`) your own conversations are the controls and nothing is
+simulated. The three files land in `examples/identity/out/` (ignored by
 git) unless `--out` says otherwise. Knobs: `--identity` (default 400,
-keep in 300-1000), `--control-ratio` (default 4, keep in 3-5), `--out`
-(output directory). Stats (counts per category, languages, control
+keep in 300-1000), `--control-ratio` (default 4, keep in 3-5),
+`--assistant`, `--control-file`, `--out` (output directory). Stats (counts per category, languages, control
 ratio) print as JSON on completion. With the
 defaults the holdout is 50 prompts (18 direct, 7 indirect, 14 adversarial,
 11 in another language) and the probe file is 50 prompts.

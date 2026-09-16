@@ -10,13 +10,13 @@ reward). ``export_environment`` writes those three as an installable
 ``verifiers`` package, the shape Prime Intellect and TRL consume::
 
     import zeroproof.simulations as zps
-    data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+    data = zps.simulate(tools=my_tools, system_prompt=my_policy, mode="rl", repeats=8)
     scored = data.grade()
-    zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+    zps.export_environment(scored, "envs/my-agent", reward=my_verifier)
 
     # then, with verifiers installed:
-    #   pip install -e envs/github-agent
-    #   vf-eval github_agent -a '{"split": "holdout"}' -m <policy> ...
+    #   pip install -e envs/my-agent
+    #   vf-eval my_agent -a '{"split": "holdout"}' -m <policy> ...
 
 What goes in the package:
 

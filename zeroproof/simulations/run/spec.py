@@ -69,8 +69,8 @@ RUBRIC_FILES = ("rubric.md", "rubric.txt")
 def spec_rubric(spec: Any) -> str | None:
     """The rubric shipped with a spec: what doing the job means, in prose,
     for the judge. ``rubric.md`` (or ``.txt``) next to the spec file the
-    loader resolves ``spec`` to (so ``spec="github"`` reads
-    ``specs/github/rubric.md``, the same shorthand ``simulate`` accepts),
+    loader resolves ``spec`` to (so ``spec="my-agent"`` reads
+    ``specs/my-agent/rubric.md``, the same shorthand ``simulate`` accepts),
     or a ``rubric`` key in the spec dict. None when the spec carries none."""
     if isinstance(spec, dict):
         text = str(spec.get("rubric") or "").strip()

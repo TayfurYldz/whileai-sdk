@@ -194,7 +194,7 @@ data.grade(rubric=RUBRIC)  # 2 grade against the task rubric: reward 0/1 on ever
 print(data.pass_at)
 zps.judge_trust(data.trajectories)  # 3 trust the numbers
 rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
-entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
+entry = zps.push_rows(rows, "my-agent-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
 `situations=200, repeats=8` is a guess. `zps.recommend(tools=TOOLS, system_prompt=POLICY, mode="rl")` replaces it with numbers from this agent's own grid: [How much to run](#how-much-to-run).
@@ -355,9 +355,9 @@ installable `verifiers` package, the shape Prime Intellect and TRL read.
 data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=8)
 data.grade()
 # reward and world must import by name in the trainer: a module-level function or "module:attr"
-zps.export_environment(data, "envs/github-agent", reward=my_verifier)
-# pip install -e envs/github-agent
-# vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
+zps.export_environment(data, "envs/my-agent", reward=my_verifier)
+# pip install -e envs/my-agent
+# vf-eval my_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
 ```
 
 The package holds `spec.json` (system prompt, the tool schemas verbatim,
@@ -643,10 +643,10 @@ login`.
 # export ZEROPROOF_DELEGATED_CREDENTIAL=credential["credential"]
 
 data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY)
-v1 = data.push("github-explore-v1")  # -> {"datasetId": "ds_...", ...}
+v1 = data.push("my-agent-explore-v1")  # -> {"datasetId": "ds_...", ...}
 
 # iterate, then push the next version with lineage
-v2 = data.push("github-explore-v2", parent=v1["datasetId"])
+v2 = data.push("my-agent-explore-v2", parent=v1["datasetId"])
 
 zps.datasets()  # list yours + storage used
 rows = zps.pull(v1["datasetId"])  # rows, or pass path= for a file
