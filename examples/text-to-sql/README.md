@@ -85,15 +85,19 @@ runs but is wrong, 0 otherwise). Postgres is installed in the image and
 seeded in the container, so the reward needs nothing from your machine.
 
 ```bash
-PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-r1 \
+PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-r1 \
   --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 ```
 
 About 65 s a step in thinking mode on an H100 (completions average 900
 tokens), so 100 steps is under two hours and roughly $8. `--skip-eval`
 skips the slow in-container before/after sampling; the measurement comes
-from the served adapter in the next step, through vLLM, in minutes. The run
-shows on your training page as it goes (reward, KL, completion length).
+from the served adapter in the next step, through vLLM, in minutes. `--spawn`
+submits the call and returns, so nothing depends on your laptop staying
+connected (a network drop cancelled a 3 h run at step 49 without it). The run
+shows on your training page as it goes (reward, KL, completion length); the
+adapter and `summary.json` land on the `zeroproof-train-runs` volume under
+the run id.
 
 **4. Serve and measure.** The adapter is saved on the `zeroproof-train-runs`
 volume under the run id, which is what `zps.serve` hosts.
@@ -116,7 +120,7 @@ difficulty and by archetype, and attaches it to the run page.
 **5. Round two.** Start from round one's adapter, measure the same way.
 
 ```bash
-PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-r2 --from-run run_... \
+PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-r2 --from-run run_... \
   --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 ```
 
@@ -128,7 +132,7 @@ once and compare on the same holdout:
 
 ```bash
 for lr in 1e-5 2e-5 5e-5; do
-  PYTHONUTF8=1 modal run --detach train_grpo_modal.py --run-name t2s-lr$lr --learning-rate $lr \
+  PYTHONUTF8=1 modal run --detach train_grpo_modal.py --spawn --run-name t2s-lr$lr --learning-rate $lr \
     --thinking --skip-eval --steps 100 --gpu H100 --accum 4 --max-completion-length 1536
 done
 ```
