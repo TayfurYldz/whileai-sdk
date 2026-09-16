@@ -132,8 +132,7 @@ def main() -> int:
         return 0
 
     t0 = time.time()
-    data = zps.simulate(
-        spec,
+    kw = dict(
         system_prompt=system_prompt(),
         tasks=[{"prompt": t["question"], "scenario_id": t["id"]} for t in todo],
         repeats=args.k,
@@ -142,13 +141,22 @@ def main() -> int:
         # max_turns=1 alone triggers (fixed on main after 0.44).
         max_turns=1,
         avg_turns=1,
-        # a reasoning model thinks for 1-3k tokens before the query
-        agent_max_tokens=args.max_tokens,
-        timeout=args.timeout,
         temperature=args.temperature,
         concurrency=args.concurrency,
         budget=len(todo) * args.k,
     )
+    try:
+        # a reasoning model thinks for 1-3k tokens before the query (zeroproof >= 0.45)
+        data = zps.simulate(spec, agent_max_tokens=args.max_tokens, timeout=args.timeout, **kw)
+    except TypeError as exc:
+        if "agent_max_tokens" not in str(exc) and "timeout" not in str(exc):
+            raise
+        print(
+            "  this zeroproof has no agent_max_tokens/timeout knobs (needs >= 0.45): "
+            "replies capped at 2048 tokens, 60 s per call; thinking models lose some rows",
+            flush=True,
+        )
+        data = zps.simulate(spec, **kw)
     by_id = {t["id"]: t for t in todo}
     rows = []
     for r in data.trajectories:
