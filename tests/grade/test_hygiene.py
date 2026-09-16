@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 import zeroproof.simulations as zps
+from zeroproof.simulations.score.grading import looks_finished
 from zeroproof.simulations.score.hygiene import (
     HACK_THRESHOLD,
     dedupe_groups,
@@ -205,3 +206,56 @@ def test_tool_calls_reads_platform_tool_trace_rows():
     assert tool_calls(pulled) == 2
     assert tool_calls({"prompt": "a", "steps": [{"tool": "x"}]}) == 1
     assert tool_calls({"prompt": "a"}) == 0
+
+
+# --- #212: a reply whose answer is a code block ends on a fence, not a period ---
+
+_SQL = "```sql\nSELECT " + "account_name, " * 20 + "balance FROM account_details\n```"
+
+
+def test_a_closed_code_fence_is_a_finished_reply():
+    """A text-to-SQL set lost 486 of 1,556 rollouts to this: every answer is
+    one fenced block, and a closed fence carries no terminal punctuation."""
+    assert len(_SQL) >= 200
+    assert looks_finished(_SQL)
+    assert not is_truncated(_row("a", 1, _SQL))
+
+
+def test_an_unclosed_code_fence_is_still_truncated():
+    """The unbalanced fence is exactly the cut the rule exists to catch."""
+    cut = _SQL[: -len("\n```")]
+    assert len(cut) >= 200
+    assert not looks_finished(cut)
+    assert is_truncated(_row("a", 1, cut))
+
+
+def test_prose_after_a_closed_fence_is_judged_on_the_prose():
+    assert looks_finished(_SQL + "\n\nThat returns one row per account.")
+    assert not looks_finished(_SQL + "\n\nThat returns one row per account and then we")
+
+
+def test_a_json_object_answer_is_finished():
+    """``]`` already counted; ``{...}`` did not, so JSON answers read as cut."""
+    blob = '{"rows": [' + "1, " * 80 + '2], "ok": true}'
+    assert len(blob) >= 200
+    assert looks_finished(blob)
+    assert not is_truncated(_row("a", 1, blob))
+
+
+def test_a_grader_that_says_truncated_still_wins_over_the_text():
+    row = _row("a", 1, _SQL)
+    row["reason"] = "reply truncated at token cap"
+    assert is_truncated(row)
+
+
+def test_rl_selection_keeps_code_fenced_rows():
+    """The reported symptom: every fenced answer counted as truncated, so RL
+    selection dropped them all and came back with almost nothing."""
+    rows = []
+    for group in "ab":
+        for i in range(4):
+            # distinct SQL per row so dedupe is not what is being measured
+            rows.append(_row(group, i % 2, _SQL.replace("balance FROM", f"b{group}{i} FROM")))
+    picked, report = select_for_rl(rows, target=100)
+    assert report["truncated_dropped"] == 0
+    assert len(picked) == 8
