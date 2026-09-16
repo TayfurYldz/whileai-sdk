@@ -3,6 +3,18 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `examples/text-to-sql`: hill-climb a model on a schema with a verifier as
+  the reward. A seeded online-store Postgres database, 417 authored and
+  execution-checked tasks (81 held out by task id), `SQLExec` (a
+  `Verifier`: run the candidate, match the gold result set), a benchmark
+  runner for hosted Qwen3-4B, Claude and any served adapter, `build.py`
+  (pass@k, `optimize`, `hack_scan`, pushes train/holdout/eval sets), a
+  Modal GRPO trainer with Postgres inside the container and `--from-run`
+  for rounds, and `delta.py` for the paired before/after. README carries
+  the base numbers, the headroom rule, and the gradient-checkpointing trap.
+
 ## 0.46 (2026-09-16)
 
 - Judging: a verifier's identity and metadata survive onto the scored row
