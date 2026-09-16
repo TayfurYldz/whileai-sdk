@@ -40,9 +40,7 @@ def published(name: str) -> list[tuple[int, ...]]:
     """Every release already on PyPI, as normalized tuples."""
     # PyPI's JSON API sits behind a CDN that can serve a minutes-old version
     # list. Ask for a fresh copy; the tag check below is the real backstop.
-    req = urllib.request.Request(
-        PYPI.format(name=name), headers={"Cache-Control": "no-cache"}
-    )
+    req = urllib.request.Request(PYPI.format(name=name), headers={"Cache-Control": "no-cache"})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             data = json.load(r)
