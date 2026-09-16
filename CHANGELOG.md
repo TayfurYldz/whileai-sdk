@@ -8,7 +8,8 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 - `simulate(agent_max_tokens=N)`: the model agent's reply budget. The
   default (768 tokens, 2048 above an 8k `ZP_CONTEXT_TOKENS`) cuts a
   reasoning model off mid-thought; Qwen3-4B with thinking on lost 8% of
-  its replies that way and 4 of 81 tasks to the 60 s `timeout`. Set
+  its replies that way and 4 of 81 tasks to the 60 s `timeout`, which
+  was reachable only through `advanced=` and is now a keyword too. Set
   both for a thinking model: `agent_max_tokens=4096, timeout=300`.
 - `examples/text-to-sql`: hill-climb a model on a schema with a verifier as
   the reward. A seeded online-store Postgres database, 417 authored and

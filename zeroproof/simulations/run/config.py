@@ -63,6 +63,7 @@ _MOVED_NAMES = {
     "min_user_turns",
     "temperature",
     "agent_max_tokens",
+    "timeout",
     "logprobs",
     "seed",
     "grader",

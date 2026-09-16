@@ -823,7 +823,7 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
     seen = []
 
     def fake_local(url, model, **kwargs):
-        seen.append(kwargs.get("max_tokens"))
+        seen.append((kwargs.get("max_tokens"), kwargs.get("timeout")))
 
         def agent(message):
             return {"steps": [], "final_text": "ok"}
@@ -836,6 +836,7 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
         tools=TOOLS,
         policy=POLICY,
         agent_max_tokens=4096,
+        timeout=123,
         budget=2,
         repeats=1,
         grade=False,
@@ -843,4 +844,4 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
         seed=0,
         time_budget=None,
     )
-    assert seen and seen[0] == 4096
+    assert seen and seen[0] == (4096, 123)
