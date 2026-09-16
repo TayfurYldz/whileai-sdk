@@ -1734,3 +1734,51 @@ def test_lowercase_texture_keeps_identifiers_and_codes():
         == "email Jamie.Ortiz@northmail.io"
     )
     assert _realize_typed_message("Yes Go Ahead", tags) == "yes go ahead"
+
+
+def test_user_simulator_hints_come_from_this_agents_tools():
+    from zeroproof.simulations.generate.agents import user_sim_system
+
+    orders = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_order",
+                "parameters": {"type": "object", "properties": {"order_id": {"type": "string"}}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "initiate_refund",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {"type": "string"},
+                        "amount_usd": {"type": "number"},
+                    },
+                },
+            },
+        },
+    ]
+    text = user_sim_system(orders)
+    assert "(order id, amount usd, whatever this thread is actually about)" in text
+    assert "sku" not in text and "repo" not in text and "PR" not in text
+    code = [
+        {
+            "type": "function",
+            "function": {
+                "name": "open_pr",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"repo": {"type": "string"}, "branch": {"type": "string"}},
+                },
+            },
+        }
+    ]
+    text = user_sim_system(code)
+    assert "(repo, branch, whatever" in text
+    assert "Do not invent a repo, pull request, issue, or branch" in text
+    bare = user_sim_system(None)
+    assert "(whatever this thread is actually about)" in bare
+    assert "repo" not in bare
