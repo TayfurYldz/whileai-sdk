@@ -93,7 +93,9 @@ def test_author_imports_without_the_anthropic_client(monkeypatch):
     """author.py is the bring-your-own-schema entry point; it must at least import."""
     import types
 
-    monkeypatch.setitem(sys.modules, "anthropic", types.ModuleType("anthropic"))
+    stub = types.ModuleType("anthropic")
+    stub.Anthropic = stub.AnthropicBedrock = type("Client", (), {})  # referenced at import
+    monkeypatch.setitem(sys.modules, "anthropic", stub)
     for name in ("author", "sql_verifier", "schema_prompt"):
         sys.modules.pop(name, None)
     sys.path.insert(0, str(EXAMPLE))
