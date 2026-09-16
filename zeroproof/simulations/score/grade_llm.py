@@ -513,7 +513,12 @@ def audit_one(
     api_key: str | None = None,
     timeout: float = 120,
 ) -> dict[str, Any]:
-    """Fairness pass on an existing 0/1. Does not overwrite reward."""
+    """Fairness pass on an existing 0/1. Does not overwrite reward.
+
+    Returns the auditor's ``audit_reason`` beside its score, and the row's own
+    ask and grader reason, so a disagreement can be read and acted on rather
+    than only counted.
+    """
     existing = trajectory.get("reward")
     payload = _user_message(trajectory, policy=policy, tools=tools)
     user = f'{{"existing_label": {json.dumps(existing)}}}\n{payload}'
@@ -529,13 +534,30 @@ def audit_one(
             max_tokens=JUDGE_MAX_TOKENS,
             timeout=timeout,
         )
-    except OSError:
-        return {"audit_reward": None, "existing": existing, "agreed": None}
-    except Exception:
-        return {"audit_reward": None, "existing": existing, "agreed": None}
-    score = _parse_binary(str(reply.get("content") or ""))
+    except Exception as exc:  # unreachable judge, bad reply, anything
+        return {
+            "audit_reward": None,
+            "audit_reason": "",
+            "existing": existing,
+            "agreed": None,
+            "error": f"{type(exc).__name__}: {exc}"[:200],
+            "prompt": str(trajectory.get("prompt") or "")[:300],
+            "judge_reason": str(trajectory.get("reason") or trajectory.get("grader_reason") or "")[
+                :200
+            ],
+        }
+    score, reason = _parse_verdict(str(reply.get("content") or ""))
     agreed = None if score is None or existing not in (0, 1) else int(score) == int(existing)
-    return {"audit_reward": score, "existing": existing, "agreed": agreed}
+    return {
+        "audit_reward": score,
+        "audit_reason": reason,
+        "existing": existing,
+        "agreed": agreed,
+        "prompt": str(trajectory.get("prompt") or "")[:300],
+        "judge_reason": str(trajectory.get("reason") or trajectory.get("grader_reason") or "")[
+            :200
+        ],
+    }
 
 
 def apply_grade_llm(
@@ -710,7 +732,16 @@ def audit_grades(
     concurrency: int = 16,
     limit: int | None = None,
 ) -> dict[str, Any]:
-    """Second Qwen call. Times fairness of existing 0/1. Does not write reward."""
+    """A second, independent judge over labels that already exist.
+
+    It never writes ``reward``. What it produces is advice: ``disagreements``
+    lists every row it would have scored differently, with the auditor's
+    sentence and the grader's own reason side by side, and ``by_judge_reason``
+    rolls those up per grader reason, which is what points at a rubric hole
+    (one reason accounting for most of the disagreements is a rule that is
+    firing where it should not, or missing where it should). Counting
+    agreement alone cannot say what to fix (rlhf-book ch. 5, ch. 12).
+    """
     import concurrent.futures
 
     spec = require_judge_key(api_key, spec=backend_spec, base_url=base_url, model=model)
@@ -753,12 +784,72 @@ def audit_grades(
         else:
             disagreed += 1
     n_called = len(targets)
+    disagreements = [
+        {
+            "prompt": v.get("prompt", ""),
+            "graded": v.get("existing"),
+            "auditor": v.get("audit_reward"),
+            "judge_reason": v.get("judge_reason", ""),
+            "audit_reason": v.get("audit_reason", ""),
+        }
+        for v in verdicts
+        if v.get("agreed") is False
+    ]
+    by_reason: dict[str, dict[str, Any]] = {}
+    for v in verdicts:
+        if v.get("agreed") is None:
+            continue
+        key = str(v.get("judge_reason") or "(no reason given)")
+        entry = by_reason.setdefault(key, {"audited": 0, "disagreed": 0, "examples": []})
+        entry["audited"] += 1
+        if v.get("agreed") is False:
+            entry["disagreed"] += 1
+            if len(entry["examples"]) < 3:
+                entry["examples"].append(v.get("audit_reason", ""))
+    for entry in by_reason.values():
+        entry["disagree_rate"] = round(entry["disagreed"] / max(1, entry["audited"]), 3)
+    # False passes first: a row the grader passed and the auditor fails goes
+    # straight into training data as a demonstration of the behavior you are
+    # trying to remove, and that rate is what decides whether training teaches
+    # the behavior or the judge's blind spot (rlhf-book ch. 5, ch. 14). A
+    # false fail only costs rows.
+    false_pass = [d for d in disagreements if d["graded"] == 1 and d["auditor"] == 0]
+    false_fail = [d for d in disagreements if d["graded"] == 0 and d["auditor"] == 1]
+    findings: list[str] = []
+    if len(false_pass) >= 2:
+        findings.append(
+            f"{len(false_pass)} of {audited} audited rows PASSED the grader and failed the "
+            "auditor: the rubric has a hole those rows walk through, and they would train "
+            "the behavior you are trying to remove. Read them first: "
+            + "; ".join(d["audit_reason"][:90] for d in false_pass[:3])
+        )
+    if len(false_fail) >= 2:
+        findings.append(
+            f"{len(false_fail)} of {audited} audited rows FAILED the grader and passed the "
+            "auditor: the rubric may be firing on behavior that is fine, which costs "
+            "training rows. " + "; ".join(d["audit_reason"][:90] for d in false_fail[:3])
+        )
+    findings += [
+        f"{entry['disagreed']} of {entry['audited']} rows the grader scored "
+        f"{reason!r} look wrong to the auditor; check that rule"
+        for reason, entry in sorted(by_reason.items(), key=lambda kv: -kv[1]["disagreed"])
+        if entry["disagreed"] >= 2
+        and entry["disagree_rate"] >= 0.5
+        and reason != "(no reason given)"
+    ]
+    errors = [v["error"] for v in verdicts if v.get("error")]
     return {
         "status": "audited" if audited else "unreachable",
         "audited": audited,
         "unreachable": unreachable,
         "agreed": agreed,
         "disagreed": disagreed,
+        "disagreements": disagreements,
+        "by_judge_reason": by_reason,
+        "findings": findings,
+        "false_pass": len(false_pass),
+        "false_fail": len(false_fail),
+        "errors": errors[:5],
         "backend": spec,
         "warmup": warmup,
         "seconds": round(elapsed, 3),

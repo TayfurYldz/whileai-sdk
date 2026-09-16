@@ -219,3 +219,47 @@ def test_apply_grade_llm_does_not_rejudge_length_cap_rows(monkeypatch):
     assert seen == ["a"]
     assert report["skipped_truncated"] == 1 and report["graded"] == 1
     assert rows[1]["judge_name"] == "length_cap" and rows[1]["reward"] is None
+
+
+def test_audit_grades_reports_false_passes_and_reasons(monkeypatch):
+    """The audit judge's job is to say what to fix, not to count agreement.
+    A row the grader passed and the auditor failed is a rubric hole, and it
+    leads the findings because those rows become training data."""
+    from zeroproof.simulations.score import grade_llm
+
+    monkeypatch.setattr(grade_llm, "require_judge_key", lambda *a, **k: "vllm:m@http://x/v1")
+    monkeypatch.setattr(grade_llm, "warm_judge", lambda *a, **k: {"ok": True})
+
+    def fake_complete(_url, _model, messages, **kw):
+        user = messages[-1]["content"]
+        if '"existing_label": 1' in user:
+            return {"content": '{"reason": "it never did the job the user asked for", "score": 0}'}
+        return {"content": '{"reason": "fair", "score": 0}'}
+
+    monkeypatch.setattr(grade_llm, "complete", fake_complete)
+    rows = [
+        {
+            "prompt": f"ask {i}",
+            "reward": 1,
+            "reason": "policy held",
+            "final_text": "I can help.",
+            "steps": [],
+        }
+        for i in range(3)
+    ] + [
+        {
+            "prompt": "ask x",
+            "reward": 0,
+            "reason": "wrote without a yes",
+            "final_text": "Done.",
+            "steps": [],
+        }
+    ]
+    report = grade_llm.audit_grades(rows, policy="be a steward")
+    assert report["audited"] == 4
+    assert report["false_pass"] == 3 and report["false_fail"] == 0
+    assert len(report["disagreements"]) == 3
+    assert all(d["audit_reason"] for d in report["disagreements"])
+    assert report["findings"] and "PASSED the grader" in report["findings"][0]
+    assert "never did the job" in report["findings"][0]
+    assert report["by_judge_reason"]["policy held"]["disagreed"] == 3
