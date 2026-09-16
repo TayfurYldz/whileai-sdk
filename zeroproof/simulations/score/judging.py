@@ -63,6 +63,24 @@ def _scaled(value: float, scale: tuple[float, float]) -> tuple[float | int, dict
     return out, {"rating": value, "scale": [lo, hi]}
 
 
+def _verdict_meta(raw: dict, drop: set[str]) -> dict[str, Any]:
+    """The verdict's metadata: its own keys, plus its ``judge_meta`` flattened.
+
+    A judge may report metadata either way -- loose keys alongside
+    ``reward``, or gathered under ``judge_meta``. The SDK's own verifiers
+    use the second shape, so sweeping ``judge_meta`` in as an ordinary key
+    would nest it under itself and hide ``verifier``, ``failure_class`` and
+    ``markers`` one level below where every reader looks. A non-dict
+    ``judge_meta`` is not a metadata block, so it stays a plain key.
+    """
+    nested = raw.get("judge_meta")
+    if not isinstance(nested, dict):
+        return {k: v for k, v in raw.items() if k not in drop}
+    outer = {k: v for k, v in raw.items() if k not in drop and k != "judge_meta"}
+    # The inner block is the judge's considered metadata; it wins a collision.
+    return {**outer, **nested}
+
+
 def normalize_judge_result(raw: Any, *, scale: tuple[float, float] | None = None) -> dict[str, Any]:
     """Coerce one judge return into the contract; never invent a reward.
 
@@ -83,9 +101,7 @@ def normalize_judge_result(raw: Any, *, scale: tuple[float, float] | None = None
         if isinstance(raw, dict):
             reason = str(raw.get("reason") or "")
             number = raw.get("rating", raw.get("score", raw.get("reward")))
-            meta = {
-                k: v for k, v in raw.items() if k not in {"rating", "score", "reward", "reason"}
-            }
+            meta = _verdict_meta(raw, {"rating", "score", "reward", "reason"})
             if number is None:
                 return {
                     "reward": None,
@@ -155,7 +171,7 @@ def normalize_judge_result(raw: Any, *, scale: tuple[float, float] | None = None
                 "judge_meta": {"reward_out_of_range": float(value)},
             }
         reward = int(value) if float(value) in (0.0, 1.0) else float(value)
-        meta = {k: v for k, v in raw.items() if k not in {"reward", "score", "reason"}}
+        meta = _verdict_meta(raw, {"reward", "score", "reason"})
         return {
             "reward": reward,
             "reason": str(raw.get("reason") or ""),
@@ -325,6 +341,20 @@ class ScoredData:
         return push_rows(self.rows, name, **kwargs)
 
 
+def _instance_name(judge: Any) -> str:
+    """A callable instance's own name, when it has a usable one.
+
+    ``Verifier`` and anything else honoring the judge contract as an object
+    carries ``name``. Read defensively: ``name`` on an arbitrary callable may
+    be absent, not a string, or a property that raises.
+    """
+    try:
+        value = getattr(judge, "name", None)
+    except Exception:
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
 def _score_one(
     judge: Callable, row: dict, scale: tuple[float, float] | None = None
 ) -> dict[str, Any]:
@@ -365,7 +395,11 @@ def run_judge(
     """
     src_rows = [r for r in rows if isinstance(r, dict)]
     rid = run_id or f"score_{uuid.uuid4().hex[:12]}"
-    name = judge_name or getattr(judge, "__name__", "") or "judge"
+    # A function judge is named by __name__; a Verifier is an instance and
+    # carries .name instead, so without the second fallback every verifier
+    # -graded row records the same "judge" and the scored rows no longer say
+    # what checked them.
+    name = judge_name or getattr(judge, "__name__", "") or _instance_name(judge) or "judge"
     if name == "<lambda>":
         name = "lambda_judge"
     verdicts: list[dict[str, Any]]
