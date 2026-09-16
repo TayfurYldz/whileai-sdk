@@ -239,8 +239,9 @@ simulation file unchanged; use the returned `ScoredData` from that point on.
 
 ## Inspect before keeping rows
 
-Reject a run when `generator_fallback` appears in `data.degraded` or
-`data.stopped_because == "writer_exhausted"`. Other degradation notes are
+Reject a run whose `data.stopped_because` is `writer_failed` or
+`writer_exhausted`: the writer model did not write, and nothing is
+substituted for it. Other degradation notes are
 advisory; name them in the report and inspect their effect.
 
 Always check:

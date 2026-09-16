@@ -16,6 +16,11 @@ import pytest
 
 from zeroproof.simulations import schema
 
+pytestmark = pytest.mark.skipif(
+    not os.environ.get("ZEROPROOF_API_KEY"),
+    reason="migrate.py simulates with a writer model; the offline writer is gone",
+)
+
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "examples" / "schema"
 ROLLOUT_KEYS = {"steps", "final_text", "messages", "reward", "rollout_id", "rollout_index"}

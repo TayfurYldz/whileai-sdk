@@ -41,7 +41,6 @@ from .generate.offline_agent import SEEDED_BEHAVIORS, World, seeded_agent, world
 from .generate.scenarios import (
     build_dimensions,
     novelty,
-    open_ended_probes,
     policy_sections,
     scenario_regions,
 )
@@ -314,7 +313,6 @@ __all__ = [
     "near_duplicate_prompts",
     "normalize_judge_result",
     "novelty",
-    "open_ended_probes",
     "optimize",
     "outcome_check",
     "pairwise_judge",

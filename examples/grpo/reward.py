@@ -155,7 +155,7 @@ def messages_for(prompt: str) -> list[dict[str, str]]:
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}]
 
 
-def build_prompts(n: int = 200, seed: int = 0) -> list[dict[str, Any]]:
+def build_prompts(n: int = 200, seed: int = 0, simulator=None) -> list[dict[str, Any]]:
     """``n`` first-turn prompts from the simulator's offline template writer,
     each with its ``case``. No model, no key."""
     import zeroproof.simulations as zps
@@ -171,7 +171,7 @@ def build_prompts(n: int = 200, seed: int = 0) -> list[dict[str, Any]]:
         situations=n,
         budget=n,
         seed=seed,
-        simulator=False,
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         time_budget=None,
         concurrency=4,
     )

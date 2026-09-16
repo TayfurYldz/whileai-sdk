@@ -236,14 +236,12 @@ class Run:
         self.writer_kind = kind_from_spec(c.spec, self.policy)
         # May be replaced by the backend spec once the runner is built.
         self.simulator = c.simulator
+        # A writer object (tests pass one) is called in-process; every other
+        # simulator is a model endpoint the scene, shapes and seeds also use.
+        self.model_writer = not (callable(self.simulator) and not isinstance(self.simulator, str))
         self.drafted_tools: list[str] = []
         self.tool_draft_failed = False
-        if (
-            not self.tools
-            and self.policy
-            and self.simulator is not False
-            and (c.agent is None or isinstance(c.agent, str))
-        ):
+        if not self.tools and self.policy and (c.agent is None or isinstance(c.agent, str)):
             # A description with no tools gives the writer and the world no
             # domain; draft the tool surface the described agent would have.
             drafted = draft_tools(
@@ -266,14 +264,14 @@ class Run:
     def _amplify_seeds(self) -> None:
         c = self.c
         # Amplifies seed prompts only when seeds= is given; advanced["seed_prompts"]
-        # stays literal. Offline runs (simulator=False) make no network calls.
+        # stays literal. A writer object makes no network calls.
         # Runs after inspect() so the writer hint carries the resolved policy.
         if (
             (c.seeds or getattr(self, "failure_seeds", 0))
             and self.seed_prompts
             and c.n_situations_target
             and len(self.seed_prompts) < int(c.n_situations_target)
-            and self.simulator is not False
+            and self.model_writer
         ):
             given = len(self.seed_prompts)
             self.seed_prompts = amplify_seeds(
@@ -403,11 +401,7 @@ class Run:
 
     def _start_scene_thread(self) -> None:
         self.scene_thread: threading.Thread | None = None
-        use_model_writer = not (
-            self.simulator is False
-            or (callable(self.simulator) and not isinstance(self.simulator, str))
-        )
-        if not use_model_writer:
+        if not self.model_writer:
             return
         scene_spec = self.simulator if isinstance(self.simulator, str) else None
         self.scene_thread = threading.Thread(
@@ -578,8 +572,7 @@ class Run:
                         auth_err + " The situation writer runs on hosted Qwen "
                         "by default, even with your own agent=. Alternatives: "
                         "agent='openai:<model>' with OPENAI_API_KEY runs writer "
-                        "and agent on your key; simulator=False uses the "
-                        "built-in template writer with no model at all."
+                        "and agent on your key."
                     )
                 threading.Thread(
                     target=touch_hosted, args=(hosted_url,), kwargs={"timeout": 5.0}, daemon=True
@@ -860,6 +853,8 @@ class Run:
         self.agent_dead = False
         self.auth_error: str | None = None
         self.writer_idle = 0
+        # consecutive writer waves that returned nothing (or raised)
+        self.empty_waves = 0
         self.restart_count = 0
         # Starvation relief: when every situation slot is used but rows are
         # still owed because rollouts were discarded, lifts the situations
@@ -909,7 +904,6 @@ class Run:
         self.hazard_seen: dict[int, int] = {}
         self.hazard_split: dict[int, int] = {}
         self.rollout_durations: list[float] = []
-        self.writer_fallback_error = ""
         # Judge in the loop: verdicts run beside the rollouts, never in
         # front of them. A row's allocation decision waits for its verdict.
         self.judge_pool = concurrent.futures.ThreadPoolExecutor(
@@ -1001,7 +995,7 @@ class Run:
 
     def _novelty_restart(self, round_id: int, info: dict, *, clear_avoid: bool) -> int:
         gen = self.generator
-        if self.restart_count >= self.max_restarts or gen.model is None:
+        if self.restart_count >= self.max_restarts:
             return round_id
         self.restart_count += 1
         bump = round_id + self.restart_count * 997
@@ -1260,7 +1254,9 @@ class Run:
             if auth:
                 self.data.stopped_because = _stop_reason("writer", auth)
                 raise RuntimeError(auth) from None
+            self.empty_waves += 1
             return 0
+        self.empty_waves = self.empty_waves + 1 if not more else 0
         gen.meta.update(metas)
         gen.fault_plans.update(plans)
         gen.last_errors.update(errors)
@@ -1297,14 +1293,26 @@ class Run:
         for fut in done:
             self._ingest_producer(fut)
 
+    def _submit_wave(self, round_id: int, *args: Any) -> concurrent.futures.Future:
+        """One writer wave. Under ``reproducible=True`` a writer object runs
+        inline, so the seed alone decides which wave lands first; a model
+        endpoint still runs on the pool, and the round-synchronous wait
+        orders its results."""
+        if self.sync and not self.model_writer:
+            done: concurrent.futures.Future = concurrent.futures.Future()
+            try:
+                done.set_result(self._produce(round_id, *args))
+            except Exception as exc:  # the ingest path reports it
+                done.set_exception(exc)
+            return done
+        return self.scenario_pool.submit(self._produce, round_id, *args)
+
     def _launch_writers(self, n: int) -> None:
         """Queue another writer wave. New round_id draws new temp and tags."""
         n = max(0, int(n))
         if n <= 0:
             return
-        self.scenario_futs.extend(
-            self.scenario_pool.submit(self._produce, self.next_producer_round + i) for i in range(n)
-        )
+        self.scenario_futs.extend(self._submit_wave(self.next_producer_round + i) for i in range(n))
         self.next_producer_round += n
 
     def _start_writers(self) -> None:
@@ -1313,14 +1321,11 @@ class Run:
         self.generation_started = time.monotonic()
         if self.pinned_prompts:
             pass  # tasks=: the pool is the task set; nothing is written
-        elif gen.model is None:
-            texts = list(gen(None, 0, include_model=False) or [])
-            self.generated_pool.extend(texts)
         else:
             # Tiny batches first so rollouts start ~5s.
             initial_writers = min(2, max(1, self.c.writer_flight))
             for i in range(initial_writers):
-                self.scenario_futs.append(self.scenario_pool.submit(self._produce, i, 4, None, 320))
+                self.scenario_futs.append(self._submit_wave(i, 4, None, 320))
             self.next_producer_round = initial_writers
             self._ingest_finished_writers()
         data.scenario_generation_seconds = time.monotonic() - self.generation_started
@@ -1510,23 +1515,7 @@ class Run:
                     refill = min(slots, max(0, c.writer_flight - len(self.scenario_futs)))
             self._launch_writers(refill)
         unused = self._available()
-        if gen.model is None and len(unused) < take * 2:
-            for prompt in gen(None, self.round_index, include_model=False) or []:
-                if prompt and prompt not in self.generated_pool:
-                    self.generated_pool.append(prompt)
-                    gen.meta.update(getattr(gen, "last_candidate_provenance", {}))
-        unused = self._available()
-        if gen.model is None and not gen.model_produced:
-            bounce = 0
-            while len(unused) < take:
-                bounce += 1
-                for prompt in gen(None, self.round_index + bounce * 17, include_model=False) or []:
-                    if prompt and prompt not in self.generated_pool:
-                        self.generated_pool.append(prompt)
-                unused = self._available()
-                if bounce >= 20:
-                    break
-        if gen.model is not None and not unused and self.scenario_futs and not self.inflight:
+        if not unused and self.scenario_futs and not self.inflight:
             wait_s = 0.5
             left = self._clock_left()
             if left is not None:
@@ -1539,16 +1528,6 @@ class Run:
                 self._ingest_producer(fut)
             unused = self._available()
         self.fault_plans.update(gen.fault_plans)
-        if (
-            gen.last_errors.get("llm_guided")
-            and not gen.model_produced
-            and "generator_fallback" not in data.degraded
-        ):
-            data.degraded.append("generator_fallback")
-            # keep the hosted writer's last error: the template writer that
-            # takes over knows nothing about a custom spec, and a run that
-            # ends with no rows must be able to say why
-            self.writer_fallback_error = str(gen.last_errors.get("llm_guided") or "")
         if unused and any((gen.meta.get(p) or {}).get("arm") for p in unused):
             note_stage(data, "generated candidate with arm provenance")
         return unused
@@ -1595,11 +1574,6 @@ class Run:
             selected, family_rejected = cap_scenario_families(
                 selected, family_batch, cap=max(16, c.n_req * 4)
             )
-            if gen.model is None:
-                fill_to = min(take, len(selected) + len(family_rejected))
-                backfill_n = max(0, fill_to - len(selected))
-                selected.extend(family_rejected[:backfill_n])
-                family_rejected = family_rejected[backfill_n:]
         for row in family_rejected:
             self.discarded.add(row["text"])
         if family_rejected:
@@ -1766,10 +1740,6 @@ class Run:
         # search context. At most one mutation and one gap per batch.
         mutation_slots = 0
         gap_slots = 0
-        if gen.model is None and not self.pinned_prompts:
-            if c.mutate_failures:
-                mutation_slots = 1 if self.failing_rows else 0
-            gap_slots = 1
         parents = [str(t.get("prompt") or "") for t in self.failing_rows if t.get("prompt")]
         if mutation_slots and parents:
             for name, prompt in mutate_pool(parents, rounds=1, limit=mutation_slots):
@@ -1874,12 +1844,18 @@ class Run:
             return "break"
         # Unique ingest may drop exact/near-dupe cards. That is
         # not a run stop: the writer can invent another situation.
-        if gen.model is not None and not self.generated_pool and self.empty_streak >= 8:
-            err = gen.last_errors.get("llm_guided") or "empty response"
+        if not self.generated_pool and (self.empty_streak >= 8 or self.empty_waves >= 8):
+            # Eight empty waves and nothing in the pool: the writer is not
+            # writing. Stop and say so; nothing is substituted for it. The
+            # streak alone never got there: each relaunch reset it, so a
+            # writer that was down looped until the clock, or forever.
+            err = gen.last_errors.get("llm_guided") or "the writer returned no situations"
             if "Hosted Qwen" in err:
                 raise RuntimeError(err[err.find("Hosted Qwen") :]) from None
-            raise RuntimeError(f"hosted Qwen produced no situations: {err}")
-        if gen.model is not None and remaining > 0:
+            gen.last_errors.setdefault("llm_guided", err)
+            data.stopped_because = "writer_failed"
+            return "break"
+        if remaining > 0:
             if self.writer_idle >= 4 and not c.unique_cards:
                 # Writer stalled on duplicates. Restart it
                 # with a rotated seed AND a rotating window
@@ -1899,14 +1875,14 @@ class Run:
                 else:
                     data.stopped_because = "ask_exhausted"
                     return "break"
+            if self.writer_idle >= 8 and c.time_budget is None:
+                # No clock and eight waves that added nothing new: the
+                # writer has run dry for this agent. With a clock the run
+                # keeps drawing until it, as before.
+                data.stopped_because = "writer_exhausted"
+                return "break"
             slots = max(0, c.writer_flight - len(self.scenario_futs))
             self._launch_writers(min(slots, c.writer_flight))
-        elif gen.model is None:
-            # The offline writer ran dry. Leaving the default
-            # stopped_because="budget" here claimed a 300-row
-            # budget was met by 106 rows.
-            data.stopped_because = "writer_exhausted"
-            return "break"
         return "continue"
 
     def _submit(self, batch: list) -> None:
@@ -2618,10 +2594,6 @@ class Run:
                     self.agent_errors,
                     self.first_agent_error,
                 )
-        if "generator_fallback" in data.degraded and getattr(gen, "model_produced", False):
-            # the note was set while the first waves were still in flight;
-            # every prompt in the model path is model-written or nothing
-            data.degraded.remove("generator_fallback")
         cut_in_flight = (
             "abandoned_rollouts" in data.search or "abandoned_writer_waves" in data.search
         )
@@ -2633,8 +2605,6 @@ class Run:
             # stop with work still in flight keeps its own reason.
             data.stopped_because = "writer_failed"
             errors = dict(getattr(gen, "last_errors", {}) or {})
-            if getattr(self, "writer_fallback_error", ""):
-                errors.setdefault("llm_guided", self.writer_fallback_error)
             data.search["writer_errors"] = errors
             log.warning(
                 "no rows: the writer produced no usable situation in %.0fs (degraded=%s; %s)",

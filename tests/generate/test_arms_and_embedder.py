@@ -125,26 +125,6 @@ def test_hash_embedder_does_not_treat_changed_ids_as_novel():
     assert first == second
 
 
-def test_offline_fallback_arms():
-    """Without a model: structured, open_ended, behavior_targeted, failure_mutation."""
-    data = zps.simulate(
-        _calendar_agent,
-        tools=CALENDAR_TOOLS,
-        policy=CALENDAR_POLICY,
-        budget=36,
-        seed=4,
-        grade=True,
-        embedder="hash",
-        simulator=False,
-        concurrency=8,
-        advanced={"per_round": 10, "mutate_failures": True},
-    )
-    arms = {t.get("arm") for t in data.trajectories}
-    assert {"structured", "open_ended"} <= arms
-    assert "behavior_targeted" in arms
-    assert "failure_mutation" in arms
-
-
 def test_llm_guided_with_mocked_model(monkeypatch, tmp_path):
     monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", _fake_complete)
     data = zps.simulate(

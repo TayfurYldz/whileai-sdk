@@ -43,7 +43,13 @@ GRID_SITUATIONS = 8  # situations the simulator writes on top of the suite
 
 
 def simulate_live(
-    agent: str, *, k: int = 4, seed: int = 0, grid: int = GRID_SITUATIONS, concurrency: int = 2
+    agent: str,
+    *,
+    k: int = 4,
+    seed: int = 0,
+    grid: int = GRID_SITUATIONS,
+    concurrency: int = 2,
+    simulator=None,
 ) -> zps.SimulationData:
     """The suite plus ``grid`` of the simulator's own situations, ``k``
     repeats each. The grid slice is not optional: the engine keeps a few
@@ -57,7 +63,7 @@ def simulate_live(
         system_prompt=SYSTEM_PROMPT,
         seeds=SEEDS,
         execute=world,
-        simulator=False,  # the suite and the template grid; no writer model
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         mode="rl",
         repeats=k,
         repeat_policy="fixed",

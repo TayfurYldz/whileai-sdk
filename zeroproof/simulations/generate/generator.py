@@ -1,4 +1,5 @@
-"""Model-driven scenario generation. Templates are bootstrap and offline fallback."""
+"""Model-driven scenario generation. Every situation is model-written; there is no
+template arm and nothing is substituted when the writer fails."""
 
 from __future__ import annotations
 
@@ -25,7 +26,6 @@ from .scenarios import (
     SEARCH_ARMS,
     fault_plan_for_region,
     intent_for_tool,
-    make_candidate_generator,
     policy_sections,
     reallocate_search_arms,
     scenario_regions,
@@ -882,6 +882,11 @@ def write_scene_brief(
     return _format_scene_brief(text, policy=writer_policy)
 
 
+NO_OFFLINE_WRITER = (
+    "simulate() writes situations with a model; there is no offline template "
+    "writer. Sign in once with `zeroproof login` for the hosted writer, or pass "
+    "simulator='openai:<model>' / 'vllm:<model>@<url>' for your own."
+)
 _DRAFT_TIMEOUT = 40.0
 _DRAFT_OUT_TOKENS = 1200
 _TOOL_NAME = re.compile(r"^[a-z][a-z0-9_]{2,40}$")
@@ -1980,11 +1985,12 @@ def make_default_generator(
     kind: str | None = None,
     **template_kwargs,
 ):
-    """Model-written messages when a simulator is on; templates only offline.
-
-    Pass ``simulator=False`` to skip the model arm (templates and probes).
-    When the model is on and a round fails, that arm is skipped. Templates
-    are not used as a fallback.
+    """Model-written messages. ``simulator`` is a backend spec, ``None`` for
+    the hosted writer, or a writer: a callable ``writer(dataset, round) ->
+    [prompt, ...]``, or a factory marked ``writer_factory = True`` that the
+    generator calls with the resolved tools and policy. ``False`` raises:
+    the package does not simulate without a model. When a round fails, that
+    round is skipped; nothing is substituted.
     """
     cells = max(
         _MIN_CELLS_PER_CALL,
@@ -2009,24 +2015,25 @@ def make_default_generator(
     kind = template_kwargs.pop("kind", kind)
     mode = template_kwargs.pop("mode", None)
     prefer_success = template_kwargs.pop("prefer_success", None)
-    # Left in template_kwargs on purpose: the template arm steers too.
     steering_weight = template_kwargs.get("steering_weight")
     writer_policy = writer_policy_digest(policy)
-    templates = make_candidate_generator(
-        tools,
-        policy=writer_policy,
-        per_round=max(6, min(16, int(per_round) // 8)),
-        seed=seed,
-        dimensions=dimensions,
-        mode=mode,
-        prefer_success=prefer_success,
-        **template_kwargs,
-    )
     model = None
     if simulator is False:
-        model = None
-    elif callable(simulator) and not isinstance(simulator, str):
-        model = simulator
+        raise ValueError(NO_OFFLINE_WRITER)
+    if callable(simulator) and not isinstance(simulator, str):
+        if getattr(simulator, "writer_factory", False):
+            model = simulator(
+                list(tools),
+                policy=writer_policy,
+                per_round=max(6, min(16, int(per_round) // 8)),
+                seed=seed,
+                dimensions=dimensions,
+                mode=mode,
+                prefer_success=prefer_success,
+                **template_kwargs,
+            )
+        else:
+            model = simulator
     else:
         spec = simulator if isinstance(simulator, str) else None
         # Raw policy here: ModelSimulator digests internally. Digesting
@@ -2053,22 +2060,6 @@ def make_default_generator(
             prefer_success=prefer_success,
             steering_weight=steering_weight,
         )
-
-    def _ingest_templates(
-        round_index: int, dataset: Any, texts: list[str], provenance: dict[str, dict]
-    ) -> None:
-        fallback = list(templates(dataset, round_index) or [])
-        for text in fallback:
-            if text and text not in provenance:
-                texts.append(text)
-                meta = dict(getattr(templates, "last_candidate_provenance", {}).get(text) or {})
-                meta.setdefault("arm", getattr(templates, "provenance", {}).get(text, "structured"))
-                meta.setdefault("parent", None)
-                meta.setdefault("scenario_dimensions", meta.get("assignment"))
-                meta.setdefault("seed", seed)
-                meta["generator"] = "template"
-                provenance[text] = meta
-        generate.fault_plans.update(getattr(templates, "fault_plans", {}) or {})
 
     def _ingest_model(
         round_index: int, dataset: Any, texts: list[str], provenance: dict[str, dict]
@@ -2127,7 +2118,7 @@ def make_default_generator(
         generate.provenance.update(
             {text: meta.get("arm", "unattributed") for text, meta in provenance.items()}
         )
-        generate.regions = getattr(templates, "regions", [])
+        generate.regions = getattr(model, "regions", [])
         generate.arm_weights = dict(getattr(generate, "arm_weights", {}))
         generate.reallocate = getattr(generate, "reallocate", lambda y: y)
         return texts
@@ -2141,22 +2132,16 @@ def make_default_generator(
         generate.last_errors = {}
         texts: list[str] = []
         provenance: dict[str, dict] = {}
-        if include_model and model is not None:
+        if include_model:
             _ingest_model(round_index, dataset, texts, provenance)
-        elif model is None:
-            generate.model_produced = False
-            _ingest_templates(round_index, dataset, texts, provenance)
         else:
             generate.model_produced = False
         return _commit(texts, provenance)
 
-    generate.regions = getattr(templates, "regions", [])
+    generate.regions = getattr(model, "regions", [])
     generate.arm_weights = dict(SEARCH_ARMS)
 
     def reallocate_all(yields: dict[str, float]) -> dict[str, float]:
-        tpl = {k: yields.get(k, 0.0) for k in ("structured", "open_ended")}
-        if hasattr(templates, "reallocate"):
-            templates.reallocate(tpl)
         generate.arm_weights = reallocate_search_arms(generate.arm_weights, yields)
         if model is not None and hasattr(model, "arm_weights"):
             model.arm_weights = dict(generate.arm_weights)
@@ -2175,7 +2160,6 @@ def make_default_generator(
     generate.underexplored = []
     generate.behavior_gaps = []
     generate.action_targets = []
-    generate.templates = templates
     generate.model = model
 
     def set_search_context(

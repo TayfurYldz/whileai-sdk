@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 import zeroproof.simulations as zps
+from tests.template_writer import template_writer
 from zeroproof.simulations.score.judging import evaluate, run_judge
 
 REPO = Path(__file__).resolve().parents[2]
@@ -43,7 +44,7 @@ def example():
 
 @pytest.fixture(scope="module")
 def contract_data(example):
-    return example.part_contract()
+    return example.part_contract(simulator=template_writer)
 
 
 def test_contract_run_carries_every_repeat(contract_data):
@@ -67,7 +68,7 @@ def test_broken_agent_is_reported_as_the_agent(example, capsys):
         example.agent_that_raises,
         tools=example.TOOLS,
         system_prompt=example.POLICY,
-        simulator=False,
+        simulator=template_writer,
         budget=8,
         seed=0,
     )
@@ -77,7 +78,7 @@ def test_broken_agent_is_reported_as_the_agent(example, capsys):
     assert data.search["first_agent_error"] == "RuntimeError: model endpoint returned 502"
     assert "agent_errors" in data.degraded
 
-    example.part_broken()
+    example.part_broken(simulator=template_writer)
     out = capsys.readouterr().out
     assert out.count("stopped_because='agent_failed'") == 2
     assert "RuntimeError: model endpoint returned 502" in out
@@ -108,6 +109,9 @@ def test_eval_rows_are_counted_not_dropped(example, contract_data, capsys):
     assert "evaluate : selected=8 eval_sourced=8" in out
 
 
+@pytest.mark.skipif(
+    not os.environ.get("ZEROPROOF_API_KEY"), reason="the CLI run needs a writer model (account key)"
+)
 def test_cli_runs_all_three_parts_offline(tmp_path):
     out = subprocess.run(
         [sys.executable, str(EXAMPLE / "run.py")],

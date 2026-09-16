@@ -3,6 +3,20 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- The offline template writer is gone. `simulate(simulator=False)` raises,
+  a writer that fails stops the run as `writer_failed`, and nothing is
+  substituted: every situation is written by a model for the agent's own
+  tools and policy. The template code lives in the test suite as the
+  deterministic writer the tests pass in; the examples take `simulator=`
+  and run on the account key (`zeroproof login`) by default.
+- A writer that keeps returning nothing (or raising) stops the run as
+  `writer_failed` after eight empty waves, and one that adds nothing new
+  for eight waves with no clock set stops as `writer_exhausted`. Both
+  cases used to relaunch the writer until the time budget, or forever
+  without one; the offline writer's own exit had hidden that.
+
 ## 0.47 (2026-09-16)
 
 - `simulate(agent_max_tokens=N)`: the model agent's reply budget. The

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import sys
 from pathlib import Path
 
 import pytest
+
+from tests.template_writer import template_writer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO_ROOT / "examples" / "pass-at-k"
@@ -21,8 +24,14 @@ def _load():
     return module
 
 
-def test_simulate_then_report(capsys):
+def test_simulate_then_report(capsys, monkeypatch):
     measure = _load()
+    # the CLI path draws with the hosted writer; the test keeps it offline
+    monkeypatch.setattr(
+        measure,
+        "simulate_rows",
+        functools.partial(measure.simulate_rows, simulator=template_writer),
+    )
     # One pinned ask the scripted agent gets careless on every third repeat
     # (4473 % 3 == 0, amount 73): the mixed group the k-way numbers need is
     # then a property of the suite, not of what the writer happened to draw.
@@ -32,6 +41,7 @@ def test_simulate_then_report(capsys):
         seed=0,
         concurrency=1,
         seeds=["Please refund order ORD-4473, the jacket never arrived."],
+        simulator=template_writer,
     )
     assert len(rows) == 64
     out = measure.report(rows)

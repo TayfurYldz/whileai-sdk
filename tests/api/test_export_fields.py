@@ -4,6 +4,7 @@ import json
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 from zeroproof.simulations.data import _EXPORT_NEVER, _export_row
 
 
@@ -79,7 +80,7 @@ def _graded_run(output=None):
         policy=POLICY,
         budget=6,
         seed=0,
-        simulator=False,
+        simulator=template_writer,
         concurrency=4,
         grader=judge,
         output=output,

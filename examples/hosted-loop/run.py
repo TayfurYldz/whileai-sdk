@@ -32,6 +32,7 @@ from zeroproof.auth import resolve_api_key
 from zeroproof.simulations.score.judging import run_judge
 
 STATE = Path(__file__).with_name("hosted-loop.json")
+SIMULATOR = None  # a writer object (tests); None is the hosted writer
 DOCS = "https://www.zeroproofai.com/docs/training"
 
 TOOLS = [
@@ -128,7 +129,7 @@ def step_data(args: argparse.Namespace) -> None:
         scripted_agent,
         tools=TOOLS,
         system_prompt=POLICY,
-        simulator=False,  # template writer: no model key
+        simulator=SIMULATOR,  # hosted writer by default; tests set a writer object
         mode="rl",
         budget=args.budget,
         repeats=4,

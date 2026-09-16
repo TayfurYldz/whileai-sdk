@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+from tests.template_writer import template_writer
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO_ROOT / "examples" / "schema"
 
@@ -23,7 +25,7 @@ def _load(name: str):
 def test_migrate_then_project(tmp_path):
     migrate = _load("migrate")
     project = _load("project")
-    rows = migrate.simulate_rows(n=40, seed=0)
+    rows = migrate.simulate_rows(n=40, seed=0, simulator=template_writer)
     assert rows and all(r["schema_version"] == "1" for r in rows)
     report = migrate.migrate(rows, tmp_path / "m")
     assert report["rows"] == len(rows)

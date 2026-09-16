@@ -1,6 +1,6 @@
 """The free path has something to catch.
 
-Before this, an offline run (``simulator=False`` + a callable) carried a
+Before this, a run with a callable agent carried a
 fault plan that never fired, an empty privileged block, and marker rates
 that were zero by construction, so a "no privileged leak" check on it
 passed vacuously. These pin the three things that changed:

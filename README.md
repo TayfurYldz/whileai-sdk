@@ -36,11 +36,11 @@ Stop when the row cap or the clock hits.
 pip install zeroproof   # or: uv add zeroproof
 ```
 
-### Start here: no key required
+### Start here
 
-This runs offline, in seconds, on nothing but the package. It is the
-fastest way to see a row and to check your agent and grader are wired up
-correctly before you spend a key on variety.
+This runs in seconds on the account key from `zeroproof login`. It is
+the fastest way to see a row and to check your agent and grader are wired
+up correctly before you spend a bigger budget on variety.
 
 ```python
 import zeroproof.simulations as zps
@@ -77,12 +77,12 @@ def my_agent(message: str) -> dict:
     }
 
 
-# 3. simulator=False uses the built-in template writer: no model, no key.
+# 3. The situation writer is a model: the hosted one on your account key
+#    (`zeroproof login`), or your own via simulator="openai:<model>".
 data = zps.simulate(
     my_agent,
     tools=TOOLS,
     system_prompt="Help customers with orders.",
-    simulator=False,
     budget=20,
 )
 
@@ -146,10 +146,9 @@ the checklist expects), derived from the task's grid cell. Exports drop
 it at any depth; `data.trajectories` keeps it for the judge.
 
 The bare `function` dict without the `{"type": "function", ...}` wrapper
-works too; both shapes are normalized. The template writer needs no model
-and runs in seconds, but the situations are less varied than a model writes,
-so it is for wiring up your agent and grader, not for a training set — for
-that, bring a model below.
+works too; both shapes are normalized. Every situation is written by a
+model for this agent's tools and policy; there is no template writer, so
+a run without a writer model stops as `writer_failed` and says why.
 
 ### Bring a model
 
@@ -176,7 +175,7 @@ data = zps.simulate(
 ## Five calls
 
 Agent to gated dataset. Everything else in this README is one layer down.
-`TOOLS` is the list from [Start here](#start-here-no-key-required);
+`TOOLS` is the list from [Start here](#start-here);
 `POLICY` is the agent's system prompt.
 
 ```python
@@ -300,15 +299,13 @@ zeroproof login              # or: export ZEROPROOF_API_KEY=zp_...
 export VLLM_API_KEY=...      # optional: the shared pool instead
 ```
 
-No key at all: the situation writer also defaults to hosted Qwen, even when
-`agent=` is your own function, so `simulator=False` is what makes a run
-fully offline — see [Start here](#start-here-no-key-required) above for the
-whole runnable block.
+The situation writer defaults to the hosted model even when `agent=` is
+your own function, so a run always needs a writer: the account key from
+`zeroproof login`, `VLLM_API_KEY`, or `simulator="openai:<model>"`.
+`simulator=False` raises; nothing simulates without a model.
 
 ```python
-data = zps.simulate(
-    my_agent, tools=my_tools, system_prompt=my_system_prompt, simulator=False, budget=40
-)
+data = zps.simulate(my_agent, tools=my_tools, system_prompt=my_system_prompt, budget=40)
 ```
 
 `my_agent` is called once per rollout with the situation text and returns the
@@ -424,7 +421,7 @@ Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a d
 | `requests_per_situation` | from mode | Phrasings: ways to ask one situation. Alias `phrasings=` |
 | `rollouts_per_request` | from mode | Repeats: reruns of one phrasing. Alias `repeats=` |
 | `fault_rate` | `0.5` | Broken tools. `0` off. Applied by the mock world, so a callable `agent=` that answers its own tool calls never sees one |
-| `simulator` | hosted Qwen | Situation writer. `False` uses the built-in template writer (no model, less variety); an `openai:`/`vllm:` spec runs it on your endpoint |
+| `simulator` | hosted Qwen | Situation writer, always a model. An `openai:`/`vllm:` spec runs it on your endpoint; `False` raises |
 | `traces` | `None` | Graded traces of the deployed agent — a list of plain row dicts or a JSONL path. Aims the coverage grid at the behaviors those traces show and keeps the sources out of the generated rows. See [Close the loop](#close-the-loop-aim-the-budget-with-traces) |
 | `tasks` | `None` | Re-run a previous run's task set instead of drawing a new one: that run, its rows, or its JSONL path. k is **not** inherited — see [Same tasks, new prompt](#trust-the-numbers) |
 | `logprobs` | `False` | Ask the rollout model for the log-probability of every token it generates. Each agent turn's step gets `logprob` and `n_tokens`, the row gets the totals. `"tokens"` keeps the per-token list. Model backends only |
@@ -579,8 +576,8 @@ does the whole cut in one line — see
 
 In the order a post-training run happens. The index at
 [`examples/README.md`](examples/README.md) has one line per example with
-what it needs and how long it takes; "offline" below means no key and no
-network.
+what it needs and how long it takes. Every simulate call writes its
+situations with a model, so "the account key" means `zeroproof login`.
 
 | Step | Example | What it does |
 |---|---|---|
@@ -696,7 +693,7 @@ print(zps.format_hack_scan(scan))
 
 A grouped update learns whatever separates reward *within* an ask; what only tracks which ask it is (difficulty) is baselined away. `hack_scan` asks the question the same way: reward and every candidate feature are centered within ask, ranked by that correlation, and compared to a noise floor from shuffling reward within ask (`tau`). Features come in two tiers, both pure Python: the hand tier (reply length, tool calls, turns, truncation, surface counts, one indicator per tool called, mean token logprob, every numeric marker, plus `features={"name": fn}` of your own) and the auto tier (the 200 most common words and word pairs in the agent's text, and pairwise ANDs that beat both parents), which is the tier that finds the shortcut nobody listed. `endorsed` names what the reward should track, as substrings of feature names; with it the scan can say `reward_hack` (the top feature is not endorsed, and the warning names what the policy would learn instead), `integrity` (share of the above-floor signal that is endorsed), and lists rivals. Without it the scan still ranks and floors. An agent that emits only a couple of distinct trajectories per ask makes every feature that separates them an exact function of the label — they all tie at |rho| 1, and the floor cannot break a tie between two perfect explanations — so the scan returns `degenerate` with `top_feature` `None`, lists the tied features in `collinear`, and names the cause (`distinct_per_ask`) rather than picking the alphabetical winner.
 
-The whole loop, before, during and after training, is in [docs/reward-hacking.md](docs/reward-hacking.md) and runs offline in [`examples/reward-hacking`](examples/reward-hacking). `optimize(mode="rl", endorsed=[...])` carries the scan as `report["hack_scan"]`, with its warnings in `report["hygiene_warnings"]` next to the older pooled `report["correlations"]` (reply length, tool calls, turns, flagged at `HACK_THRESHOLD` 0.3). A reward that tracks a shortcut is a judge problem, so it is flagged, not pruned. The publish gate reports the same on RL-shaped rows, plus near-duplicate asks and length spread; `data.push(endorsed=[...], strict_hacks=True)` refuses a `reward_hack`. Standalone: `zps.reward_correlations(rows)`, `zps.dedupe_groups(rows)`, `zps.near_duplicate_prompts(rows)`, `zps.length_report(rows)`.
+The whole loop, before, during and after training, is in [docs/reward-hacking.md](docs/reward-hacking.md) and runs on the account key in [`examples/reward-hacking`](examples/reward-hacking). `optimize(mode="rl", endorsed=[...])` carries the scan as `report["hack_scan"]`, with its warnings in `report["hygiene_warnings"]` next to the older pooled `report["correlations"]` (reply length, tool calls, turns, flagged at `HACK_THRESHOLD` 0.3). A reward that tracks a shortcut is a judge problem, so it is flagged, not pruned. The publish gate reports the same on RL-shaped rows, plus near-duplicate asks and length spread; `data.push(endorsed=[...], strict_hacks=True)` refuses a `reward_hack`. Standalone: `zps.reward_correlations(rows)`, `zps.dedupe_groups(rows)`, `zps.near_duplicate_prompts(rows)`, `zps.length_report(rows)`.
 
 ### Curriculum: easy to hard, and retire the solved
 

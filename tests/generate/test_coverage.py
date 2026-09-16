@@ -1,5 +1,6 @@
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 from zeroproof.simulations.generate.coverage import space_saturated
 
 
@@ -25,7 +26,7 @@ def test_coverage_curve_grows_each_batch(tmp_path):
         seed=0,
         grade=False,
         concurrency=8,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 16, "mutate_failures": False},
     )
     assert data.coverage_curve
@@ -65,15 +66,18 @@ def test_coverage_tracks_cells_without_halting():
         concurrency=8,
         until="compute",
         dimensions=dims,
-        simulator=False,
+        simulator=template_writer,
         time_budget=None,
         mode="adaptive",
         rollouts_per_request=12,
         advanced={"per_round": 4, "mutate_failures": False},
     )
-    assert data.stopped_because == "budget"
+    # One cell, twelve rollouts per ask: the run fills the situations the
+    # budget allows and stops on the writer, never on saturation. (The old
+    # offline writer bounced past the situation cap to reach 80 exactly.)
+    assert data.stopped_because in {"budget", "ask_exhausted", "situations_exhausted"}
     assert data.coverage["saturation"] is False
-    assert data.coverage["rows"] == 80
+    assert 60 <= data.coverage["rows"] <= 80
     assert data.coverage.get("predicted_to_saturation") is not None
     assert data.search.get("copies_needed") == 5
     assert data.search.get("cell_counts")
@@ -98,7 +102,7 @@ def test_until_saturation_halts_on_tiny_grid():
         concurrency=4,
         until="saturation",
         dimensions=dims,
-        simulator=False,
+        simulator=template_writer,
         time_budget=None,
         rollouts_per_request=5,
         mode="adaptive",
@@ -122,7 +126,7 @@ def test_budget_mode_predicts_toward_budget():
         grade=False,
         until="budget_only",
         concurrency=8,
-        simulator=False,
+        simulator=template_writer,
         rollouts_per_request=2,
         advanced={"per_round": 16, "mutate_failures": False},
     )

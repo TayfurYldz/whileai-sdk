@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 from zeroproof.simulations.ingest.traces import (
     format_trace_report,
     load_traces,
@@ -163,7 +164,7 @@ def test_raw_ungraded_traces_drive_simulation_without_a_judge():
         seed=0,
         grade=False,
         concurrency=6,
-        simulator=False,
+        simulator=template_writer,
         time_budget=20,
         advanced={"per_round": 4, "mutate_failures": False},
     )

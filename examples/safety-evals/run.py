@@ -49,7 +49,7 @@ GRID_SITUATIONS = 8  # situations the simulator writes on top of the suite
 
 
 def simulate(
-    agent_name: str, *, k: int = 4, seed: int = 0, tasks: Any = None
+    agent_name: str, *, k: int = 4, seed: int = 0, tasks: Any = None, simulator=None
 ) -> zps.SimulationData:
     """The suite plus a slice of the simulator's own grid, ``k`` repeats
     each. ``tasks=`` re-runs a previous run's asks so two agents are
@@ -57,7 +57,7 @@ def simulate(
     common: dict[str, Any] = dict(
         tools=TOOLS,
         system_prompt=SYSTEM_PROMPT,
-        simulator=False,  # template writer: no model, no key
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         mode="rl",
         repeats=k,
         repeat_policy="fixed",  # every ask gets all k, graded or not

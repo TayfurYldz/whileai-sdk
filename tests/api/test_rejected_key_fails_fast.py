@@ -14,6 +14,7 @@ import pytest
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS
+from tests.template_writer import template_writer
 from zeroproof.simulations.run.engine import _auth_error
 
 
@@ -37,7 +38,7 @@ def test_rejected_key_on_the_agent_stops_on_the_first_rollout():
             _rejected_agent,
             tools=TOOLS,
             system_prompt=POLICY,
-            simulator=False,
+            simulator=template_writer,
             budget=40,
             time_budget=60,
             advanced={"concurrency": 1},

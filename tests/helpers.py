@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from tests.template_writer import template_writer
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 GITHUB_SPEC = FIXTURES / "github"
@@ -100,7 +102,7 @@ def offline(**kwargs: Any) -> dict[str, Any]:
         "seed": 0,
         "grade": False,
         "concurrency": 4,
-        "simulator": False,
+        "simulator": template_writer,
         "time_budget": None,
         "advanced": advanced,
     }

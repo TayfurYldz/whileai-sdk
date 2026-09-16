@@ -114,6 +114,7 @@ def simulate_rows(
     *,
     concurrency: int = 4,
     seeds: list[str] | None = None,
+    simulator=None,
 ) -> list[dict]:
     """``asks`` situations, ``k`` repeats each, graded by the built-in
     conduct grader. Offline: template writer, scripted agent.
@@ -133,7 +134,7 @@ def simulate_rows(
         grade=True,
         concurrency=concurrency,
         reproducible=True,
-        simulator=False,
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         time_budget=None,
         mode="rl",
     )

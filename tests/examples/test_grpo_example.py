@@ -16,6 +16,7 @@ from example_helpers import (
 )
 
 import zeroproof.simulations as zps
+from tests.template_writer import template_writer
 
 GRPO = EXAMPLES / "grpo"
 README = GRPO / "README.md"
@@ -95,7 +96,7 @@ def test_reward_rows_feed_pass_at_and_delta():
 
 def test_build_prompts_offline_and_split():
     r, _ = _modules()
-    items = r.build_prompts(24, seed=1)
+    items = r.build_prompts(24, seed=1, simulator=template_writer)
     assert 8 <= len(items) <= 24 and all(set(i) == {"prompt", "case", "scenario_id"} for i in items)
     assert any(i["case"]["order_id"] for i in items) and any(
         not i["case"]["order_id"] for i in items

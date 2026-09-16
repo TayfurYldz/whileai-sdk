@@ -2,7 +2,7 @@
 
 Three things a first run with your own agent needs: the callable contract,
 what the run says when the agent is broken, and how an eval score is kept
-out of the training reward. Offline, no key, seconds.
+out of the training reward. Needs a writer model: the account key from `zeroproof login`, or `simulator=`.
 
 ```bash
 pip install zeroproof
@@ -38,7 +38,6 @@ data = zps.simulate(
     my_agent,
     tools=TOOLS,
     system_prompt=POLICY,
-    simulator=False,
     budget=16,
     mode="rl",
     situations=4,
@@ -47,10 +46,9 @@ data = zps.simulate(
 )
 ```
 
-`simulator=False` uses the built-in template writer so no model key is
-needed; the situations are less varied than a model writes, which is fine
-for wiring up an agent and a judge. Any extra keys on the dict stay on the
-row. Inside the callable, `current_rollout.rollout_index` says which repeat
+The situations come from the hosted writer on your account key (or the
+model you name with `simulator=`); there is no offline writer. Any extra
+keys on the dict stay on the row. Inside the callable, `current_rollout.rollout_index` says which repeat
 this is, if the agent needs to know.
 
 `repeat_policy="fixed"` asks for all four repeats up front. The `mode="rl"`

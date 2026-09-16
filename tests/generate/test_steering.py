@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import Counter
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 from zeroproof.simulations.generate.scenarios import (
     scenario_regions,
     steer_region_picks,
@@ -46,7 +47,7 @@ _OFFLINE = dict(
     seed=0,
     grade=False,
     concurrency=4,
-    simulator=False,
+    simulator=template_writer,
     time_budget=None,
     advanced={"per_round": 16, "mutate_failures": False},
 )

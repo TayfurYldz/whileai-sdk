@@ -14,6 +14,7 @@ import pytest
 from example_helpers import EXAMPLES, load_script
 
 import zeroproof.simulations as zps
+from tests.template_writer import template_writer
 
 README = EXAMPLES / "hosted-loop" / "README.md"
 
@@ -23,6 +24,8 @@ def hl(monkeypatch, tmp_path):
     mod = load_script("hosted_loop_run", EXAMPLES / "hosted-loop" / "run.py")
     monkeypatch.setattr(mod, "STATE", tmp_path / "hosted-loop.json")
     monkeypatch.setattr(mod, "resolve_api_key", lambda explicit=None: "zp_test_key")
+    # the data step simulates; the tests keep it on the test writer
+    mod.SIMULATOR = template_writer
     return mod
 
 

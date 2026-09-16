@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from tests.template_writer import template_writer
+
 REPO = Path(__file__).resolve().parents[2]
 
 _SCRIPT = r"""
@@ -117,7 +119,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
             budget=40,
             seed=0,
             concurrency=8,
-            simulator=False,
+            simulator=template_writer,
             grade=False,
             time_budget=None,
             reproducible=True,
@@ -196,7 +198,7 @@ def test_serial_graded_reruns_in_one_process_are_identical():
             seed=2,
             grade=True,
             concurrency=1,
-            simulator=False,
+            simulator=template_writer,
             time_budget=None,
             mode="rl",
         )

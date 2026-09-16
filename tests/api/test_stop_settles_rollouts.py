@@ -11,9 +11,13 @@ import time
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS
+from tests.template_writer import template_writer
 
 _OFFLINE = dict(
-    seed=0, simulator=False, grade=False, advanced={"per_round": 32, "mutate_failures": False}
+    seed=0,
+    simulator=template_writer,
+    grade=False,
+    advanced={"per_round": 32, "mutate_failures": False},
 )
 
 

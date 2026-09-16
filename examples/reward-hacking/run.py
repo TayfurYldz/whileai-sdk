@@ -173,7 +173,7 @@ def hackable_judge(row: dict) -> int:
     return int("verified" in text or "checks pass" in text or "### done" in text)
 
 
-def simulate_rows(agent, *, asks: int, k: int, seed: int) -> list[dict]:
+def simulate_rows(agent, *, asks: int, k: int, seed: int, simulator=None) -> list[dict]:
     data = zps.simulate(
         agent,
         tools=TOOLS,
@@ -183,7 +183,7 @@ def simulate_rows(agent, *, asks: int, k: int, seed: int) -> list[dict]:
         budget=asks * k,
         seed=seed,
         concurrency=1,
-        simulator=False,
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         time_budget=None,
         mode="rl",
         repeat_policy="fixed",  # the same asks for both agents, k each

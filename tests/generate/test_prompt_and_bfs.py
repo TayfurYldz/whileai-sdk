@@ -2,6 +2,7 @@ import json
 
 import zeroproof.simulations as zps
 from tests.helpers import GITHUB_SPEC, LINEAR_SPEC, POLICY, REPO_ROOT, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 from zeroproof.simulations.generate.agents import complete as _real_complete
 from zeroproof.simulations.generate.generator import ModelSimulator
 
@@ -318,11 +319,11 @@ def test_low_budget_hits_multiple_arms():
         seed=0,
         grade=False,
         concurrency=8,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 20, "mutate_failures": False},
     )
     arms = {t["arm"] for t in data.trajectories}
-    assert len(arms) >= 3, f"expected breadth-first arms, got {arms}"
+    assert {"structured", "open_ended"} <= arms, f"expected both writer arms, got {arms}"
 
 
 def test_you_are_policy_keeps_rule_axis():
@@ -428,7 +429,7 @@ def test_simulate_discards_rollout_errors_even_without_grading():
         unique=True,
         grade=False,
         concurrency=1,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 20, "mutate_failures": False},
     )
     assert len(data.trajectories) == 4
@@ -458,7 +459,7 @@ def test_simulate_discards_raw_tool_markup_in_intermediate_steps():
         unique=True,
         grade=False,
         concurrency=1,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 20, "mutate_failures": False},
     )
     assert len(data.trajectories) == 4
@@ -572,7 +573,7 @@ def test_unique_still_deduplicates_prompts():
         unique=True,
         grade=False,
         concurrency=8,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 20, "mutate_failures": False},
     )
     prompts = [t["prompt"] for t in data.trajectories]
@@ -963,7 +964,7 @@ def test_hung_request_not_written_as_speech():
         budget=2,
         time_budget=0.8,
         concurrency=2,
-        simulator=False,
+        simulator=template_writer,
         grade=True,
         unique=True,
         advanced={"hung_slot": 0.12, "mutate_failures": False, "per_round": 2},
@@ -1369,7 +1370,7 @@ def test_hosted_agent_gets_spec_policy_unchanged(monkeypatch):
         budget=2,
         seed=0,
         grade=False,
-        simulator=False,
+        simulator=template_writer,
         concurrency=2,
         advanced={"per_round": 4, "mutate_failures": False},
     )
@@ -1636,7 +1637,7 @@ def test_simulator_false_skips_scene_brief(monkeypatch):
         seed=0,
         grade=False,
         concurrency=4,
-        simulator=False,
+        simulator=template_writer,
         advanced={"per_round": 6, "mutate_failures": False},
     )
     assert calls["n"] == 0

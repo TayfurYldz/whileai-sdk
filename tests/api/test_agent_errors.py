@@ -111,7 +111,8 @@ def test_no_rows_and_no_agent_fault_names_the_writer(monkeypatch, caplog):
     from tests.helpers import offline, scripted_agent
     from zeroproof.simulations.run import engine as eng
 
-    monkeypatch.setattr(eng.Run, "_refill_pool", lambda self, remaining, take: [])
+    # the writer waves return nothing: no situations, no rows, no fallback
+    monkeypatch.setattr(eng.Run, "_produce", lambda self, *a, **k: ([], {}, {}, {}))
     monkeypatch.setattr(eng.Run, "_build_batch", lambda self, selected, take: [])
     with caplog.at_level(logging.WARNING, logger="zeroproof.simulations"):
         data = zps.simulate(scripted_agent, budget=4, **offline())

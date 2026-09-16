@@ -105,7 +105,7 @@ def scripted_agent(message: str) -> dict:
     }
 
 
-def simulate_rows(n: int = 24, seed: int = 0) -> list[dict]:
+def simulate_rows(n: int = 24, seed: int = 0, simulator=None) -> list[dict]:
     data = zps.simulate(
         scripted_agent,
         tools=TOOLS,
@@ -114,7 +114,7 @@ def simulate_rows(n: int = 24, seed: int = 0) -> list[dict]:
         seed=seed,
         grade=True,
         concurrency=4,
-        simulator=False,
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         time_budget=None,
         mode="rl",
         repeats=2,

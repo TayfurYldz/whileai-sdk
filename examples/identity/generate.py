@@ -367,9 +367,16 @@ def build_control_prompts(need: int, seed: int) -> list[str]:
     seen: dict[str, None] = {}
     batch_seed = seed * 1000
     while len(seen) < need and batch_seed < seed * 1000 + 64:
-        # concurrency=1: the offline writer is only deterministic single-threaded.
+        # reproducible=True: the seed decides the draw; writer waves run on
+        # threads, so without it the batch order would steer the prompts.
         data = simulate_offline(
-            agent, spec=str(GITHUB_SPEC), budget=400, per_round=64, seed=batch_seed, concurrency=1
+            agent,
+            spec=str(GITHUB_SPEC),
+            budget=400,
+            per_round=64,
+            seed=batch_seed,
+            concurrency=1,
+            reproducible=True,
         )
         for row in data.rows():
             seen.setdefault(str(row["prompt"]))

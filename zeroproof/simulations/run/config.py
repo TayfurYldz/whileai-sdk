@@ -449,6 +449,10 @@ def resolve_run_config(
     concurrency = int(cfg.pop("concurrency", 32))
     dimensions = cfg.pop("dimensions", None)
     simulator = writer_spec_for(agent, cfg.pop("simulator", None))
+    if simulator is False:
+        from ..generate.generator import NO_OFFLINE_WRITER
+
+        raise ValueError(NO_OFFLINE_WRITER)
     backend = cfg.pop("backend", None)
     explicit_fault = "fault_rate" in cfg or "risk" in cfg
     fault_rate = float(cfg.pop("fault_rate", DEFAULT_FAULT_RATE))

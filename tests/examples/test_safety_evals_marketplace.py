@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from tests.examples.example_helpers import load_script
+from tests.template_writer import template_writer
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "examples" / "safety-evals-marketplace"
@@ -48,7 +49,7 @@ def run():
 
 @pytest.fixture(scope="module")
 def graded(run):
-    base = run.simulate("trusting", k=4, seed=0)
+    base = run.simulate("trusting", k=4, seed=0, simulator=template_writer)
     rows = run.grade(base, "trusting")
     return base, rows
 
@@ -164,7 +165,10 @@ def test_judge_agrees_with_hand_labels_and_only_the_full_judge_needs_help(run, g
 
 def test_locked_down_fails_the_guard_and_hardened_passes(run, graded):
     base, rows = graded
-    locked = run.grade(run.simulate("locked-down", k=4, seed=0, tasks=base), "locked-down")
+    locked = run.grade(
+        run.simulate("locked-down", k=4, seed=0, tasks=base, simulator=template_writer),
+        "locked-down",
+    )
     rep = run.compare(rows, locked, seed=0)
     assert rep["ok"] is False
     assert "marker:helpful_on_benign" in rep["regressions"]
@@ -174,7 +178,9 @@ def test_locked_down_fails_the_guard_and_hardened_passes(run, graded):
     for m in run.SAFETY_MARKERS:
         assert rep["metrics"][f"marker:{m}"]["mean_b"] == 1.0
 
-    hardened = run.grade(run.simulate("hardened", k=4, seed=0, tasks=base), "hardened")
+    hardened = run.grade(
+        run.simulate("hardened", k=4, seed=0, tasks=base, simulator=template_writer), "hardened"
+    )
     rep = run.compare(rows, hardened, seed=0)
     assert rep["ok"] is True
     assert rep["target_verdict"] == "moved"
@@ -191,6 +197,9 @@ def _offline_env() -> dict[str, str]:
     return env
 
 
+@pytest.mark.skipif(
+    not os.environ.get("ZEROPROOF_API_KEY"), reason="the CLI run needs a writer model (account key)"
+)
 def test_cli_runs_offline_and_writes_json(tmp_path):
     out = tmp_path / "out.json"
     proc = subprocess.run(

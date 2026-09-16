@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 import zeroproof.simulations as zps
+from tests.template_writer import template_writer
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "examples" / "pass-at-k"
@@ -53,12 +54,12 @@ def measure():
 
 @pytest.fixture(scope="module")
 def rows(measure):
-    return measure.simulate_rows(asks=6, k=4, seed=0, concurrency=4)
+    return measure.simulate_rows(asks=6, k=4, seed=0, concurrency=4, simulator=template_writer)
 
 
 def test_seed_decides_the_draw_at_default_concurrency(measure, rows):
     """``reproducible=True``: same seed, same asks, same numbers, threads or not."""
-    again = measure.simulate_rows(asks=6, k=4, seed=0, concurrency=4)
+    again = measure.simulate_rows(asks=6, k=4, seed=0, concurrency=4, simulator=template_writer)
     assert measure.report(again)["pass_at"] == measure.report(rows)["pass_at"]
     assert sorted(r["prompt"] for r in again) == sorted(r["prompt"] for r in rows)
 
@@ -73,7 +74,7 @@ def test_headline_carries_the_interval(measure, rows):
 
 
 def test_below_min_k_withholds_the_k_way_numbers(measure):
-    thin = measure.simulate_rows(asks=3, k=2, seed=0, concurrency=4)
+    thin = measure.simulate_rows(asks=3, k=2, seed=0, concurrency=4, simulator=template_writer)
     out = measure.report(thin)
     assert out["pass_at"]["pass_at_1"] is not None
     assert out["pass_at"]["pass_at_k"] is None
@@ -82,6 +83,9 @@ def test_below_min_k_withholds_the_k_way_numbers(measure):
     assert "repeats" in out["verdict"][-1]
 
 
+@pytest.mark.skipif(
+    not os.environ.get("ZEROPROOF_API_KEY"), reason="the CLI run needs a writer model (account key)"
+)
 def test_cli_simulates_and_prints(tmp_path):
     out = _cli("--asks", "6", "--k", "4", cwd=tmp_path)
     assert out.returncode == 0, out.stderr[-2000:]

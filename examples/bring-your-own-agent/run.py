@@ -88,13 +88,13 @@ def ops_agent(message: str) -> dict:
     return {"steps": steps, "final_text": f"Restarted {service}."}
 
 
-def part_contract() -> zps.SimulationData:
+def part_contract(simulator=None) -> zps.SimulationData:
     print("== contract: a working callable")
     data = zps.simulate(
         ops_agent,
         tools=TOOLS,
         system_prompt=POLICY,
-        simulator=False,  # template writer, no model key needed
+        simulator=simulator,  # hosted writer by default; a writer object for tests
         budget=16,
         mode="rl",
         situations=4,
@@ -124,11 +124,11 @@ def agent_wrong_shape(message: str) -> dict:
     return {"role": "assistant", "content": "Restarted."}
 
 
-def part_broken() -> None:
+def part_broken(simulator=None) -> None:
     print("== broken: what the run says when the agent is the problem")
     for name, fn in (("raises", agent_that_raises), ("wrong shape", agent_wrong_shape)):
         data = zps.simulate(
-            fn, tools=TOOLS, system_prompt=POLICY, simulator=False, budget=8, seed=0
+            fn, tools=TOOLS, system_prompt=POLICY, simulator=simulator, budget=8, seed=0
         )
         print(
             f"{name:12s} rows={len(data.trajectories)} "

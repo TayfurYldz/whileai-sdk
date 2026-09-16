@@ -607,18 +607,6 @@ def test_open_ended_weight_cannot_exceed_cap():
     assert weights["open_ended"] >= 0.05 - 1e-9
 
 
-def test_open_ended_probe_families_stay_intact():
-    from zeroproof.simulations.generate.scenarios import _PROBE_FAMILIES, open_ended_probes
-
-    names = [name for name, _ in _PROBE_FAMILIES]
-    assert {"out_of_domain_factual", "creative", "garbage_input", "prompt_injection"} <= set(names)
-    probes = open_ended_probes(TOOLS, POLICY, per_round=16, seed=0)
-    blob = " ".join(probes).lower()
-    assert "mongolia" in blob or "haiku" in blob or "asdf" in blob
-    assert "file number" not in blob
-    assert "ignore" in blob
-
-
 def test_writer_and_agent_default_to_hosted_qwen(monkeypatch):
     from zeroproof.simulations.generate.agents import (
         DEFAULT_AGENT,

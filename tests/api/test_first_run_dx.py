@@ -6,6 +6,7 @@ import pytest
 
 import zeroproof.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
+from tests.template_writer import template_writer
 
 
 def test_callable_agent_without_key_is_told_about_the_offline_writer(monkeypatch):
@@ -15,8 +16,8 @@ def test_callable_agent_without_key_is_told_about_the_offline_writer(monkeypatch
         zps.simulate(scripted_agent, tools=TOOLS, system_prompt=POLICY, budget=2)
     text = str(err.value)
     assert "VLLM_API_KEY" in text
-    assert "simulator=False" in text
     assert "openai:" in text
+    assert "template" not in text
 
 
 def test_rows_carry_messages_in_memory():
@@ -26,7 +27,7 @@ def test_rows_carry_messages_in_memory():
         system_prompt=POLICY,
         budget=4,
         seed=0,
-        simulator=False,
+        simulator=template_writer,
         grade=False,
         time_budget=None,
         advanced={"per_round": 8, "mutate_failures": False},
@@ -45,7 +46,7 @@ def test_export_preference_on_plain_rows_names_the_pair_builder(tmp_path):
         system_prompt=POLICY,
         budget=4,
         seed=0,
-        simulator=False,
+        simulator=template_writer,
         grade=True,
         time_budget=None,
         advanced={"per_round": 8, "mutate_failures": False},

@@ -1,7 +1,7 @@
 """The free path, with something to catch.
 
-Offline (``simulator=False``) the template writer writes the users; the
-agent turns are whatever the caller's callable returns. That callable
+With a callable agent the writer model writes the users; the agent turns
+are whatever the caller's callable returns. That callable
 gets a prompt string and nothing else, so two things were true of every
 free run until now: the row's scheduled ``faults`` never reached the
 agent, and every behavioral marker read zero because a hand-written
