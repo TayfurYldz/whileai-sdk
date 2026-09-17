@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import statistics
 import sys
 from datetime import date
 from importlib.metadata import version
@@ -45,6 +46,15 @@ import modal
 HERE = Path(__file__).resolve().parent
 BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 METRIC = "pass@1"
+
+# ch. 14 is the chapter this recipe lives in: the shaped score is a proxy, and
+# the paper's failure is that proxy being optimized while the target does not
+# move. The filter itself belongs to ch. 6 (policy gradients, group baselines).
+BOOK = "ch. 14 Over-optimization"
+# The training reward is not the target metric, so it is named as the proxy and
+# `delta_report` gets to call over-optimization when the two come apart.
+PROXY = "marker:shaped_reward"
+EVAL_RUNS = 3  # re-runs of the base eval that set the noise floor (ch. 16)
 
 # The shaped reward, straight from the paper: outcome minus a length penalty
 # normalized at 512 characters. LAMBDA is the "phantom strength" knob; the
@@ -130,18 +140,54 @@ def apply_filter(
     return rewards
 
 
-def make_reward(filter_metric: str):
-    """The reward function TRL calls, closed over the arm's filter metric."""
+def make_reward(filter_metric: str, sink: list | None = None):
+    """The reward function TRL calls, closed over the arm's filter metric.
+
+    `sink` keeps the most recent batch in graded-row shape, so `hack_scan` can
+    read the last training batch after `trainer.train()` returns (ch. 14)."""
 
     def reward(completions, prompts, answer, **kwargs):
         texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
         keys = [json.dumps(p, sort_keys=True, default=str) for p in prompts]
         outcomes = [outcome_of(t, gold_of(a)) for t, a in zip(texts, answer)]
         shaped = [shaped_of(t, o) for t, o in zip(texts, outcomes)]
-        return apply_filter(keys, outcomes, shaped, filter_metric)
+        rewards = apply_filter(keys, outcomes, shaped, filter_metric)
+        if sink is not None:
+            sink.clear()
+            seen: dict[str, int] = {}
+            for key, text, out, sc in zip(keys, texts, outcomes, shaped):
+                seen[key] = seen.get(key, -1) + 1
+                sink.append(
+                    {
+                        "prompt": key,
+                        "final_text": text,
+                        "reward": out,
+                        "scenario_id": key,
+                        "rollout_index": seen[key],
+                        "markers": {"shaped_reward": sc},
+                    }
+                )
+        return rewards
 
     reward.__name__ = f"shaped_reward_filter_{filter_metric}"
     return reward
+
+
+def mean_length(rows: list[dict]) -> float:
+    """Mean completion length, the ch. 14 tell that a length term is winning."""
+    return statistics.fmean(len(r.get("final_text") or "") for r in rows) if rows else 0.0
+
+
+def top_hack_feature(rows: list[dict]) -> str:
+    """What the reward actually paid for in the last training batch (ch. 14)."""
+    import zeroproof.simulations as zps
+
+    try:
+        scan = zps.hack_scan(rows, endorsed=[PROXY])
+    except Exception as exc:  # a batch too small to rank is not a failed run
+        return f"unavailable: {type(exc).__name__}"
+    features = scan.get("features") or []
+    return str(features[0]["name"]) if features else "none above the noise floor"
 
 
 def graded_rows(holdout: list[dict], replies: list[list[str]]) -> list[dict]:
@@ -151,11 +197,15 @@ def graded_rows(holdout: list[dict], replies: list[list[str]]) -> list[dict]:
     for task, texts in zip(holdout, replies):
         gold = gold_of(task["answer"])
         for i, text in enumerate(texts):
+            outcome = outcome_of(text, gold)
             rows.append(
                 {
                     "prompt": task["question"],
                     "final_text": text,
-                    "reward": outcome_of(text, gold),
+                    "reward": outcome,
+                    # The training reward rides along as a marker so
+                    # `delta_report(proxy=)` can compare it to the target.
+                    "markers": {"shaped_reward": shaped_of(text, outcome)},
                     "scenario_id": task["scenario_id"],
                     "rollout_index": i,
                     "privileged": {"reference": gold},
@@ -264,7 +314,15 @@ def run_arm(
     from trl import GRPOConfig, GRPOTrainer
 
     sys.path.insert(0, "/root")
-    from recipe_mod import LAMBDA, graded_rows, make_reward, messages_for
+    from recipe_mod import (
+        EVAL_RUNS,
+        LAMBDA,
+        graded_rows,
+        make_reward,
+        mean_length,
+        messages_for,
+        top_hack_feature,
+    )
 
     import zeroproof.simulations as zps
 
@@ -305,13 +363,16 @@ def run_arm(
         print(f"dashboard: {run.url}")
 
     questions = [t["question"] for t in holdout]
-    base_rows = None
+    base_runs: list[list[dict]] = []
     if eval_base:
-        replies = _sample(
-            model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
-        )
-        base_rows = graded_rows(holdout, replies)
-        print(f"base:   {zps.pass_at(base_rows)}")
+        # Three re-runs of the same eval on the same untrained model: the
+        # spread between them is the noise floor any delta has to clear.
+        for i in range(EVAL_RUNS):
+            replies = _sample(
+                model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
+            )
+            base_runs.append(graded_rows(holdout, replies))
+            print(f"base run {i + 1}/{EVAL_RUNS}: {zps.pass_at(base_runs[-1])}")
 
     dataset = Dataset.from_list(
         [{"prompt": messages_for(t["question"]), "answer": t["answer"]} for t in train_tasks]
@@ -353,9 +414,10 @@ def run_arm(
             "down_proj",
         ],
     )
+    last_batch: list[dict] = []
     trainer = GRPOTrainer(
         model=model,
-        reward_funcs=[make_reward(filter_metric)],
+        reward_funcs=[make_reward(filter_metric, sink=last_batch)],
         args=grpo,
         train_dataset=dataset,
         processing_class=tokenizer,
@@ -382,11 +444,16 @@ def run_arm(
     tokenizer.save_pretrained(adapter_dir)
     runs_volume.commit()
 
+    hack_top = top_hack_feature(last_batch)
+    print(f"hack scan, last training batch: top feature {hack_top}")
+
     gpu_minutes = (time.time() - started) / 60.0
     summary = {
         "arm": arm,
         "filter_metric": filter_metric,
         "pass_at_1": after.pass_at_1,
+        "mean_length": mean_length(after_rows),
+        "hack_scan_top": hack_top,
         "gpu_minutes": gpu_minutes,
         "steps": steps,
     }
@@ -395,8 +462,9 @@ def run_arm(
         summary["run_url"] = run.url
     return {
         "arm": arm,
-        "base_rows": base_rows,
+        "base_runs": base_runs,
         "after_rows": after_rows,
+        "hack_scan_top": hack_top,
         "gpu_minutes": gpu_minutes,
         "steps": steps,
         "run_url": summary.get("run_url", ""),
@@ -471,7 +539,70 @@ def selftest() -> None:
     assert outcome_of("so the answer is \\boxed{18}", "18") == 1.0
     assert outcome_of("the answer is 5", "18") == 0.0
     print("grader: MathEqual reads \\boxed{} and the last number")
+
+    selftest_science_bar()
     print("selftest ok")
+
+
+def selftest_science_bar() -> None:
+    """The ch. 16 and ch. 14 plumbing, on synthetic rows. This does not check
+    the recipe's numbers -- there are none until it runs -- only that every
+    check is wired to something real and reads the field it thinks it reads."""
+    import random
+
+    import zeroproof.simulations as zps
+
+    rng = random.Random(0)
+
+    def fake(p: float, n: int = 40, k: int = 4) -> list[dict]:
+        holdout = [
+            {"question": f"q{t}", "answer": f"#### {t}", "scenario_id": f"test-{t}"}
+            for t in range(n)
+        ]
+        replies = [
+            [f"\\boxed{{{t if rng.random() < p else t + 1}}}" + "." * rng.randint(0, 200)] * 1 * k
+            for t in range(n)
+        ]
+        return graded_rows(holdout, replies)
+
+    # ch. 16, decontaminate: the holdout must be handed over prompt-keyed, or
+    # `against=` reads nothing and the check silently passes. Assert it bites.
+    train = [{"question": "shared prompt", "answer": "#### 1", "scenario_id": "train-0"}]
+    kept, report = zps.decontaminate(
+        train,
+        against=[{"prompt": "shared prompt", "answer": "#### 1"}],
+        fields=("question",),
+    )
+    assert report["n_contaminated"] == 1 and not kept, "decontaminate is not reading the prompt"
+    print(f"decontaminate: catches a shared prompt ({report['n_contaminated']} dropped)")
+
+    # ch. 16, eval noise: three re-runs of the same model give a run_std.
+    runs = [fake(0.35) for _ in range(EVAL_RUNS)]
+    noise = zps.eval_variance(*runs)
+    assert "run_std" in noise and noise["n_runs"] == EVAL_RUNS
+    print(f"eval_variance: {EVAL_RUNS} re-runs -> run_std {float(noise['run_std']):.4f}")
+
+    # ch. 14, proxy vs target: rows carry the shaped reward as a marker, so a
+    # proxy that climbs while the target sits still is an over-optimized verdict.
+    d = zps.delta_report(
+        runs[0],
+        fake(0.36),
+        target="pass_at_1",
+        run_std=float(noise["run_std"]),
+        proxy=PROXY,
+    )
+    assert "over_optimized" in d, "delta_report is not running the proxy check"
+    assert runs[0][0]["markers"].get("shaped_reward") is not None, "rows lost the proxy marker"
+    print(
+        f"delta_report(proxy={PROXY}): verdict {d['target_verdict']}, "
+        f"over_optimized {d['over_optimized']}"
+    )
+
+    # ch. 14, hack scan: the top feature comes back named, not as a crash.
+    top = top_hack_feature(runs[0])
+    assert isinstance(top, str) and top
+    print(f"hack_scan: top feature {top}")
+    print(f"length: mean completion {mean_length(runs[0]):.1f} chars")
 
 
 def main() -> None:
@@ -493,6 +624,16 @@ def main() -> None:
     import zeroproof.simulations as zps
 
     train_tasks, holdout = data(args.seed, args.n_train, args.n_holdout)
+    # ch. 16: drop any train prompt that is a holdout prompt. `against=` reads
+    # the eval texts from `prompt`/`answer`, so the holdout is handed over
+    # prompt-keyed; passing it question-keyed silently finds nothing.
+    train_tasks, decon = zps.decontaminate(
+        train_tasks,
+        against=[{"prompt": t["question"], "answer": t["answer"]} for t in holdout],
+        fields=("question",),
+    )
+    print(f"decontaminate: {decon['n_contaminated']} of {decon['n']} train prompts dropped")
+
     arms = ["baseline", "recipe"] if args.arm == "both" else [args.arm]
     filters = {"baseline": "score", "recipe": "outcome"}
 
@@ -505,6 +646,7 @@ def main() -> None:
             "recipe": HERE.name,
             "title": "Filter metric: phantom advantages under a shaped reward",
             "paper": "https://arxiv.org/abs/2609.13866",
+            "book": BOOK,
             "base_model": BASE_MODEL,
             "metric": METRIC,
             "n_holdout": len(holdout),
@@ -514,6 +656,15 @@ def main() -> None:
         }
     )
     results.setdefault("arms", {})
+    checks = results.setdefault("checks", {})
+    checks.update(
+        {
+            "decontaminated_dropped": int(decon.get("n_contaminated", 0)),
+            "seed": args.seed,
+            "pins": "torch 2.7.1, transformers 4.54.0, trl 0.19.1, peft 0.16.0",
+        }
+    )
+    checks.setdefault("length_after", {})
     arm_rows: dict[str, list[dict]] = {}
     usd_per_hour = {"A10G": 1.10, "L40S": 2.00, "H100": 4.00}.get(DEFAULT_GPU, 2.00)
     gpu_minutes = 0.0
@@ -534,14 +685,25 @@ def main() -> None:
             )
             gpu_minutes += out["gpu_minutes"]
             run_url = out["run_url"] or run_url
-            if out["base_rows"]:
-                arm_rows["base"] = out["base_rows"]
+            if out["base_runs"]:
+                base_runs = out["base_runs"]
+                arm_rows["base"] = base_runs[0]
+                noise = zps.eval_variance(*base_runs)
+                run_std = float(noise["run_std"])
+                checks["run_std"] = run_std
+                checks["length_before"] = mean_length(base_runs[0])
+                print(
+                    f"eval noise over {len(base_runs)} base re-runs: "
+                    f"run_std {run_std:.4f}, noise band {noise['noise_band']:.4f}"
+                )
                 results["arms"]["base"] = {
-                    **summarize(out["base_rows"]),
+                    **summarize(base_runs[0]),
                     "steps": 0,
                     "gpu_minutes": 0,
                 }
             arm_rows[arm] = out["after_rows"]
+            checks["length_after"][arm] = mean_length(out["after_rows"])
+            checks["hack_scan_top"] = out["hack_scan_top"]
             results["arms"][arm] = {
                 **summarize(out["after_rows"]),
                 "steps": out["steps"],
@@ -549,12 +711,19 @@ def main() -> None:
             }
 
     if "baseline" in arm_rows and "recipe" in arm_rows:
-        d = zps.delta_report(arm_rows["baseline"], arm_rows["recipe"], target="pass_at_1")
+        d = zps.delta_report(
+            arm_rows["baseline"],
+            arm_rows["recipe"],
+            target="pass_at_1",
+            run_std=float(checks.get("run_std") or 0.0),
+            proxy=PROXY,
+        )
         results["delta"] = {
             "recipe_vs_baseline": d["target_delta"],
             "ci": list(d["target_ci95"] or (0.0, 0.0)),
             "verdict": "moved" if d["target_verdict"] == "moved" else "flat",
         }
+        checks["over_optimized"] = bool(d["over_optimized"])
         results["verified"] = date.today().isoformat()
         results.pop("partial_run", None)
         print(zps.format_delta_report(d))

@@ -11,10 +11,6 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   generates the index table from the results files, `tests/recipes/test_papers.py`
   keeps the shape. A daily agent re-verifies the stalest recipe and adds one
   new one as pull requests.
-- `recipes/papers/filter-metric`: which signal decides a GRPO group is flat.
-  Filtering on a shaped score instead of the binary outcome turns length noise
-  among all-wrong groups into full-size advantages (arXiv:2609.13866). Written
-  but not run: no GPU credentials in the session that wrote it.
 
 ## 0.49 (2026-09-17)
 
