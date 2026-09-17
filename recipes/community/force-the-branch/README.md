@@ -67,8 +67,8 @@ template is jittered by about a third
 
 ```python
 REGIMES = {
-    "big":   {"lookup_invoice": {"invoice_id": "INV-1000", "amount_usd": 900.0, "status": "open"}},
-    "small": {"lookup_invoice": {"invoice_id": "INV-1000", "amount_usd":  90.0, "status": "open"}},
+    "big": {"lookup_invoice": {"invoice_id": "INV-1000", "amount_usd": 900.0, "status": "open"}},
+    "small": {"lookup_invoice": {"invoice_id": "INV-1000", "amount_usd": 90.0, "status": "open"}},
 }
 ```
 
