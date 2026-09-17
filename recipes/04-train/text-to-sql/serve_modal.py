@@ -115,11 +115,14 @@ def serve():
     ]
     if adapter.startswith("volume:"):
         run_id = adapter.split(":", 1)[1]
+        # "volume:<run_id>" is <run_id>/adapter; "volume:<run_id>/checkpoints/checkpoint-25"
+        # is that directory as written by save_every.
+        src = f"/vol/{run_id}" if "/" in run_id else f"/vol/{run_id}/adapter"
         # vLLM mmaps the adapter tensors; on the volume's FUSE mount that
         # surfaced as "No adapter found for /vol/<run>/adapter" although the
         # files were there. Copy the adapter (a few hundred MB) to local disk.
-        local = f"/root/adapters/{run_id}"
-        shutil.copytree(f"/vol/{run_id}/adapter", local, dirs_exist_ok=True)
+        local = "/root/adapters/" + run_id.replace("/", "_")
+        shutil.copytree(src, local, dirs_exist_ok=True)
         cmd += [
             "--enable-lora",
             "--lora-modules",

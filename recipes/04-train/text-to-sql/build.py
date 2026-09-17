@@ -216,6 +216,11 @@ def main() -> int:
         help="comma list of models whose holdout rollouts to push as eval sets (nothing else)",
     )
     ap.add_argument("--models", default="", help="comma list; default = every raw/*.jsonl")
+    ap.add_argument(
+        "--band",
+        default="",
+        help="pass-rate band for the RL set as lo,hi (default: the SDK's 0.2,0.8); 0.1,0.9 at k=8 keeps every non-unanimous group",
+    )
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
 
@@ -239,12 +244,27 @@ def main() -> int:
         pol = scored[args.policy]
         train = [r for r in pol if r.get("split") == "train"]
         holdout_rows = [r for r in pol if r.get("split") == "holdout"]
-        rl_rows, rl_report = wai.optimize(train, mode="rl", endorsed=["marker:executes"])
+        band = tuple(float(x) for x in args.band.split(",")) if args.band else None
+        rl_rows, rl_report = wai.optimize(
+            train,
+            mode="rl",
+            endorsed=["marker:executes"],
+            target=len(train),  # every in-band group, not the 1,000-row default
+            **({"band": band} if band else {}),
+        )
         print(
             f"optimize(rl): {len(rl_rows)} rows from {len(train)}; report keys {sorted(rl_report)[:12]}"
         )
         write_jsonl(OUT / "rl.jsonl", rl_rows)
         write_jsonl(OUT / "holdout.jsonl", holdout_rows)
+        # The prompts the policy solves 20-80% of the time (the SDK's band):
+        # train_grpo_modal.py --task-ids out/band_ids.txt trains the next round
+        # on these alone (whilehq/whileai-sdk#254).
+        band_ids = sorted({r.get("scenario_id") for r in rl_rows if r.get("scenario_id")})
+        (OUT / "band_ids.txt").write_text("\n".join(band_ids) + "\n", encoding="utf-8")
+        print(
+            f"band: {len(band_ids)} prompts of {len({r.get('scenario_id') for r in train})} -> out/band_ids.txt"
+        )
         graded_train = [r for r in train if r.get("reward") in (0, 1)]
         scan = hack_scan(graded_train, endorsed=["marker:executes"])
         print(format_hack_scan(scan, top=8))

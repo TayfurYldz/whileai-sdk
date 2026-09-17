@@ -16,7 +16,7 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 |---|---|
 | `schema.sql`, `seed.sql`, `gen_seed.py` | the database (Postgres 16). `seed.sql` is canonical: the tasks were checked against it. `gen_seed.py` is how it was made (its reviews block was not deterministic when the shipped file was generated, so a regeneration differs there; regenerate only together with re-authoring tasks) |
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
-| `tasks.jsonl` | 741 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 140 are held out by a hash of the id, the same split in every script (the first 417 tasks and their 81-task holdout are the "first cut" below) |
+| `tasks.jsonl` | 2,223 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 459 are held out by a hash of the id, the same split in every script. The ledger rows below say which holdout they were measured on: the first 417 tasks (81 held out), the 741-task set (140 held out), or the full set |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
 | `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
 | `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
@@ -208,6 +208,25 @@ training file.
   (pass@1 0.00), and 42 of r3's 560 holdout replies were tool calls scored as
   failures. Pinned tasks now never draft tools; the r3 row below is the clean
   re-measure. The polluted files are kept in `raw/with-drafted-tools/`.
+
+## The holdout grew to 459 tasks (2026-09-17)
+
+140 tasks gave a +-0.06 band, so a real 3-point gain could never be proven
+(whilehq/whileai-sdk#257). `author.py` wrote 1,482 more tasks the same way
+(rounds 2-11, every gold executed twice); the id hash puts 459 of the 2,223
+in the holdout, about +-0.035 at k=4. The new tasks are harder (base hard
+0.45 vs 0.56 on the old 140), so absolute numbers drop; the paired deltas
+are what to read.
+
+| Checkpoint | pass@1 on 459 (95% CI) | pass^4 | pass@4 | vs base, paired |
+|---|---|---|---|---|
+| base (Qwen3-4B, thinking on) | 0.53 (0.49..0.56) | 0.25 | 0.76 | - |
+| r4 | 0.55 (0.52..0.59) | 0.27 | 0.77 | +0.026 (+0.001..+0.050); hard +0.07 (+0.03..+0.11) |
+
+On the small holdout r4 vs base was +0.021 (-0.029..+0.068), "no change".
+On 459 tasks the same two checkpoints give +0.026 with an interval that
+excludes zero: the gain was real and small, and the eval was too small to
+see it. Every later row is measured here.
 
 ## Other bases on the same holdout (140 tasks, k=4)
 
