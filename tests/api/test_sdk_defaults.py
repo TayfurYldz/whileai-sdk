@@ -40,6 +40,22 @@ def test_default_budget_is_500():
         "tasks",
         "runs",
         "advanced",
+        # the common knobs, named so an editor shows them (same road as advanced=)
+        "repeats",
+        "phrasings",
+        "repeat_policy",
+        "concurrency",
+        "simulator",
+        "user_model",
+        "backend",
+        "seed",
+        "sampling",
+        "max_turns",
+        "avg_turns",
+        "fault_rate",
+        "temperature",
+        "timeout",
+        "logprobs",
     ]
     named = [name for name, p in params.items() if p.kind is not inspect.Parameter.VAR_KEYWORD]
     assert named == public
@@ -56,27 +72,20 @@ def test_default_budget_is_500():
     assert params["spec"].default is None
     assert params["output"].default is None
     assert params["advanced"].default is None
+    # On 2026-09-17 the knobs most runs touch (repeats, repeat_policy,
+    # concurrency, simulator, seed, ...) graduated to named params after a
+    # usability test; they still travel through the same merge. The rest
+    # stay advanced-only.
     for moved in (
-        "concurrency",
         "dimensions",
-        "simulator",
-        "backend",
-        "fault_rate",
         "risk",
         "texture",
-        "max_turns",
-        "avg_turns",
         # grader graduated from moved-kwarg to a named param on
         # 2026-08-27 (doctrine sketch).
-        "temperature",
-        "seed",
         "llm_spec",
         "embedder",
         "unique",
-        "repeats",
         "n",
-        "phrasings",
-        "repeat_policy",
         "extra_situations",
         "rollouts_per_prompt",
         "policy",

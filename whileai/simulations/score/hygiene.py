@@ -314,11 +314,81 @@ def hygiene_warnings(
     return out
 
 
+def _tool_name(tool: Any) -> str:
+    if isinstance(tool, str):
+        return tool
+    if not isinstance(tool, dict):
+        return ""
+    fn = tool.get("function")
+    if isinstance(fn, dict) and fn.get("name"):
+        return str(fn["name"])
+    return str(tool.get("name") or "")
+
+
+def coverage_warnings(
+    rows: Sequence[dict], *, tools: Sequence[dict] | Sequence[str] | None = None
+) -> list[str]:
+    """Plain-words notes on whether a graded run can mean anything.
+
+    A pass@1 of 1.00 over rows where the agent never called a tool, or a
+    marker that fired on no row, is the most expensive eval failure there
+    is, because it reads as a result. ``run_judge`` (so ``evaluate`` and
+    ``data.grade``) attaches these to ``ScoredData.warnings`` and logs
+    them once. ``tools=`` is the declared tool list (OpenAI or bare shape,
+    or just names); ``evaluate(data, judge)`` and ``data.grade`` read it
+    off the run. The tool checks need it, so an agent with no tools is
+    never called hollow for calling none. Each note names the fix.
+    """
+    row_list = [r for r in rows if isinstance(r, dict)]
+    out: list[str] = []
+    n = len(row_list)
+    if n == 0:
+        return out
+    fix = (
+        "Put the ids your world has (order numbers, account names) in the tool "
+        "descriptions or in seeds=, and check the agent wrapper records its steps."
+    )
+    names = [nm for nm in (_tool_name(t) for t in tools or []) if nm]
+    with_calls = sum(1 for r in row_list if tool_calls(r) > 0)
+    if names and with_calls == 0:
+        out.append(f"0 of {n} rows called a tool, so this score says nothing about tool use. {fix}")
+    elif names:
+        called: set[str] = set()
+        for r in row_list:
+            for s in r.get("steps") or r.get("tool_trace") or []:
+                if isinstance(s, dict) and s.get("tool"):
+                    called.add(str(s["tool"]))
+        never = [nm for nm in names if nm not in called]
+        if never:
+            out.append(
+                f"{len(never)} of {len(names)} declared tools were never called "
+                f"({', '.join(never)}); the policy branches behind them are untested. "
+                "Add a seed ask for each."
+            )
+    populated: dict[str, int] = {}
+    for r in row_list:
+        marks = r.get("markers")
+        if not isinstance(marks, dict):
+            continue
+        for name, value in marks.items():
+            populated.setdefault(str(name), 0)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                populated[str(name)] += 1
+    for name in sorted(populated):
+        if populated[name] == 0:
+            out.append(
+                f"marker {name!r} fired on 0 of {n} rows; its rate is not a measurement. "
+                "Add a seed ask that exercises it, or drop it from the report."
+            )
+    return out
+
+
 __all__ = [
     "DEFAULT_MAX_SPREAD",
     "HACK_THRESHOLD",
     "NEAR_DUP_JACCARD",
     "assistant_turns",
+    "coverage_warnings",
     "dedupe_groups",
     "drop_truncated",
     "hygiene_warnings",

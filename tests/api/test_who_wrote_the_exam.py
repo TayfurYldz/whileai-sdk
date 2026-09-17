@@ -166,8 +166,10 @@ def test_same_model_is_said_out_loud(monkeypatch):
     assert data.writer_model == "one-model"
     assert data.user_model == "one-model"
     assert "same_model" in data.degraded
-    assert len(data.warnings) == 1
-    note = data.warnings[0]
+    # the run also notes that the fake agent never called a tool; find ours
+    same = [w for w in data.warnings if "wrote the situations" in w]
+    assert len(same) == 1
+    note = same[0]
     assert "wrote the situations" in note and "played the user" in note
     assert "simulator=" in note and "user_model=" in note
 
@@ -186,8 +188,9 @@ def test_same_model_is_said_out_loud(monkeypatch):
     )
     assert data2.user_model == "other-model"
     assert "same_model" in data2.degraded
-    assert "played the user" not in data2.warnings[0]
-    assert "user_model=" not in data2.warnings[0]
+    note2 = next(w for w in data2.warnings if "wrote the situations" in w)
+    assert "played the user" not in note2
+    assert "user_model=" not in note2
 
 
 def test_offline_callable_agent_is_never_flagged():

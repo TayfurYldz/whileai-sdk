@@ -3,8 +3,8 @@
 How `simulate()` makes evals and training data. Combinatorial coverage of
 situations, a sandbox world with failure modes, and a judge validated
 before training. The longer read is [simulations.md](simulations.md); the
-PDF of this page is at
-[while.ai/while-simulation-engine.pdf](https://while.ai/while-simulation-engine.pdf).
+animated version is at
+[zeroproofai.com/docs/engine](https://zeroproofai.com/docs/engine).
 
 ## Eight steps
 

@@ -115,6 +115,7 @@ from .score.grounding import (
 from .score.hack_scan import format_hack_scan, format_hack_scan_diff, hack_scan, hack_scan_diff
 from .score.hygiene import (
     HACK_THRESHOLD,
+    coverage_warnings,
     dedupe_groups,
     length_report,
     near_duplicate_prompts,

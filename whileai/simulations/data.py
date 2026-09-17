@@ -460,6 +460,7 @@ class SimulationData:
                 source="grade",
                 concurrency=min(int(concurrency), 32),
                 version=version,
+                tools=sorted(str(t) for t in self.declared_tools),
                 scale=scale,
             )
             note = trust_after_grade(scored.rows, mode=trust)["note"]

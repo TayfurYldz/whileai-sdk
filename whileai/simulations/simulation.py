@@ -85,9 +85,42 @@ def simulate(
     tasks: Any = None,
     runs: int = 1,
     advanced: dict | None = None,
+    repeats: int | None = None,
+    phrasings: int | None = None,
+    repeat_policy: str | None = None,
+    concurrency: int | None = None,
+    simulator: Any = None,
+    user_model: Any = None,
+    backend: Any = None,
+    seed: int | None = None,
+    sampling: dict | None = None,
+    max_turns: int | None = None,
+    avg_turns: float | None = None,
+    fault_rate: float | None = None,
+    temperature: float | None = None,
+    timeout: float | None = None,
+    logprobs: bool | None = None,
     **passed: Any,
 ) -> SimulationData:
     """Inspect an agent, generate situations, and roll them out.
+
+    The knobs most runs touch, in the signature so an editor shows them:
+    ``repeats`` (rollouts per ask, k), ``phrasings`` (wordings per
+    situation, n), ``repeat_policy`` (``"fixed"`` gives every ask all k
+    repeats; ``mode="rl"`` defaults to ``"successive"``, which stops
+    early on unanimous asks), ``concurrency`` (parallel rollouts, 32),
+    ``simulator`` (the situation writer; ``False`` is the offline
+    template writer, no key), ``user_model``, ``backend`` (the agent's
+    model when ``agent=`` is not a callable), ``seed``, ``sampling``,
+    ``max_turns`` / ``avg_turns`` (model-backed agents only; a callable
+    agent is played single-turn: one message in, one trajectory out),
+    ``fault_rate``, ``temperature``, ``timeout``, ``logprobs``. Each
+    is ``None`` unless you set it, and a misspelled keyword is a
+    ``TypeError``, never silently ignored. ``seeds=`` is a list of
+    opening asks the writer keeps and varies; with a callable agent
+    whose world has real ids (order numbers, account names), put those
+    ids in the seeds or the tool descriptions, or the writer invents
+    ids and every rollout is "not found".
 
     Input is an intent or an agent: ``system_prompt`` alone, ``tools``
     plus a prompt, or ``spec=``. Search writes a grid of human requests
@@ -209,6 +242,27 @@ def simulate(
     n_runs = int(runs)
     if n_runs < 1:
         raise ValueError("runs= is how many times to replay the task set, 1 or more")
+    # Named knobs travel the same road as before (``advanced`` / aliases),
+    # so nothing downstream changes; they are in the signature to be seen.
+    for _name, _val in (
+        ("repeats", repeats),
+        ("phrasings", phrasings),
+        ("repeat_policy", repeat_policy),
+        ("concurrency", concurrency),
+        ("simulator", simulator),
+        ("user_model", user_model),
+        ("backend", backend),
+        ("seed", seed),
+        ("sampling", sampling),
+        ("max_turns", max_turns),
+        ("avg_turns", avg_turns),
+        ("fault_rate", fault_rate),
+        ("temperature", temperature),
+        ("timeout", timeout),
+        ("logprobs", logprobs),
+    ):
+        if _val is not None:
+            passed[_name] = _val
     kwargs: dict[str, Any] = dict(
         spec=spec,
         tools=tools,

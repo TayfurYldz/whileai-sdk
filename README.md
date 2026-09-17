@@ -5,7 +5,7 @@ The While Python SDK. One package, two importable modules:
 - `whileai`: the platform client. OTLP trace ingest and trace-dataset listing against the token gate.
 - `whileai.simulations`: post-training data for an agent. Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
 
-**Renamed.** This SDK was `zeroproof` (ZeroProof is now While). `pip install zeroproof` still works: it installs `whileai`, and `import zeroproof` (or the older `zeroproof_simulations`) resolves to the same modules with a deprecation warning. `ZEROPROOF_*` environment variables and a saved `~/.zeroproof/credentials.json` are still read. Change the import when you can; new releases land under `whileai`.
+**Renamed.** This SDK was `zeroproof` (ZeroProof is now While). `pip install zeroproof` still works: it installs `whileai`, and `import zeroproof` (or the older `zeroproof_simulations`) resolves to the same modules with a deprecation warning. `ZEROPROOF_*` environment variables and a saved `~/.zeroproof/credentials.json` are still read. Change the import when you can; new releases land under `whileai`. zp, ZeroProof and While all name this one product: the package is `whileai`, the import is `whileai.simulations`, keys start with `zp_`. A machine with the old package still picks up `~/.zeroproof/credentials.json`; set `WHILEAI_HOME` to a fresh directory to isolate a new account from it.
 
 Releases of `whileai` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `whileai<0.3` if you still depend on it.
 
@@ -150,6 +150,34 @@ works too; both shapes are normalized. The template writer needs no model
 and runs in seconds, but the situations are less varied than a model writes,
 so it is for wiring up your agent and grader, not for a training set — for
 that, bring a model below.
+
+### Evals for the agent you already have
+
+Not training anything yet? The shortest path is an eval: wrap your agent
+as `agent(message) -> {steps, final_text}`, write the policy as a judge
+that reads the trajectory, run the asks `k` times each, and read pass@1
+with its interval. Offline first, then the hosted writer. The how-to is
+[docs/evals.md](docs/evals.md); the runnable version is
+[`recipes/02-measure/eval-your-agent`](recipes/02-measure/eval-your-agent),
+which ends at a CI gate, not a push.
+
+```python
+data = wai.simulate(
+    agent,
+    tools=TOOLS,
+    system_prompt=POLICY,
+    seeds=SEEDS,
+    simulator=False,
+    mode="rl",
+    repeats=4,
+    repeat_policy="fixed",
+)
+scored = wai.evaluate(data, judge)  # eval lineage: never the reward
+print(wai.pass_at(scored.rows), *scored.warnings)  # a hollow run says so here
+```
+
+`scored.warnings` is new: no rollout called a tool, a declared tool no
+rollout touched, a marker that fired on no row. A 1.00 on a run like that is not a result; the note names the fix.
 
 ### Bring a model
 
@@ -385,8 +413,8 @@ When the rows carry none of that metadata the export warns: the reward
 reduces to `conduct_grade`, a process reward, and a policy trained on it
 alone learns to call nothing (`recipes/03-select/prime-intellect-rl`). `wai.load_environment(spec)`
 builds the environment in a process that has `verifiers` (`pip install
-'whileai[rl]'`); `examples/coding-efficiency` is the same shape built by
-hand over an executable world with a hidden test suite.
+'whileai[rl]'`); the [tool-call-efficiency](https://huggingface.co/datasets/zero-proof-ai/tool-call-efficiency)
+dataset is the same shape built by hand over an executable world with a hidden test suite.
 
 Training notes, each with the chapter of rlhfbook.com behind it. Calibrate
 difficulty with 8 to 16 rollouts per task before exporting so the band is
@@ -590,6 +618,7 @@ network.
 | Simulate and grade | [`recipes/01-simulate/agent-behavior`](recipes/01-simulate/agent-behavior) | Start here if the platform is new to you. Runs a coding agent with bad habits against real tests, streams every turn to While as OTLP spans plus a judge verdict, and fills a dashboard with behaviour worth looking at. Needs a key and a model endpoint; stdlib only. |
 | Simulate and grade | [`recipes/01-simulate/verifiers`](recipes/01-simulate/verifiers) | Verifiable rewards: math (`MathEqual`), an answer-and-format gate (`All`), code run against hidden tests (`CodeExec`), and a JSON-schema check, each feeding `grade`/`optimize`. Offline. |
 | Measure | [`recipes/02-measure/pass-at-k`](recipes/02-measure/pass-at-k) | pass@1, pass^k and pass@k with their intervals for one agent, the per-ask histogram the mean hides, and what each number tells you to do next. Offline. |
+| Measure | [`recipes/02-measure/eval-your-agent`](recipes/02-measure/eval-your-agent) | Evals for the agent you already have: the callable wrapper, the policy as a judge that reads the trajectory, pass@1 with an interval and pass^k per policy branch, the coverage warnings that catch a hollow run, and a CI gate. Two scripted refund bots, one careful and one eager, so the eval visibly separates them. Offline, seconds. How-to: [docs/evals.md](docs/evals.md). |
 | Measure | [`recipes/02-measure/reward-hacking`](recipes/02-measure/reward-hacking) | Reward hacking caught before, during and after training: the within-ask scan, the judge probes, the trajectory flags, and the proxy-vs-target verdict on a scripted agent and two judges. Offline, seconds, no key. How-to: [docs/reward-hacking.md](docs/reward-hacking.md). |
 | Measure | [`recipes/02-measure/safety-evals`](recipes/02-measure/safety-evals) | Safety evals for a tool-using agent: prompt injection (direct, and planted in a tool result), data exfiltration, secret leakage, unauthorized writes, plus the benign controls that catch over-refusal. Trajectory markers as the judge, pass^k per attack class, the judge checked against hand labels, and a before/after that fails the fix which got safe by refusing. Offline, seconds. How-to: [docs/safety-evals.md](docs/safety-evals.md). |
 | Measure | [`recipes/02-measure/safety-evals-marketplace`](recipes/02-measure/safety-evals-marketplace) | The same safety eval for a marketplace agent: the injection is planted in user-generated reviews, the private data is per tenant (a competitor's buyer-intent list), one of the writes is a public post, and a flag needs a moderation ticket. Six trajectory markers, pass^k per attack class, the guarded before/after, and `live.py` to run the suite on a real model through Ollama with no key. Offline, seconds. |
