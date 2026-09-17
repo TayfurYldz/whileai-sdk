@@ -36,6 +36,7 @@ from .grading import (
 )
 from .passat import pass_at
 from .quality import _IDISH, _QUESTION_END, _STRONG_ACTION, load_jsonl, write_jsonl
+from .stats import task_key
 
 # Public drop tags. optimize_rl uses these strings in the report.
 # The difficulty band: keep asks the policy passes between 20% and 80% of
@@ -248,7 +249,7 @@ def filter_rl_rows(
 
 
 def _group_label_lists(rows: Sequence[dict]) -> dict[str, list[int]]:
-    """Binary labels per situation (grouped by prompt). Unlabeled rows skip."""
+    """Binary labels per task (grouped by ``task_key``). Unlabeled rows skip."""
     groups: dict[str, list[int]] = {}
     for row in rows:
         if not isinstance(row, dict):
@@ -263,8 +264,7 @@ def _group_label_lists(rows: Sequence[dict]) -> dict[str, list[int]]:
                 break
         if label is None:
             continue
-        prompt = str(row.get("prompt") or "")
-        groups.setdefault(prompt, []).append(label)
+        groups.setdefault(task_key(row), []).append(label)
     return groups
 
 
@@ -329,7 +329,7 @@ def trim_unanimous_groups(
     for prompt, labels in groups.items():
         if len(labels) >= max(2, int(min_k)) and len(set(labels)) == 1:
             dead.add(prompt)
-    kept = [row for row in rows if str(row.get("prompt") or "") not in dead]
+    kept = [row for row in rows if task_key(row) not in dead]
     report = {
         "n": len(rows),
         "n_kept": len(kept),
@@ -585,7 +585,7 @@ def trim_out_of_band(
         elif p < lo:
             too_hard.add(prompt)
     dead = too_easy | too_hard
-    kept = [row for row in rows if str(row.get("prompt") or "") not in dead]
+    kept = [row for row in rows if task_key(row) not in dead]
     return kept, {
         "n": len(rows),
         "n_kept": len(kept),
@@ -728,7 +728,7 @@ def select_for_rl(
     kept, base_report = filter_rl_rows(rows, has_tools=has_tools)
     original_sizes: dict[str, int] = {}
     for row in kept:
-        key = str(row.get("prompt") or "")
+        key = task_key(row)
         original_sizes[key] = original_sizes.get(key, 0) + 1
     dup_report: dict[str, Any] = {"n_dropped": 0, "groups_affected": 0, "conflicting_rewards": 0}
     if dedupe:
@@ -749,7 +749,7 @@ def select_for_rl(
         voting: list[dict] = []
         for row in kept:
             if row.get("overlong"):
-                riders.setdefault(str(row.get("prompt") or ""), []).append(row)
+                riders.setdefault(task_key(row), []).append(row)
             else:
                 voting.append(row)
         kept = voting
@@ -763,7 +763,7 @@ def select_for_rl(
         if original_sizes.get(prompt, 0) >= 2 and len(set(labels)) == 1
     }
     if collapsed:
-        kept = [row for row in kept if str(row.get("prompt") or "") not in collapsed]
+        kept = [row for row in kept if task_key(row) not in collapsed]
         trim_report["n_groups_dropped"] += len(collapsed)
     trim_report["collapsed_groups_dropped"] = len(collapsed)
     band_report: dict[str, Any] = {"n_groups_dropped": 0, "too_easy": 0, "too_hard": 0}
@@ -771,7 +771,7 @@ def select_for_rl(
         kept, band_report = trim_out_of_band(kept, lo=lo, hi=hi)
     groups: dict[str, list[dict]] = {}
     for row in kept:
-        groups.setdefault(str(row.get("prompt") or ""), []).append(row)
+        groups.setdefault(task_key(row), []).append(row)
     for prompt, rows_ in riders.items():
         if prompt in groups:
             groups[prompt].extend(rows_)

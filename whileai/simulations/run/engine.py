@@ -39,7 +39,6 @@ from ..generate.actionspace import (
 )
 from ..generate.adapters import inspect, resolve
 from ..generate.agents import (
-    LOCAL_MODEL_TEMPERATURE,
     current_rollout,
     default_agent_spec,
     default_max_turns,
@@ -487,16 +486,6 @@ class Run:
             f"{c.model_version_tag}@"
             f"{hashlib.sha256(str(self.gen_policy or '').encode('utf-8')).hexdigest()[:16]}"
         )
-        # A callable agent samples however it samples; only a model backend
-        # has a temperature the engine set.
-        self.sampling: dict[str, Any] | None = None
-        if c.backend:
-            self.sampling = {
-                "temperature": float(c.temperature)
-                if c.temperature is not None
-                else LOCAL_MODEL_TEMPERATURE,
-                "logprobs": c.logprobs if c.logprobs else False,
-            }
         if c.execute is not None:
             runner_kw["execute"] = c.execute
         if c.backend:
@@ -537,6 +526,14 @@ class Run:
             if kind == "backend_spec":
                 self.agent_model = parse_backend_spec(c.agent)[1]
         self.kind = kind
+        # How the rollouts were sampled, read off the runner that samples
+        # them: a model backend knows its temperature, reply budget and
+        # model (the defaults it resolved, not the knobs as passed). A
+        # callable agent is the caller's, so the row says only what they
+        # told simulate(sampling=), else None.
+        self.sampling: dict[str, Any] | None = getattr(self.runner, "sampling", None)
+        if self.sampling is None and c.sampling is not None:
+            self.sampling = dict(c.sampling)
         if self.agent_model is not None:
             self.user_model = (
                 parse_backend_spec(c.user_model)[1] if c.user_model else self.agent_model
@@ -826,8 +823,7 @@ class Run:
         # async RL, ch. 9): a later update needs the sampler's version and
         # temperature on the row, not in a notebook.
         t["policy_version"] = self.policy_version
-        if self.sampling is not None:
-            t["sampling"] = dict(self.sampling)
+        t["sampling"] = dict(self.sampling) if self.sampling is not None else None
         # Token usage rolls up the same way, so a row says what it cost and a
         # trace built from it can carry gen_ai.usage.* on every model turn.
         used = [

@@ -5,42 +5,64 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 import whileai.simulations as wai
 from tests.generate.test_logprobs import POLICY, TOOLS, _simulate
 from tests.helpers import simulate_offline
 from whileai.simulations import schema
 from whileai.simulations.export import training_rows
-from whileai.simulations.generate.agents import LOCAL_MODEL_TEMPERATURE
+from whileai.simulations.generate.agents import LOCAL_MODEL_TEMPERATURE, reply_budget
 from whileai.simulations.score.logprobs import staleness_report
 
 
 def test_model_backed_rows_carry_policy_version_sampling_and_token_logprobs(monkeypatch):
     data, _calls = _simulate(monkeypatch, logprobs="tokens")
     row = data.trajectories[0]
-    assert row["sampling"] == {"temperature": LOCAL_MODEL_TEMPERATURE, "logprobs": "tokens"}
+    assert row["sampling"] == {
+        "temperature": LOCAL_MODEL_TEMPERATURE,
+        "max_tokens": reply_budget(),
+        "model": "fake",
+    }
     assert row["policy_version"].startswith(row["model_version"] + "@")
     assert len(row["policy_version"].split("@")[-1]) == 16
     # the fake backend returns summed logprobs only; the tokens list stays absent
     assert "token_logprobs" not in row
     exported = data.rows()[0]
-    assert exported["sampling"]["temperature"] == LOCAL_MODEL_TEMPERATURE
+    assert exported["sampling"] == row["sampling"]
     assert exported["policy_version"] == row["policy_version"]
     trained = training_rows(data)[0]
-    assert trained["policy_version"] == row["policy_version"] and "sampling" in trained
+    assert trained["policy_version"] == row["policy_version"]
+    assert trained["sampling"] == row["sampling"]
     assert schema.validate(exported) == []
 
 
-def test_temperature_knob_is_recorded(monkeypatch):
-    data, _ = _simulate(monkeypatch, temperature=0.3)
+def test_temperature_and_reply_budget_knobs_are_recorded(monkeypatch):
+    data, _ = _simulate(monkeypatch, temperature=0.3, agent_max_tokens=4096)
     row = data.trajectories[0]
-    assert row["sampling"] == {"temperature": 0.3, "logprobs": False}
+    assert row["sampling"] == {"temperature": 0.3, "max_tokens": 4096, "model": "fake"}
 
 
-def test_callable_agent_rows_have_a_policy_version_but_no_sampling():
+def test_callable_agent_rows_say_sampling_is_unknown_unless_told():
     data = simulate_offline(tools=TOOLS, policy=POLICY, budget=4, per_round=4, concurrency=1)
     row = data.trajectories[0]
-    assert "sampling" not in row
+    assert "sampling" in row and row["sampling"] is None
     assert row["policy_version"].startswith(row["model_version"] + "@")
+    # the exported row drops the None the way it drops every absent fact
+    assert "sampling" not in data.rows()[0]
+
+    told = {"temperature": 0.7, "max_tokens": 1024, "model": "my-agent"}
+    data = simulate_offline(
+        tools=TOOLS, policy=POLICY, budget=4, per_round=4, concurrency=1, sampling=told
+    )
+    assert data.trajectories[0]["sampling"] == told
+    assert data.rows()[0]["sampling"] == told
+    assert training_rows(data)[0]["sampling"] == told
+
+
+def test_sampling_knob_must_be_a_dict():
+    with pytest.raises(ValueError, match="sampling= is a dict"):
+        simulate_offline(tools=TOOLS, policy=POLICY, budget=1, sampling="0.7")
 
 
 def _tokens_complete_factory(calls: dict):
@@ -100,7 +122,7 @@ def test_token_logprobs_roll_up_from_steps_in_order(monkeypatch):
     row = data.trajectories[0]
     assert row["token_logprobs"] == [-0.4, -0.6, -0.5]
     assert row["logprob"] == -1.5 and row["n_tokens"] == 3
-    assert row["sampling"]["logprobs"] == "tokens"
+    assert row["sampling"]["model"] == "fake"
     exported = data.rows()[0]
     assert exported["token_logprobs"] == [-0.4, -0.6, -0.5]
     assert training_rows(data)[0]["token_logprobs"] == [-0.4, -0.6, -0.5]
@@ -115,7 +137,7 @@ def test_policy_version_round_trips_through_the_schema():
         "scenario_id": "s1",
         "model_version": "fake",
         "policy_version": "fake@" + hashlib.sha256(b"p").hexdigest()[:16],
-        "sampling": {"temperature": 0.8, "logprobs": True},
+        "sampling": {"temperature": 0.8, "max_tokens": 768, "model": "fake"},
         "token_logprobs": [-0.1, -0.2],
         "logprob": -0.3,
         "n_tokens": 2,

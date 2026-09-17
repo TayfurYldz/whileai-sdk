@@ -127,6 +127,13 @@ def simulate(
     plain policy; it is ignored for user-supplied callable agents. Measured
     to help some agents and hurt others. Configure per agent, no default.
 
+    Every row says how it was sampled under ``sampling``: ``temperature``,
+    ``max_tokens`` and ``model``, as the model backend resolved them
+    (rlhf-book ch. 16: a result is only comparable with its sampling
+    settings on record). A callable agent samples however it samples, so
+    its rows carry ``sampling: None`` unless you pass ``sampling={...}``,
+    which is recorded on every row as given.
+
     Variation is three independent counts. Do not collapse them.
     ``situations`` (N) is distinct worlds. ``requests_per_situation`` /
     ``phrasings`` (n) is different human wordings of one world.

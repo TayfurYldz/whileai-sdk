@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from .optimize import DEFAULT_BAND, _group_label_lists
+from .stats import task_key
 
 # The same edges select_for_rl keeps: below the floor a task is not ready,
 # above solved it is retired, between them it is trainable.
@@ -29,15 +30,21 @@ DEFAULT_FLOOR = DEFAULT_BAND[0]
 
 
 def _task_stats(rows: Sequence[dict]) -> dict[str, dict[str, Any]]:
-    """pass_rate, n and a representative prompt per task (grouped by prompt)."""
+    """pass_rate, n and a representative prompt per task (grouped by ``task_key``)."""
     groups = _group_label_lists(rows)
+    # The first prompt seen for each task: the row's wording, where the
+    # key is the engine's situation id.
+    prompts: dict[str, str] = {}
+    for row in rows:
+        if isinstance(row, dict):
+            prompts.setdefault(task_key(row), str(row.get("prompt") or ""))
     stats: dict[str, dict[str, Any]] = {}
-    for prompt, labels in groups.items():
+    for task, labels in groups.items():
         if not labels:
             continue
-        stats[prompt] = {
-            "task_id": prompt,
-            "prompt": prompt,
+        stats[task] = {
+            "task_id": task,
+            "prompt": prompts.get(task, task),
             "n": len(labels),
             "pass_rate": round(sum(labels) / len(labels), 4),
         }
@@ -127,7 +134,7 @@ def retire_solved(
     drop = {
         s["task_id"] for s in stats.values() if s["n"] >= min_rollouts and s["pass_rate"] > solved
     }
-    return [r for r in rows if str((r or {}).get("prompt") or "") not in drop]
+    return [r for r in rows if task_key(r or {}) not in drop]
 
 
 def format_curriculum(report: dict[str, Any]) -> str:
