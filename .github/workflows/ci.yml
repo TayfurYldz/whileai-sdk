@@ -74,8 +74,9 @@ jobs:
           /tmp/fresh/bin/pip install --quiet --no-deps dist/zeroproof-*.whl
           cd /tmp && /tmp/fresh/bin/python -c "
           import whileai.simulations as wai
-          import whileai.simulations as legacy
-          assert legacy is wai, 'compatibility shim must alias the real package'
+          import zeroproof.simulations as old
+          import zeroproof_simulations as legacy
+          assert old is wai and legacy is wai, 'compatibility shim must alias the real package'
           from whileai.simulations.score.grading import conduct_grade
           from whileai.simulations.world.sandbox import MockEnvironment
           assert callable(wai.simulate)
