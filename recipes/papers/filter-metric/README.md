@@ -11,7 +11,7 @@
 2. Reward, both arms: `outcome - 0.30 * min(len/512, 1)`. The outcome is `MathEqual` against the GSM8K gold number, so the reward is a program. The length term is the shaping the paper attacks: among wrong answers, the shortest one scores best.
 3. Baseline arm: drop a group when its **shaped scores** are all equal (`--filter-metric score`). A group of four wrong answers of different lengths is not all-equal, so it survives, and GRPO's divide-by-group-std turns those length crumbs into full-size advantages. Those are the phantom advantages — gradient that looks like signal but only encodes "be shorter".
 4. Recipe arm: drop a group when its **binary outcomes** are all equal (`--filter-metric outcome`). All-wrong is now flat, so the group is dropped and teaches nothing. This is what DAPO's dynamic sampling means.
-5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task. The untrained base is evaluated three times, not once, so the spread between those runs is the noise floor the delta has to clear; then each arm once, paired delta with a 95% interval (`zps.pass_at`, `zps.eval_variance`, `zps.delta_report`).
+5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task. The untrained base is evaluated three times, not once, so the spread between those runs is the noise floor the delta has to clear; then each arm once, paired delta with a 95% interval (`wai.pass_at`, `wai.eval_variance`, `wai.delta_report`).
 
 Dropping is done by masking: a group whose rewards are all equal gets a zero advantage, so it contributes nothing. The paper's DAPO arm deletes the group and refills the batch with fresh prompts. Masking reproduces the advantage-level effect on a fixed batch; it does not reproduce the refill, so this recipe cannot say anything about the paper's refill-rate numbers.
 
@@ -67,4 +67,4 @@ The paper's own knob is lambda, the weight on the length penalty. It sweeps 0.1,
 - Shaping and group-std normalization interact: a shaping term too small to matter on its own becomes a full-size advantage once every rollout in the group is wrong and the std collapses to the shaping noise.
 - This recipe's sizes are cut down from the paper's 32 prompts per step to 8 to fit one GPU hour, so a flat round 1 could mean the effect needs the bigger batch rather than that the effect is not there.
 
-Verified 1970-01-01 (never run), zeroproof 0.48, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. Run page: none yet.
+Verified 1970-01-01 (never run), whileai 0.53, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. Run page: none yet.

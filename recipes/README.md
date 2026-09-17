@@ -98,13 +98,6 @@ a baseline arm, the paper's one change, the same holdout, a paired delta.
 Index and contract in [`papers/README.md`](papers/README.md); the table there
 is generated from each recipe's `results.json`.
 
-## papers
-
-Recent post-training papers, each cut down to a run under an hour on one GPU:
-a baseline arm, the paper's one change, the same holdout, a paired delta.
-Index and contract in [`papers/README.md`](papers/README.md); the table there
-is generated from each recipe's `results.json`.
-
 ## Where the main README's pieces live
 
 - **Simulate and grade:** `01-simulate/bring-your-own-agent` (callable),

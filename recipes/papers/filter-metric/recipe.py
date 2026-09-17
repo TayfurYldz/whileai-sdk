@@ -27,7 +27,7 @@ Shape of the run:
   1. data():      GSM8K, train split for prompts, test split held out
   2. run_arm():   TRL GRPOTrainer + LoRA on Modal, one arm per call
   3. evaluate():  same holdout, k samples per task, graded by MathEqual
-  4. results.json + the paired delta (zps.delta_report) on the run page
+  4. results.json + the paired delta (wai.delta_report) on the run page
 """
 
 from __future__ import annotations
@@ -83,7 +83,7 @@ def gold_of(answer: str) -> str:
 def outcome_of(text: str, gold: str) -> float:
     """1.0 when the final number matches the gold, else 0.0. A program, not a
     judge: `MathEqual` is sympy with a numeric and string fallback."""
-    from zeroproof.simulations.verify import MathEqual
+    from whileai.simulations.verify import MathEqual
 
     row = {
         "prompt": "",
@@ -180,10 +180,10 @@ def mean_length(rows: list[dict]) -> float:
 
 def top_hack_feature(rows: list[dict]) -> str:
     """What the reward actually paid for in the last training batch (ch. 14)."""
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     try:
-        scan = zps.hack_scan(rows, endorsed=[PROXY])
+        scan = wai.hack_scan(rows, endorsed=[PROXY])
     except Exception as exc:  # a batch too small to rank is not a failed run
         return f"unavailable: {type(exc).__name__}"
     features = scan.get("features") or []
@@ -218,10 +218,10 @@ def graded_rows(holdout: list[dict], replies: list[list[str]]) -> list[dict]:
 # Modal: the pins and the image from recipes/04-train/grpo/train_modal.py.
 # --------------------------------------------------------------------------
 
-DEFAULT_GPU = os.environ.get("ZP_RECIPE_GPU", "L40S")
+DEFAULT_GPU = os.environ.get("WAI_RECIPE_GPU", "L40S")
 VOLUME_ROOT = "/vol"
 
-app = modal.App("zeroproof-recipe-filter-metric")
+app = modal.App("whileai-recipe-filter-metric")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -232,16 +232,16 @@ image = (
         "peft==0.16.0",
         "datasets==3.6.0",
         "accelerate==1.8.1",
-        "zeroproof",
+        "whileai",
     )
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE / "recipe.py"), "/root/recipe_mod.py")
 )
 
-runs_volume = modal.Volume.from_name("zeroproof-recipe-runs", create_if_missing=True)
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+runs_volume = modal.Volume.from_name("whileai-recipe-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
 dashboard_secret = modal.Secret.from_dict(
-    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+    {"WHILEAI_API_KEY": os.environ.get("WHILEAI_API_KEY", os.environ.get("ZEROPROOF_API_KEY", ""))}
 )
 
 
@@ -324,7 +324,7 @@ def run_arm(
         top_hack_feature,
     )
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     started = time.time()
     tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -352,8 +352,8 @@ def run_arm(
         "reward": "outcome(MathEqual) - 0.30 * min(len/512, 1)",
     }
     run = None
-    if os.environ.get("ZEROPROOF_API_KEY"):
-        run = zps.training_run(
+    if os.environ.get("WHILEAI_API_KEY") or os.environ.get("ZEROPROOF_API_KEY"):
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-grpo-lora",
@@ -372,7 +372,7 @@ def run_arm(
                 model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
             )
             base_runs.append(graded_rows(holdout, replies))
-            print(f"base run {i + 1}/{EVAL_RUNS}: {zps.pass_at(base_runs[-1])}")
+            print(f"base run {i + 1}/{EVAL_RUNS}: {wai.pass_at(base_runs[-1])}")
 
     dataset = Dataset.from_list(
         [{"prompt": messages_for(t["question"]), "answer": t["answer"]} for t in train_tasks]
@@ -424,7 +424,7 @@ def run_arm(
         peft_config=lora,
     )
     if run is not None:
-        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+        trainer.add_callback(wai.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -436,7 +436,7 @@ def run_arm(
         trainer.model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
     )
     after_rows = graded_rows(holdout, replies)
-    after = zps.pass_at(after_rows)
+    after = wai.pass_at(after_rows)
     print(f"{arm}: {after}")
 
     adapter_dir = os.path.join(out_dir, "adapter")
@@ -458,7 +458,7 @@ def run_arm(
         "steps": steps,
     }
     if run is not None:
-        run.finish("done", summary=summary, adapter=f"zeroproof-recipe-runs:/{run_name}/adapter")
+        run.finish("done", summary=summary, adapter=f"whileai-recipe-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     return {
         "arm": arm,
@@ -495,9 +495,9 @@ def data(seed: int, n_train: int, n_holdout: int) -> tuple[list[dict], list[dict
 
 
 def summarize(rows: list[dict]) -> dict:
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
-    p = zps.pass_at(rows)
+    p = wai.pass_at(rows)
     return {
         "score": p.pass_at_1,
         "ci": list(p.ci95 or (0.0, 0.0)),
@@ -550,7 +550,7 @@ def selftest_science_bar() -> None:
     check is wired to something real and reads the field it thinks it reads."""
     import random
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     rng = random.Random(0)
 
@@ -568,7 +568,7 @@ def selftest_science_bar() -> None:
     # ch. 16, decontaminate: the holdout must be handed over prompt-keyed, or
     # `against=` reads nothing and the check silently passes. Assert it bites.
     train = [{"question": "shared prompt", "answer": "#### 1", "scenario_id": "train-0"}]
-    kept, report = zps.decontaminate(
+    kept, report = wai.decontaminate(
         train,
         against=[{"prompt": "shared prompt", "answer": "#### 1"}],
         fields=("question",),
@@ -578,13 +578,13 @@ def selftest_science_bar() -> None:
 
     # ch. 16, eval noise: three re-runs of the same model give a run_std.
     runs = [fake(0.35) for _ in range(EVAL_RUNS)]
-    noise = zps.eval_variance(*runs)
+    noise = wai.eval_variance(*runs)
     assert "run_std" in noise and noise["n_runs"] == EVAL_RUNS
     print(f"eval_variance: {EVAL_RUNS} re-runs -> run_std {float(noise['run_std']):.4f}")
 
     # ch. 14, proxy vs target: rows carry the shaped reward as a marker, so a
     # proxy that climbs while the target sits still is an over-optimized verdict.
-    d = zps.delta_report(
+    d = wai.delta_report(
         runs[0],
         fake(0.36),
         target="pass_at_1",
@@ -621,13 +621,13 @@ def main() -> None:
         selftest()
         return
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     train_tasks, holdout = data(args.seed, args.n_train, args.n_holdout)
     # ch. 16: drop any train prompt that is a holdout prompt. `against=` reads
     # the eval texts from `prompt`/`answer`, so the holdout is handed over
     # prompt-keyed; passing it question-keyed silently finds nothing.
-    train_tasks, decon = zps.decontaminate(
+    train_tasks, decon = wai.decontaminate(
         train_tasks,
         against=[{"prompt": t["question"], "answer": t["answer"]} for t in holdout],
         fields=("question",),
@@ -652,7 +652,7 @@ def main() -> None:
             "n_holdout": len(holdout),
             "k": args.k,
             "gpu": DEFAULT_GPU,
-            "zeroproof": version("zeroproof"),
+            "whileai": version("whileai"),
         }
     )
     results.setdefault("arms", {})
@@ -688,7 +688,7 @@ def main() -> None:
             if out["base_runs"]:
                 base_runs = out["base_runs"]
                 arm_rows["base"] = base_runs[0]
-                noise = zps.eval_variance(*base_runs)
+                noise = wai.eval_variance(*base_runs)
                 run_std = float(noise["run_std"])
                 checks["run_std"] = run_std
                 checks["length_before"] = mean_length(base_runs[0])
@@ -711,7 +711,7 @@ def main() -> None:
             }
 
     if "baseline" in arm_rows and "recipe" in arm_rows:
-        d = zps.delta_report(
+        d = wai.delta_report(
             arm_rows["baseline"],
             arm_rows["recipe"],
             target="pass_at_1",
@@ -726,7 +726,7 @@ def main() -> None:
         checks["over_optimized"] = bool(d["over_optimized"])
         results["verified"] = date.today().isoformat()
         results.pop("partial_run", None)
-        print(zps.format_delta_report(d))
+        print(wai.format_delta_report(d))
     else:
         results["partial_run"] = f"{date.today().isoformat()}: {', '.join(arms)} only"
         print(f"one arm only ({', '.join(arms)}): delta and verified left as they were")
