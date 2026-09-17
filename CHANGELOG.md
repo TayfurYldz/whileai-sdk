@@ -33,6 +33,27 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   situation, not a string. `PassAt.per_task` and `curriculum()`'s
   `task_id` are keyed by that key; `curriculum()` still carries a
   `prompt` per task.
+- `select_for_rl` / `optimize(mode="rl")`: asks inside the difficulty band
+  are now taken round-robin across pass rates within each fault kind, with
+  no preference for a 50% pass rate (`order="spread"`, the default). The
+  older nearest-to-50% ranking is `order="middle"`. A selection cut off by
+  `target` can come back with different asks than before.
+- `curriculum` / `retire_solved`: `floor` and `solved` default to the band's
+  edges (0.2 and 0.8, from `DEFAULT_BAND`) instead of 0.0 and 0.9, and the
+  edges are inclusive: trainable is `floor <= pass_rate <= solved`, retired
+  is above `solved`, not ready is below `floor`. A task at 1 of 8 is no
+  longer trainable.
+- `Calibration.pass_rate_ci95`: the Wilson 95% interval on the task's pass
+  rate, stamped by `calibrate` and `carry_calibration`; `calibration_of`
+  reads it back. The RL optimize report lists one row per selected task
+  under `calibration.tasks` and adds a `hygiene_warnings` note when the
+  median rollouts per task is under 16, with the measured interval width.
+  `Calibration.student` is filled from the row's `policy_version` when no
+  `policy=` is given.
+- `train(temperature=...)`: the GRPO rollout temperature, sent to the host;
+  when the pushed dataset's rows were measured at a different
+  `sampling.temperature`, `train` warns once. `recipes/04-train/grpo`
+  trains and evaluates at the same temperature (0.8).
 - Every row says which model did which job. `writer_model` (the situation
   writer's model tag, or `template` / `seed` / `pinned` when no model wrote
   the prompt) and `user_model` (who played the simulated user; absent when

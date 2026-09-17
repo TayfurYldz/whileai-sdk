@@ -54,6 +54,7 @@
             "student": {"type": "object", "properties": {"name": {"type": "string"}, "model": {"type": ["string", "null"]}, "prompt_hash": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]}}},
             "n": {"type": "integer", "minimum": 1},
             "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+            "pass_rate_ci95": {"type": ["array", "null"], "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 2, "maxItems": 2, "$comment": "Wilson 95% interval on pass_rate from n rollouts"},
             "mean_kl": {"type": ["number", "null"]}
           },
           "$comment": "Calibration: the task's pass rate over n rollouts of the student policy; written by publish_gate / calibrate"
@@ -124,7 +125,7 @@
       "Judgment": ["rollout_id", "scorer", "reward", "status", "reason", "failure_class", "evidence"],
       "Marker": ["rollout_id", "name", "value", "evidence"],
       "Dataset": ["dataset_id", "spec_id", "splits"],
-      "Calibration": ["task_id", "student", "n", "pass_rate", "mean_kl"]
+      "Calibration": ["task_id", "student", "n", "pass_rate", "mean_kl", "pass_rate_ci95"]
     },
     "legacy_shapes": {
       "$comment": "Version 0 rows, detected by key. See schema.detect_shape.",
