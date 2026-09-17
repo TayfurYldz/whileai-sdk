@@ -652,6 +652,14 @@ class SimulationData:
         report["selection"] = self.search.get("selection")
         return report
 
+    def leak_report(self, *, min_len: int = 12) -> dict[str, Any]:
+        """Did any reply quote its own ``privileged`` block? Reads the
+        trajectories, which still carry the block; ``rows()`` is scrubbed
+        and would check nothing. Same report as ``leak_report``."""
+        from .score.privileged import leak_report
+
+        return leak_report(self.trajectories, min_len=min_len)
+
     @property
     def rows(self) -> RowList:
         """The exported rows: exactly what ``save()`` and ``output=`` write.

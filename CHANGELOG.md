@@ -5,6 +5,22 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `export_training` (and `export_dataset`) checks for privileged leaks on
+  the unscrubbed side before it writes: the export drops the `privileged`
+  key at any depth but copies the assistant's reply through verbatim, so a
+  reply that recited the block still recited it in the training file.
+  `validate=True` now refuses with `privileged_leak: N of M rows ...`;
+  `validate=False` exports anyway, counts them in
+  `report["privileged_leaks"]` and warns. Pass the `SimulationData` (or
+  `data.trajectories`); rows that came through `rows()`, `save()` or a
+  file carry nothing to check and the report says so. (#249)
+- `leak_report(data)` and `data.leak_report()` read the trajectories, so
+  the documented path no longer returns a vacuous pass. (#245)
+- A `Verifier` graded through `run_judge` reads back as `kind="rule"`,
+  not a model judge: the run stamps the declared kind in
+  `judge_meta["scorer_kind"]` and the schema prefers it over inferring
+  from `judge_name`. `judge_name` still round-trips. (#250)
+
 - No github demo anywhere a user reads: the package docstrings, the README
   and the identity recipe named `specs/github`, `github-rl-v1` and
   `envs/github-agent`; they now show `tools=` plus `system_prompt=` and

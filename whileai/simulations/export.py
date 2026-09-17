@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from .schema import check, stamp
+from .score.privileged import leak_report
 from .score.quality import load_jsonl, write_jsonl
 from .score.stats import task_key
 
@@ -601,8 +602,14 @@ def export_training(
 
     With a path source and no ``output``, writes ``<name>.train.jsonl``
     next to it. ``validate=True`` refuses to write a dataset whose tool
-    calls do not round-trip to structured arguments; pass ``validate=False``
-    to export anyway and read the report instead.
+    calls do not round-trip to structured arguments, or whose assistant
+    turns quote the row's own ``privileged`` block (the export scrubs the
+    key, not the reply that recited it); pass ``validate=False`` to export
+    anyway and read the report instead. The leak check reads the source
+    before the scrub, so pass the ``SimulationData`` or its
+    ``trajectories``; rows that already came through ``rows()``, ``save()``
+    or a file carry nothing to check, and ``report["privileged_leaks"]``
+    says so.
 
     ``format="openai"`` (the default) writes the OpenAI chat-completions
     wire row: the full ``messages`` list, ``function.arguments`` as a JSON
@@ -638,7 +645,20 @@ def export_training(
             "them teaches string-wrapped arguments. Fix the rows or pass "
             "validate=False."
         )
-    _, _, _, src = _resolve(source)
+    raw, _, _, src = _resolve(source)
+    # The scrub drops the ``privileged`` key at any depth and copies the
+    # assistant's reply through verbatim, so a reply that recited the block
+    # still recites it in the training file. Check the unscrubbed side,
+    # which is the only place the needles still exist (#249).
+    leaks = leak_report(raw)
+    if validate and leaks["n_leaked"]:
+        raise ValueError(
+            f"privileged_leak: {leaks['n_leaked']} of {leaks['n_checked']} rows quote "
+            "their own privileged context (reference, principle or hidden state) in "
+            "an assistant turn; the export scrubs the key, not the reply, so training "
+            "on them teaches the model to say what only the grader was told. Drop "
+            "those rows (leak_report(...)['leaked'] names them) or pass validate=False."
+        )
     dest = output
     if not dest and src:
         path = Path(src)
@@ -659,6 +679,9 @@ def export_training(
         "tool_output_chars_cut": sum(int(r.get("tool_output_chars_cut") or 0) for r in rows),
         "trained_messages": sum(sum(r["loss_mask"]) for r in rows),
         "masked_messages": sum(len(r["loss_mask"]) - sum(r["loss_mask"]) for r in rows),
+        "privileged_leaks": {
+            k: leaks[k] for k in ("checked", "n_checked", "n_leaked", "leaked", "summary")
+        },
     }
     # SFT clones every row it is given. A failed rollout in the file
     # teaches the failure, so say how many there are instead of leaving
@@ -673,6 +696,12 @@ def export_training(
         "n_ungraded": len(rows) - n_pass - n_fail,
     }
     warnings: list[str] = []
+    if leaks["n_leaked"]:
+        warnings.append(
+            f"{leaks['n_leaked']} of {leaks['n_checked']} rows quote their own privileged "
+            "context in an assistant turn and are exported anyway (validate=False); "
+            "report['privileged_leaks']['leaked'] names them."
+        )
     if n_fail:
         warnings.append(
             f"{n_fail} of {len(rows)} rows have reward below 0.5 and are exported as "
