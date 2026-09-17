@@ -5,6 +5,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `load_traces` reads Anthropic-shaped messages: `tool_use` and
+  `tool_result` content blocks become tool steps with their arguments and
+  result, a `tool_result` on a user message is a tool answer rather than a
+  person speaking, and block ids pair parallel calls. The block list was
+  previously stringified into a Python repr and appended as the agent's
+  turn, so an agent that used tools mined none. The two provider shapes are
+  the ones rlhf-book ch. 13 (Tool Use) names: OpenAI's `tool_calls` arrays
+  with unique ids, and Anthropic's `tool_use` / `tool_result` content blocks.
 - `load_traces` binds a tool result to the call that asked for it by
   `tool_call_id`, falling back to name then position. Real agent exports
   carry an id and no `name`, so every result fell through to position, and

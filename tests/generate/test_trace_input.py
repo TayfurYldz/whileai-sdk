@@ -400,3 +400,102 @@ def test_call_id_separates_two_calls_to_one_tool():
     )
     steps = {s["arguments"]["q"]: s["result"] for s in rows[0]["steps"] if "tool" in s}
     assert steps == {"a": "a-hit", "b": "b-hit"}
+
+
+def test_anthropic_content_blocks_become_tool_steps():
+    """Claude-shaped traces carry tool_use / tool_result as content blocks.
+
+    Stringifying those lists emitted a Python repr as the agent's turn and
+    mined zero tool calls, so an agent that used tools looked like one that
+    never did.
+    """
+    rows = load_traces(
+        [
+            {
+                "messages": [
+                    {"role": "user", "content": "fix it"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "reading the file"},
+                            {
+                                "type": "tool_use",
+                                "id": "tu1",
+                                "name": "Read",
+                                "input": {"file_path": "a.py"},
+                            },
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "tu1", "content": "import os"}
+                        ],
+                    },
+                ]
+            }
+        ]
+    )
+    steps = rows[0]["steps"]
+    call = next(s for s in steps if "tool" in s)
+    assert call["tool"] == "Read"
+    assert call["arguments"] == {"file_path": "a.py"}
+    assert call["result"] == "import os"
+    assert any(s.get("text") == "reading the file" for s in steps)
+    # a tool answer is not a person speaking
+    assert not any("tool_result" in str(s.get("user", "")) for s in steps)
+
+
+def test_anthropic_parallel_tool_use_binds_by_id():
+    """Content-block calls carry their id on the block, and results name it
+    in tool_use_id, so parallel blocks answered out of order still pair."""
+    rows = load_traces(
+        [
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "tool_use", "id": "a", "name": "Read", "input": {"p": "x"}},
+                            {"type": "tool_use", "id": "b", "name": "Read", "input": {"p": "y"}},
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "b", "content": "Y"},
+                            {"type": "tool_result", "tool_use_id": "a", "content": "X"},
+                        ],
+                    },
+                ]
+            }
+        ]
+    )
+    got = {s["arguments"]["p"]: s["result"] for s in rows[0]["steps"] if "tool" in s}
+    assert got == {"x": "X", "y": "Y"}
+
+
+def test_anthropic_tool_result_block_list_is_flattened():
+    rows = load_traces(
+        [
+            {
+                "messages": [
+                    {
+                        "role": "assistant",
+                        "content": [{"type": "tool_use", "id": "t1", "name": "run", "input": {}}],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "t1",
+                                "content": [{"type": "text", "text": "2 failed"}],
+                            }
+                        ],
+                    },
+                ]
+            }
+        ]
+    )
+    assert next(s for s in rows[0]["steps"] if "tool" in s)["result"] == "2 failed"

@@ -553,6 +553,25 @@ def _normalize_step(step: dict) -> dict:
     return out
 
 
+def _block_text(value: Any) -> str:
+    """Flatten a content field that is a plain string or a block list.
+
+    Anthropic-shaped messages carry ``content`` as a list of typed blocks.
+    Stringifying that list yields a Python repr, which is what used to reach
+    the writer as the agent's turn.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts = [
+            str(b.get("text") or "")
+            for b in value
+            if isinstance(b, dict) and b.get("type") == "text"
+        ]
+        return "\n".join(part for part in parts if part)
+    return "" if value is None else str(value)
+
+
 def _steps_from_messages(messages: Sequence[dict]) -> list[dict]:
     steps: list[dict] = []
     by_id: dict[str, dict] = {}
@@ -581,14 +600,43 @@ def _steps_from_messages(messages: Sequence[dict]) -> list[dict]:
             if step is target:
                 by_id.pop(key)
 
+    def _coerce_result(value: Any) -> Any:
+        text = value if isinstance(value, str) else _block_text(value)
+        with contextlib.suppress(ValueError, TypeError):
+            return json.loads(text)
+        return text
+
     for message in messages:
         if not isinstance(message, dict):
             continue
         role = str(message.get("role") or "")
-        content = str(message.get("content") or "")
+        raw_content = message.get("content")
+        blocks = raw_content if isinstance(raw_content, list) else []
+        # A tool_result block rides on a user-role message in the Anthropic
+        # dialect; it is a tool answer, not something a person said.
+        results = [b for b in blocks if isinstance(b, dict) and b.get("type") == "tool_result"]
+        content = _block_text(raw_content)
         if role == "user":
-            steps.append({"user": content})
+            for block in results:
+                _attach(
+                    _coerce_result(block.get("content")),
+                    str(block.get("name") or ""),
+                    str(block.get("tool_use_id") or ""),
+                )
+            if content or not results:
+                steps.append({"user": content})
         elif role == "assistant":
+            for block in blocks:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    call_step: dict[str, Any] = {
+                        "tool": str(block.get("name") or ""),
+                        "arguments": block.get("input")
+                        if isinstance(block.get("input"), dict)
+                        else {},
+                    }
+                    steps.append(call_step)
+                    if block.get("id"):
+                        by_id[str(block["id"])] = call_step
             for call in message.get("tool_calls") or []:
                 fn = call.get("function") if isinstance(call.get("function"), dict) else call
                 raw = (fn or {}).get("arguments")
@@ -605,9 +653,7 @@ def _steps_from_messages(messages: Sequence[dict]) -> list[dict]:
             if content:
                 steps.append({"text": content})
         elif role == "tool":
-            result: Any = content
-            with contextlib.suppress(ValueError):
-                result = json.loads(content)
+            result: Any = _coerce_result(raw_content)
             _attach(
                 result,
                 str(message.get("name") or ""),
