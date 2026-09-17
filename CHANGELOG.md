@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.54 (2026-09-17)
 
 - Every row says how it finished: `finish_reason` is `stop`, `length`
   (the reply token cap cut a turn), `tool` (the turn budget ran out on a
