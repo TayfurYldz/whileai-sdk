@@ -8,24 +8,61 @@
   "n_holdout": 120,
   "k": 4,
   "arms": {
-    "base": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
-    "baseline": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
-    "recipe": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0}
+    "base": {
+      "score": 0.32708333333333334,
+      "ci": [
+        0.2625,
+        0.39791666666666664
+      ],
+      "pass_at_k": 0.5166666666666667,
+      "steps": 0,
+      "gpu_minutes": 0
+    },
+    "baseline": {
+      "score": 0.3625,
+      "ci": [
+        0.29583333333333334,
+        0.43125
+      ],
+      "pass_at_k": 0.5583333333333333,
+      "steps": 40,
+      "gpu_minutes": 24.9
+    },
+    "recipe": {
+      "score": 0.4125,
+      "ci": [
+        0.35,
+        0.4791666666666667
+      ],
+      "pass_at_k": 0.6666666666666666,
+      "steps": 40,
+      "gpu_minutes": 17.9
+    }
   },
-  "delta": {"recipe_vs_baseline": 0.0, "ci": [0.0, 0.0], "verdict": "flat"},
+  "delta": {
+    "recipe_vs_baseline": 0.05,
+    "ci": [
+      -0.00625,
+      0.10625
+    ],
+    "verdict": "flat"
+  },
   "checks": {
-    "run_std": 0.0,
+    "run_std": 0.0232,
     "decontaminated_dropped": 0,
     "over_optimized": false,
-    "length_before": 0.0,
-    "length_after": {"baseline": 0.0, "recipe": 0.0},
-    "hack_scan_top": "",
+    "length_before": 712.3333333333334,
+    "length_after": {
+      "baseline": 266.8333333333333,
+      "recipe": 424.8979166666667
+    },
+    "hack_scan_top": "marker:shaped_reward",
     "seed": 0,
     "pins": "torch 2.7.1, transformers 4.54.0, trl 0.19.1, peft 0.16.0"
   },
   "gpu": "L40S",
-  "usd": 0.0,
-  "verified": "1970-01-01",
+  "usd": 1.43,
+  "verified": "2026-09-17",
   "whileai": "0.53",
-  "run_url": ""
+  "run_url": "https://www.zeroproofai.com/platform/training/run_8ec3ba0f44a20541"
 }
