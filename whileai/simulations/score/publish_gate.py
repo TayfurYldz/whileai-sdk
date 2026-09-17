@@ -39,6 +39,7 @@ from .hygiene import (
 )
 from .optimize import DEFAULT_BAND, _binary_label, _group_label_lists, group_signal
 from .passat import pass_at
+from .stats import wilson_interval
 
 
 class PublishGateError(ValueError):
@@ -74,6 +75,22 @@ def _identified(ref: PolicyRef) -> bool:
     return bool(ref.name or ref.model or ref.prompt_hash or ref.version)
 
 
+def _student_for(row: dict, student: PolicyRef) -> PolicyRef:
+    """The caller's ``PolicyRef`` when it names anything, else the row's
+    own ``policy_version`` (the engine stamps one on every rollout), so a
+    stamp written without ``policy=`` still says which policy it measured."""
+    if _identified(student):
+        return student
+    version = row.get("policy_version") or row.get("model_version")
+    return PolicyRef(version=str(version)) if version else student
+
+
+def _ci95(labels: Sequence[int]) -> tuple[float, float] | None:
+    """Wilson 95% interval on a task's pass rate, rounded for the row."""
+    ci = wilson_interval(int(sum(labels)), len(labels))
+    return (round(ci[0], 4), round(ci[1], 4)) if ci else None
+
+
 def carry_calibration(
     graded: Sequence[dict],
     kept: Sequence[dict],
@@ -95,22 +112,38 @@ def carry_calibration(
     student = policy_ref(policy, model=model)
     groups = _group_label_lists(graded)
     stamped = 0
+    tasks: dict[str, dict[str, Any]] = {}
     for row in kept:
         if not isinstance(row, dict):
             continue
         labels = groups.get(str(row.get("prompt") or ""))
         if not labels:
             continue
-        row["calibration"] = asdict(
-            Calibration(
-                task_id=_task_id(row),
-                student=student,
-                n=len(labels),
-                pass_rate=sum(labels) / len(labels),
-            )
+        record = Calibration(
+            task_id=_task_id(row),
+            student=_student_for(row, student),
+            n=len(labels),
+            pass_rate=sum(labels) / len(labels),
+            pass_rate_ci95=_ci95(labels),
+        )
+        row["calibration"] = asdict(record)
+        tasks.setdefault(
+            record.task_id,
+            {
+                "task_id": record.task_id,
+                "n": record.n,
+                "pass_rate": record.pass_rate,
+                "pass_rate_ci95": record.pass_rate_ci95,
+            },
         )
         stamped += 1
-    return {"n_tasks": len(groups), "n_rows": len(kept), "n_stamped": stamped}
+    return {
+        "n_tasks": len(groups),
+        "n_rows": len(kept),
+        "n_stamped": stamped,
+        # one row per stamped task: the difficulty and its interval
+        "tasks": list(tasks.values()),
+    }
 
 
 def calibrate(
@@ -168,10 +201,11 @@ def calibrate(
         else:
             record = Calibration(
                 task_id=_task_id(row),
-                student=student,
+                student=_student_for(row, student),
                 n=len(labels),
                 pass_rate=sum(labels) / len(labels),
                 mean_kl=kl,
+                pass_rate_ci95=_ci95(labels),
             )
         row["calibration"] = asdict(record)
         stamped += 1

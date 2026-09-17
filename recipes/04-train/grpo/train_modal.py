@@ -260,7 +260,7 @@ def train(
         mask_truncated_completions=mask_truncated,
         max_completion_length=max_completion_length,
         max_prompt_length=768,
-        temperature=0.9,
+        temperature=0.8,  # the same temperature the rollouts were measured at
         bf16=True,
         logging_steps=1,
         save_strategy="no",
