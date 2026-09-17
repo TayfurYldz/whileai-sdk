@@ -42,6 +42,7 @@ CLI_EXAMPLES = [
     "schema/project.py",
     "text-to-sql/build.py",
     "text-to-sql/delta.py",
+    "text-to-sql/distill.py",
     "text-to-sql/rollout.py",
     "text-to-sql/train.py",
     "verifiers/run.py",
