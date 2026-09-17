@@ -11,7 +11,7 @@
 2. Reward, both arms: the binary outcome, `MathEqual` against the GSM8K gold number. A program, not a judge. The paper changes the clip, not the reward, so nothing here is shaped.
 3. Baseline arm: GRPO with `epsilon` 0.20 and `epsilon_high` 0.28, fixed for every rollout. That pair is DAPO's clip-higher and it is the paper's own token-level default.
 4. Recipe arm: same 0.20 floor and the same 0.28 ceiling, but the upper bound slides per group, `eps_hi(c) = eps_lo + (eps_hi_max - eps_lo) * (k - c) / (k - 1)` with `c` correct out of `k = 8` rollouts. One right out of eight keeps the full 0.28; seven right gets 0.2114.
-5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task. The untrained base is evaluated three times first, and that spread is the noise floor a delta has to clear; the train set is decontaminated against the holdout before any training. Paired delta with a 95% interval (`zps.pass_at`, `zps.delta_report`).
+5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task. The untrained base is evaluated three times first, and that spread is the noise floor a delta has to clear; the train set is decontaminated against the holdout before any training. Paired delta with a 95% interval (`wai.pass_at`, `wai.delta_report`).
 
 Both arms share the floor and the ceiling, so the comparison isolates the sliding and not the width. There is no KL term (`beta` 0), which leaves the clip as the only trust region in the run — the thing the paper is about. The recipe runs the paper's token-level importance sampling, not its sequence-level GSPO variant, so its Seq-IS epsilons (3e-3 / 5e-3) do not apply here.
 
@@ -71,4 +71,4 @@ The paper's own knob is `eps_hi_max`, the ceiling the bound slides down from. Wi
 - Reading the group's correct count off the sign of the advantage only works because this reward is binary: with rewards in {0, 1} the advantage is `r - c/k`, positive for exactly the correct rollouts. A shaped reward would break that and need the counts carried separately.
 - Holding the ceiling equal across the arms is the honest comparison but it is also the conservative one: it makes the recipe a strictly tighter clip than the baseline. The paper compares against a fixed bound too, on a much bigger batch (256 prompts against 6 here), so a flat round 1 could mean the batch rather than the idea.
 
-Verified 1970-01-01 (never run), zeroproof 0.49, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. Run page: none yet.
+Verified 1970-01-01 (never run), whileai 0.53, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. Run page: none yet.
