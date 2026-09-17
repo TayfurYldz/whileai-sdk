@@ -164,6 +164,7 @@ from .score.stats import (
     eval_variance,
     marker_summary,
     metric_summary,
+    task_key,
 )
 from .score.style import refusal_report, style_markers, style_report
 from .score.trace import trace_flag_report, trace_flags, trace_markers
@@ -365,6 +366,7 @@ __all__ = [
     "style_markers",
     "style_report",
     "task_checklist",
+    "task_key",
     "to_row",
     "to_trl",
     "tool_call_roundtrip",

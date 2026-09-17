@@ -27,6 +27,7 @@ from typing import Any
 
 from .agreement import row_key
 from .hygiene import pearson
+from .stats import task_key
 
 
 def _num(value: Any) -> float | None:
@@ -41,7 +42,7 @@ def _tokens(row: dict) -> int:
 
 
 def _task(row: dict) -> str:
-    return str(row.get("task_id") or row.get("prompt") or "")
+    return task_key(row)
 
 
 def _quantile(values: Sequence[float], q: float) -> float | None:

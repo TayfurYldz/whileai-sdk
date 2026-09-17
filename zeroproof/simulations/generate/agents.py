@@ -1364,6 +1364,16 @@ def _answer_tool_call(env: Any, execute: Callable | None, tool: str, arguments: 
 LOCAL_MODEL_TEMPERATURE = 0.8
 
 
+def reply_budget(max_tokens: int | None = None) -> int:
+    """Tokens one agent reply may use: ``simulate(agent_max_tokens=)`` when
+    set, else 768, or 2048 above an 8k context (``ZP_CONTEXT_TOKENS``). A
+    coding agent's diff does not fit in 768; a reasoning model's thinking
+    does not fit in 2048."""
+    if max_tokens:
+        return int(max_tokens)
+    return 768 if CONTEXT_TOKENS <= 8192 else 2048
+
+
 def local_model(
     base_url: str,
     model: str,
@@ -1460,9 +1470,7 @@ def local_model(
                 api_key=api_key,
                 temperature=temperature,
                 timeout=timeout,
-                # A coding agent's diff does not fit in 768; a reasoning model's
-                # thinking does not fit in 2048: simulate(agent_max_tokens=) wins.
-                max_tokens=max_tokens or (768 if CONTEXT_TOKENS <= 8192 else 2048),
+                max_tokens=reply_budget(max_tokens),
                 logprobs=logprobs,
             )
             calls, assistant = _calls_from_reply(reply)
@@ -1608,6 +1616,12 @@ def local_model(
         return _done(steps, final_text)
 
     agent.__name__ = f"local_model[{model}]"
+    # How every reply was sampled, as the engine stamps it on the row.
+    agent.sampling = {  # type: ignore[attr-defined]
+        "temperature": float(temperature),
+        "max_tokens": reply_budget(max_tokens),
+        "model": model,
+    }
     agent.fault_plans = plans  # type: ignore[attr-defined]
     agent.system = policy_text  # type: ignore[attr-defined]
     agent.policy = policy_text  # type: ignore[attr-defined]

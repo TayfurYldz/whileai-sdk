@@ -39,6 +39,7 @@ from .hygiene import (
 )
 from .optimize import DEFAULT_BAND, _binary_label, _group_label_lists, group_signal
 from .passat import pass_at
+from .stats import task_key
 
 
 class PublishGateError(ValueError):
@@ -64,9 +65,9 @@ def policy_ref(policy: PolicyRef | dict | str | None, *, model: str | None = Non
 
 
 def _task_id(row: dict) -> str:
-    """The task's id, not its text: ``task_id``, else the engine's
-    ``scenario_id``, and only then the prompt (rows from elsewhere)."""
-    return str(row.get("task_id") or row.get("scenario_id") or row.get("prompt") or "")
+    """The task's id, not its text: the same ``task_key`` every report
+    groups by (``scenario_id``, else ``task_id``, else the prompt)."""
+    return task_key(row)
 
 
 def _identified(ref: PolicyRef) -> bool:
@@ -98,7 +99,7 @@ def carry_calibration(
     for row in kept:
         if not isinstance(row, dict):
             continue
-        labels = groups.get(str(row.get("prompt") or ""))
+        labels = groups.get(task_key(row))
         if not labels:
             continue
         row["calibration"] = asdict(
@@ -150,7 +151,7 @@ def calibrate(
     for row in rows:
         if not isinstance(row, dict) or _binary_label(row) is None:
             continue
-        labels = groups.get(str(row.get("prompt") or ""))
+        labels = groups.get(task_key(row))
         if not labels:
             continue
         kl = kl_per_task.get(_task_id(row))
@@ -197,7 +198,7 @@ def is_rl_shaped(rows: Sequence[dict], *, mode: str | None = None) -> bool:
     for row in rows:
         if not isinstance(row, dict):
             continue
-        key = str(row.get("prompt") or "")
+        key = task_key(row)
         seen[key] = seen.get(key, 0) + 1
         if seen[key] > 1:
             return True

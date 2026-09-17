@@ -18,7 +18,7 @@ figure too noisy to act on.
 ```bash
 pip install zeroproof
 python measure.py                  # 12 asks x 8 repeats with a scripted agent, offline
-python measure.py graded.jsonl     # any graded row file (reward 0/1, grouped by prompt)
+python measure.py graded.jsonl     # any graded row file (reward 0/1, grouped by task)
 ```
 
 No key needed for the scripted run; it finishes in seconds. Output:

@@ -3,6 +3,37 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- Every row says how it was sampled. `sampling` is now on every row a
+  model backend produces (the default hosted agent, `agent="vllm:..."` /
+  `"openai:..."`, `backend=`, an HTTP agent), as `{"temperature",
+  "max_tokens", "model"}` with the defaults the backend resolved; before,
+  it was stamped only when `backend=` was passed by hand. A callable
+  agent's rows carry `sampling: None` unless you pass
+  `simulate(sampling={...})`, which is recorded as given. The `logprobs`
+  key is gone from `sampling`; the row's `logprob` fields already say
+  whether logprobs were captured.
+- `pass_at(rows).config` (and `to_dict()["config"]`) says what the rows
+  were produced with: task count, k, temperature, max_tokens, policy and
+  judge versions, prompt hash, with `mixed` naming any the rows disagree
+  on. `delta_report` carries the same per side under `config["before"]`
+  / `config["after"]` and warns when the judge, temperature or reply
+  budget differ between sides, or when both sides are the same policy
+  version.
+- One task key everywhere. `zps.task_key(row)` (`scenario_id`, else
+  `task_id`, else the prompt text) is what `pass_at`, `group_signal`,
+  `compare_runs`, `delta_report`, `eval_variance`, `curriculum`,
+  `retire_solved`, `trim_unanimous_groups`, `trim_out_of_band`,
+  `select_for_rl`, `calibrate` / `publish_gate`, `mean_kl`, `judge_trust`
+  and the exporters' `group_id` now all group by. Before, `pass_at` and
+  the RL pruners grouped by prompt text while `compare_runs` grouped by
+  id, so the same rows gave two task counts. On engine rows this means
+  the rephrasings of one situation pool into one task: a task is a
+  situation, not a string. `PassAt.per_task` and `curriculum()`'s
+  `task_id` are keyed by that key; `curriculum()` still carries a
+  `prompt` per task.
+
 ## 0.50 (2026-09-17)
 
 - `recipes/papers/`: recent post-training papers as recipes. One directory per

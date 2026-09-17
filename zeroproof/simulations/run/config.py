@@ -63,6 +63,7 @@ _MOVED_NAMES = {
     "min_user_turns",
     "temperature",
     "agent_max_tokens",
+    "sampling",
     "timeout",
     "logprobs",
     "seed",
@@ -348,6 +349,7 @@ class RunConfig:
     min_user_turns: int
     temperature: Any
     agent_max_tokens: int | None
+    sampling: dict | None
     logprobs: Any
     seed: int
     embedder: Any
@@ -472,6 +474,14 @@ def resolve_run_config(
     logprobs = cfg.pop("logprobs", False)
     if logprobs not in (False, True, "tokens"):
         raise ValueError('logprobs must be False, True, or "tokens"')
+    # How a callable agent samples is the caller's to say; it is recorded
+    # on every row as given. A model backend records its own instead.
+    sampling = cfg.pop("sampling", None)
+    if sampling is not None and not isinstance(sampling, dict):
+        raise ValueError(
+            'sampling= is a dict of how your agent samples, like {"temperature": 0.7, '
+            '"max_tokens": 1024, "model": "my-model"}'
+        )
     seed = int(cfg.pop("seed", 0))
     # The named grader= parameter wins; advanced={"grader": ...} stays as
     # the legacy spelling. Both route to one application path at the end.
@@ -636,6 +646,7 @@ def resolve_run_config(
         min_user_turns=min_user_turns,
         temperature=temperature,
         agent_max_tokens=agent_max_tokens,
+        sampling=sampling,
         logprobs=logprobs,
         seed=seed,
         embedder=embedder,

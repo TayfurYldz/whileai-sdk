@@ -1,7 +1,7 @@
 """pass@1, pass^k and pass@k for one agent, offline, in seconds.
 
     python measure.py                      # 12 asks x 8 repeats with a scripted agent
-    python measure.py graded.jsonl         # any graded row file (reward 0/1, grouped by prompt)
+    python measure.py graded.jsonl         # any graded row file (reward 0/1, grouped by task)
     python measure.py --asks 40 --k 16     # bigger grid
 
 Three numbers off the same graded groups, one job each: pass@1 is what
