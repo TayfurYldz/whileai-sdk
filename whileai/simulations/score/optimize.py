@@ -727,8 +727,14 @@ def select_for_rl(
     truncated: str = "drop",
     order: str = "spread",
     prior: Sequence[dict] | None = None,
+    audit: dict[str, Any] | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
     """Whole mixed groups up to roughly ``target`` rows. Groups never split.
+
+    ``audit`` is an ``audit_grades`` report on these rows' verifier; when
+    it found the verifier rejecting right answers more than ``FN_WARN``
+    of the time, ``hygiene_warnings`` says to fix the verifier before
+    training on the selection (#255).
 
     ``prior`` is the previous round's graded rollouts: tasks the round-N
     policy already solves (pass rate above ``hi`` on ``prior``) or never
@@ -985,6 +991,16 @@ def select_for_rl(
         correlations=report["correlations"],
         scan=report["hack_scan"],
     )
+    from .audit import audit_warning
+
+    audit_note = audit_warning(audit)
+    if audit_note:
+        report["hygiene_warnings"].append(audit_note)
+    report["audit"] = (
+        {k: audit.get(k) for k in ("fn_rate", "fn_ci95", "n_checked", "verifier")}
+        if isinstance(audit, dict)
+        else None
+    )
     # The band is assigned from a handful of rollouts per task, and a
     # Wilson interval on k=8 is about +/-0.3 wide: a task measured at 0.25
     # may really sit at 0.1 or 0.5. Say so once, with the measured width.
@@ -1217,6 +1233,7 @@ def optimize(
     endorsed: Sequence[str] = (),
     truncated: str = "drop",
     order: str = "spread",
+    audit: dict[str, Any] | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
     """One call after grading: concentrate for the post-training target.
 
@@ -1260,6 +1277,7 @@ def optimize(
             hi=float(band[1]),
             enforce_band=enforce_band,
             has_tools=has_tools,
+            audit=audit,
             endorsed=endorsed,
             truncated=truncated,
             order=order,

@@ -102,6 +102,7 @@ from .schema import (
     validate,
 )
 from .score.agreement import judge_agreement
+from .score.audit import audit_grades, format_audit
 from .score.checklist import expected_outcome, outcome_check, privileged_context, task_checklist
 from .score.curriculum import curriculum, format_curriculum, retire_solved
 from .score.delta import delta_report, format_delta_report
@@ -236,6 +237,7 @@ __all__ = [
     "attach_holdout",
     "attach_labels",
     "attach_rubric",
+    "audit_grades",
     "behavior_signature",
     "behavioral_markers",
     "build_dimensions",
@@ -274,6 +276,7 @@ __all__ = [
     "export_training",
     "filter_rl_rows",
     "flaw_rows",
+    "format_audit",
     "format_curriculum",
     "format_delta_report",
     "format_hack_monitor",
