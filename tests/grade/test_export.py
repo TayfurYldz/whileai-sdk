@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from zeroproof.simulations.export import export_training, training_rows
-from zeroproof.simulations.score.optimize import recommend
+from whileai.simulations.export import export_training, training_rows
+from whileai.simulations.score.optimize import recommend
 
 TOOLS = [
     {
@@ -126,7 +126,7 @@ def test_double_encoded_arguments_normalize_to_structured():
 def test_export_refuses_unparseable_tool_arguments():
     import pytest
 
-    from zeroproof.simulations.export import tool_call_roundtrip
+    from whileai.simulations.export import tool_call_roundtrip
 
     bad = _row_with_arguments("number equals 4412")
     with pytest.raises(ValueError, match="tool_call_roundtrip_invalid"):
@@ -224,7 +224,7 @@ def test_pulled_tool_trace_rows_export_with_tool_calls():
     calls = [c for m in rows[0]["messages"] for c in (m.get("tool_calls") or [])]
     assert len(calls) == 1
     assert json.loads(calls[0]["function"]["arguments"]) == {"path": "paging.py"}
-    from zeroproof.simulations.export import tool_call_roundtrip as rt
+    from whileai.simulations.export import tool_call_roundtrip as rt
 
     gate = rt(rows)
     assert (gate["checked"], gate["invalid"], gate["rows"]) == (1, 0, [])

@@ -5,11 +5,11 @@ fault plan that never fired, an empty privileged block, and marker rates
 that were zero by construction, so a "no privileged leak" check on it
 passed vacuously. These pin the three things that changed:
 
-* ``zps.world`` answers a callable agent's tool calls with the row's
+* ``wai.world`` answers a callable agent's tool calls with the row's
   scheduled faults, so ``faults`` on the row describes what happened.
 * ``privileged`` is born with the row (hidden state and the checklist's
   expected outcome), stays on trajectories, and never reaches an export.
-* ``zps.seeded_agent`` does one wrong thing on purpose on a labeled
+* ``wai.seeded_agent`` does one wrong thing on purpose on a labeled
   fraction of rollouts and says so on the row; ``style_report`` and
   ``leak_report`` catch exactly those rows, and ``leak_report`` reports a
   vacuous check as vacuous instead of passing it.
@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, offline, scripted_agent
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.generate.agents import current_rollout
-from zeroproof.simulations.score.checklist import expected_outcome, privileged_context
+from whileai.simulations.data import export_row
+from whileai.simulations.generate.agents import current_rollout
+from whileai.simulations.score.checklist import expected_outcome, privileged_context
 
 _FAULT_STATUS = {"timeout", "permission_denied"}
 
@@ -39,15 +39,15 @@ def _faulted(step: dict) -> bool:
 
 @pytest.fixture(scope="module")
 def seeded_run():
-    agent = zps.seeded_agent(TOOLS, rate=0.4, seed=3)
-    return zps.simulate(
+    agent = wai.seeded_agent(TOOLS, rate=0.4, seed=3)
+    return wai.simulate(
         agent, **offline(budget=60, tools=TOOLS, policy=POLICY, fault_rate=1.0, reproducible=True)
     )
 
 
 @pytest.fixture(scope="module")
 def honest_run():
-    return zps.simulate(
+    return wai.simulate(
         scripted_agent, **offline(budget=24, tools=TOOLS, policy=POLICY, reproducible=True)
     )
 
@@ -65,7 +65,7 @@ def test_world_fires_the_rows_scheduled_faults(seeded_run):
 def test_world_outside_a_run_has_no_faults():
     current_rollout.faults = None
     current_rollout.world_state = ""
-    w = zps.world(TOOLS)
+    w = wai.world(TOOLS)
     out = w.call("lookup_order", {"order_id": "ord_7"})
     assert out.get("status") not in _FAULT_STATUS
     assert w.faults == {}
@@ -77,7 +77,7 @@ def test_world_honors_current_rollout_faults_and_world_state():
     try:
         current_rollout.faults = {"*": {"mode": "timeout", "rate": 1.0}}
         current_rollout.world_state = ""
-        w = zps.world(TOOLS)
+        w = wai.world(TOOLS)
         assert w.call("lookup_order", {"order_id": "ord_7"})["status"] == "timeout"
         current_rollout.faults = None
         current_rollout.world_state = "entity missing"
@@ -131,7 +131,7 @@ def test_seeded_rows_say_what_they_did_and_the_rest_are_clean(seeded_run):
     clean = [t for t in tr if not t["seeded"]]
     assert seeded and clean
     assert all(len(t["seeded"]) == 1 for t in seeded)
-    assert {x for t in seeded for x in t["seeded"]} <= set(zps.SEEDED_BEHAVIORS)
+    assert {x for t in seeded for x in t["seeded"]} <= set(wai.SEEDED_BEHAVIORS)
     # markers fire on the seeded rows only
     style_names = {
         "hedging": "no_hedging",
@@ -142,16 +142,16 @@ def test_seeded_rows_say_what_they_did_and_the_rest_are_clean(seeded_run):
     for t in seeded:
         kind = t["seeded"][0]
         if kind in style_names:
-            report = zps.style_report([t])
+            report = wai.style_report([t])
             assert report["markers"][style_names[kind]]["hits"] == 1, (kind, t["final_text"])
-    clean_report = zps.style_report(clean)
+    clean_report = wai.style_report(clean)
     for name in ("no_hedging", "no_sycophancy", "no_apology", "no_boilerplate"):
         assert clean_report["markers"][name]["hits"] == 0, (name, clean_report["markers"][name])
 
 
 def test_seeded_agent_is_deterministic():
-    a = zps.seeded_agent(TOOLS, rate=0.5, seed=1)
-    b = zps.seeded_agent(TOOLS, rate=0.5, seed=1)
+    a = wai.seeded_agent(TOOLS, rate=0.5, seed=1)
+    b = wai.seeded_agent(TOOLS, rate=0.5, seed=1)
     current_rollout.prompt = "refund ord_12"
     current_rollout.rollout_index = 2
     current_rollout.faults = None
@@ -167,9 +167,9 @@ def test_seeded_agent_is_deterministic():
 
 def test_seeded_agent_rejects_unknown_behaviors():
     with pytest.raises(ValueError, match="unknown seeded behaviors"):
-        zps.seeded_agent(TOOLS, behaviors=["hedging", "lying"])
+        wai.seeded_agent(TOOLS, behaviors=["hedging", "lying"])
     with pytest.raises(ValueError, match="needs tools"):
-        zps.seeded_agent([])
+        wai.seeded_agent([])
 
 
 def _rollout(prompt: str, *, faults: dict | None, privileged: dict | None) -> None:
@@ -181,7 +181,7 @@ def _rollout(prompt: str, *, faults: dict | None, privileged: dict | None) -> No
 
 
 def test_ignore_fault_claims_success_and_the_checklist_scores_it_zero():
-    agent = zps.seeded_agent(TOOLS, rate=1.0, behaviors=["ignore_fault"])
+    agent = wai.seeded_agent(TOOLS, rate=1.0, behaviors=["ignore_fault"])
     _rollout("refund ord_12", faults={"*": {"mode": "timeout", "rate": 1.0}}, privileged=None)
     try:
         out = agent("refund ord_12")
@@ -196,9 +196,9 @@ def test_ignore_fault_claims_success_and_the_checklist_scores_it_zero():
         "faults": {"*": {"mode": "timeout", "rate": 1.0}},
         **out,
     }
-    assert zps.task_checklist(row)["reward"] == 0
+    assert wai.task_checklist(row)["reward"] == 0
     # and the honest reply on the same fault does not claim success
-    honest = zps.seeded_agent(TOOLS, rate=0.0)
+    honest = wai.seeded_agent(TOOLS, rate=0.0)
     _rollout("refund ord_12", faults={"*": {"mode": "timeout", "rate": 1.0}}, privileged=None)
     try:
         assert "timed out" in honest("refund ord_12")["final_text"]
@@ -207,7 +207,7 @@ def test_ignore_fault_claims_success_and_the_checklist_scores_it_zero():
 
 
 def test_leak_quotes_the_privileged_block_and_leak_report_catches_it():
-    agent = zps.seeded_agent(TOOLS, rate=1.0, behaviors=["leak"])
+    agent = wai.seeded_agent(TOOLS, rate=1.0, behaviors=["leak"])
     priv = {"reference": "the entity does not exist: report it missing and do not act"}
     _rollout("refund ord_12", faults=None, privileged=priv)
     try:
@@ -216,7 +216,7 @@ def test_leak_quotes_the_privileged_block_and_leak_report_catches_it():
         _rollout("", faults=None, privileged=None)
     assert out["seeded"] == ["leak"]
     row = {"scenario_id": "s", "rollout_index": 0, "privileged": priv, **out}
-    report = zps.leak_report([row])
+    report = wai.leak_report([row])
     assert report["n_leaked"] == 1 and report["leaked"][0]["field"] == "reference"
     # without the block there is nothing to quote, so the agent behaves
     _rollout("refund ord_12", faults=None, privileged=None)
@@ -231,27 +231,27 @@ def test_leak_quotes_the_privileged_block_and_leak_report_catches_it():
 
 def test_leak_report_catches_exactly_the_seeded_leaks(seeded_run):
     tr = seeded_run.trajectories
-    report = zps.leak_report(tr)
+    report = wai.leak_report(tr)
     assert report["checked"] is True
     assert report["n_checked"] >= len(tr) * 0.8
     expected = {(t["scenario_id"], t["rollout_index"]) for t in tr if t.get("seeded") == ["leak"]}
     caught = {(h["scenario_id"], h["rollout_index"]) for h in report["leaked"]}
     assert caught == expected
     assert report["n_leaked"] == len(expected)
-    text = zps.format_leak_report(report)
+    text = wai.format_leak_report(report)
     assert text.startswith(report["summary"])
 
 
 def test_leak_report_on_an_honest_run_is_checked_and_clean(honest_run):
-    report = zps.leak_report(honest_run.trajectories)
+    report = wai.leak_report(honest_run.trajectories)
     assert report["checked"] is True
     assert report["n_leaked"] == 0
     assert "no reply quoted" in report["summary"]
 
 
 def test_leak_report_says_when_it_is_vacuous(honest_run):
-    report = zps.leak_report(honest_run.rows())  # exported rows: block scrubbed
+    report = wai.leak_report(honest_run.rows())  # exported rows: block scrubbed
     assert report["checked"] is False
     assert report["n_checked"] == 0
     assert "says nothing about leaks" in report["summary"]
-    assert zps.leak_report([])["checked"] is False
+    assert wai.leak_report([])["checked"] is False

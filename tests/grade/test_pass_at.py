@@ -7,11 +7,11 @@ from math import comb
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.data import SimulationData
-from zeroproof.simulations.score.judging import ScoredData
-from zeroproof.simulations.score.optimize import group_signal
-from zeroproof.simulations.score.passat import PassAt, pass_at
+import whileai.simulations as wai
+from whileai.simulations.data import SimulationData
+from whileai.simulations.score.judging import ScoredData
+from whileai.simulations.score.optimize import group_signal
+from whileai.simulations.score.passat import PassAt, pass_at
 
 
 def _rows(spec: dict[str, list[int]]) -> list[dict]:
@@ -94,12 +94,12 @@ def test_scored_data_and_simulation_data_expose_the_property():
     assert scored.pass_at.pass_at_1 == pytest.approx(0.5)
     data = SimulationData(trajectories=rows)
     assert data.pass_at.to_dict() == scored.pass_at.to_dict()
-    assert zps.pass_at(rows).k == 4
-    assert "PassAt" in zps.__all__ and "pass_at" in zps.__all__
+    assert wai.pass_at(rows).k == 4
+    assert "PassAt" in wai.__all__ and "pass_at" in wai.__all__
 
 
 def test_recommend_rl_names_the_headroom():
-    out = zps.recommend(mode="rl", target=200)
+    out = wai.recommend(mode="rl", target=200)
     assert any("pass@k - pass@1" in line for line in out["reasoning"])
 
 

@@ -4,15 +4,15 @@ Four calls from graded rows to a chat completion from the trained model,
 all on the platform. One key, one A10G run, no GPU of your own.
 
 What you will learn: the shape of a train set and a task-disjoint holdout
-on the platform, what `zps.train` returns and how to wait on it, what
-`zps.serve` gives you back, and how to call the served adapter. The rows
+on the platform, what `wai.train` returns and how to wait on it, what
+`wai.serve` gives you back, and how to call the served adapter. The rows
 are deliberately small; this is the wiring check, not a result. You need
-`ZEROPROOF_API_KEY` (or `zeroproof login`); no model key, since the rows
+`WHILEAI_API_KEY` (or `whileai login`); no model key, since the rows
 come from the template writer and a scripted agent.
 
 ```bash
-pip install zeroproof
-zeroproof login                 # or export ZEROPROOF_API_KEY=...
+pip install whileai
+whileai login                 # or export WHILEAI_API_KEY=...
 cd recipes/04-train/hosted-loop
 python run.py                   # data -> train -> serve -> call
 python run.py train --method sft --epochs 2   # any step alone; state is in hosted-loop.json
@@ -36,8 +36,8 @@ python run.py models            # what the account hosts
 | step | call | what comes back |
 |---|---|---|
 | `data` | `simulate` (template writer, scripted agent), `run_judge`, `split_pseudo_production`, `push_rows` x2 | a train set and a task-disjoint holdout on the platform, with the publish gate's warnings |
-| `train` | `zps.train(train_id, method="sft", base_model="Qwen/Qwen3-4B", holdout=...)`, then `run.wait(timeout=--timeout)` | a finished run: held-out loss before and after, the adapter's location, the curve at `run.url` |
-| `serve` | `zps.serve("hosted-loop", run)` | a model row: `endpoint` (OpenAI-compatible base URL) and `name` (the model id to send) |
+| `train` | `wai.train(train_id, method="sft", base_model="Qwen/Qwen3-4B", holdout=...)`, then `run.wait(timeout=--timeout)` | a finished run: held-out loss before and after, the adapter's location, the curve at `run.url` |
+| `serve` | `wai.serve("hosted-loop", run)` | a model row: `endpoint` (OpenAI-compatible base URL) and `name` (the model id to send) |
 | `call` | `POST {endpoint}/chat/completions` with the account key as bearer | the trained model's reply |
 
 One run of `python run.py` with the defaults (`--seed 1 --budget 96`,
@@ -50,7 +50,7 @@ platform trainer is not seeded, so yours will differ:
 == train
 started sft run run_726d53b769141506: https://www.zeroproofai.com/platform/training/run_726d53b769141506
 done in 47s: loss 5.0094 -> 4.1311 on 72 held-out rows
-adapter: volume zeroproof-train-runs:/run_726d53b769141506/adapter
+adapter: volume whileai-train-runs:/run_726d53b769141506/adapter
 == serve
 serving hosted-loop v1 on Qwen/Qwen3-4B
 endpoint https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1
@@ -68,7 +68,7 @@ yours, or point `data` at rows you already graded.
 
 - **Only two bases serve.** `Qwen/Qwen3-4B` and `microsoft/phi-4`. The
   trainer's defaults (Qwen2.5-0.5B for SFT, 1.5B for GRPO and DPO) train
-  faster but cannot be hosted; `zps.train` warns and `zps.serve` refuses.
+  faster but cannot be hosted; `wai.train` warns and `wai.serve` refuses.
   SFT runs on an A10G and takes about a minute here; GRPO and DPO run
   on an L40S (`--method grpo --steps 10` took 137 s on Qwen3-4B).
 - **Cold starts.** The serving GPU scales to zero. The first call after
@@ -86,6 +86,6 @@ yours, or point `data` at rows you already graded.
 ## Where it shows up
 
 `run.url` is the loss curve and the before/after on the platform.
-`zps.models()` lists what the account hosts, `zps.get_run(run_id)` returns
+`wai.models()` lists what the account hosts, `wai.get_run(run_id)` returns
 the points, and the dataset cards link to the run. Docs:
 https://www.zeroproofai.com/docs/training

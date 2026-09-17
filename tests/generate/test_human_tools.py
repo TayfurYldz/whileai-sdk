@@ -2,7 +2,7 @@
 
 import json
 
-from zeroproof.simulations.generate import agents as zagents
+from whileai.simulations.generate import agents as zagents
 
 
 def test_human_tool_answer_comes_from_the_user_voice(monkeypatch):

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.hygiene import reward_correlations
-from zeroproof.simulations.score.style import (
+import whileai.simulations as wai
+from whileai.simulations.score.hygiene import reward_correlations
+from whileai.simulations.score.style import (
     STYLE_MARKERS,
     assistant_text,
     refusal_report,
@@ -116,7 +116,7 @@ def test_reward_correlations_include_style_features():
 
 def test_public_surface():
     for name in ("style_markers", "style_report", "refusal_report"):
-        assert name in zps.__all__
-        assert callable(getattr(zps, name))
-    summary = zps.marker_summary(style_markers([_row("a", "Certainly!"), _row("b", "Ok.")]))
+        assert name in wai.__all__
+        assert callable(getattr(wai, name))
+    summary = wai.marker_summary(style_markers([_row("a", "Certainly!"), _row("b", "Ok.")]))
     assert summary["no_boilerplate"]["mean"] == 0.5

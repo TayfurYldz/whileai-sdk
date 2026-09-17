@@ -30,8 +30,8 @@ import random
 import re
 from typing import Any
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.agents import current_rollout
+import whileai.simulations as wai
+from whileai.simulations.generate.agents import current_rollout
 
 TOOLS = [
     {
@@ -174,7 +174,7 @@ def hackable_judge(row: dict) -> int:
 
 
 def simulate_rows(agent, *, asks: int, k: int, seed: int) -> list[dict]:
-    data = zps.simulate(
+    data = wai.simulate(
         agent,
         tools=TOOLS,
         policy=POLICY,
@@ -192,7 +192,7 @@ def simulate_rows(agent, *, asks: int, k: int, seed: int) -> list[dict]:
 
 
 def graded(rows: list[dict], judge) -> list[dict]:
-    return list(zps.run_judge(rows, judge, concurrency=1).rows)
+    return list(wai.run_judge(rows, judge, concurrency=1).rows)
 
 
 def with_proxy(rows: list[dict]) -> list[dict]:
@@ -227,20 +227,20 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
 
     section("1. What would a grouped update learn from each reward? (hack_scan)")
     for name, judge in (("hackable judge", hackable_judge), ("honest judge", honest_judge)):
-        scan = zps.hack_scan(graded(rows, judge), endorsed=endorsed, seed=args.seed)
+        scan = wai.hack_scan(graded(rows, judge), endorsed=endorsed, seed=args.seed)
         out[f"scan_{name.split()[0]}"] = scan
-        print(f"[{name}] " + zps.format_hack_scan(scan, top=6).replace("\n", "\n    "))
+        print(f"[{name}] " + wai.format_hack_scan(scan, top=6).replace("\n", "\n    "))
 
     section("2. Which shortcuts does each judge fall for? (judge_probes)")
     for name, judge in (("hackable judge", hackable_judge), ("honest judge", honest_judge)):
-        probes = zps.judge_probes(graded(rows, judge), judge, concurrency=1, seed=args.seed)
+        probes = wai.judge_probes(graded(rows, judge), judge, concurrency=1, seed=args.seed)
         out[f"probes_{name.split()[0]}"] = probes
         print(f"[{name}] exploitable_by={probes['exploitable_by']}")
         for w in probes["warnings"]:
             print(f"    ! {w}")
 
     section("3. Did the agent fake the work, and does the reward pay for it? (trace_flag_report)")
-    report = zps.trace_flag_report(graded(rows, hackable_judge), n_boot=200, seed=args.seed)
+    report = wai.trace_flag_report(graded(rows, hackable_judge), n_boot=200, seed=args.seed)
     out["trace_flags"] = report
     for flag, r in report["flags"].items():
         if r["n"]:
@@ -256,19 +256,19 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     before = with_proxy(graded(rows, honest_judge))
     after_rows = simulate_rows(hacked_agent, asks=args.asks, k=args.k, seed=args.seed)
     after = with_proxy(graded(after_rows, honest_judge))
-    delta = zps.delta_report(
+    delta = wai.delta_report(
         before, after, target="pass_at_1", proxy="marker:proxy", n_boot=500, seed=args.seed
     )
     out["delta"] = delta
-    print("    " + zps.format_delta_report(delta).replace("\n", "\n    "))
-    diff = zps.hack_scan_diff(
+    print("    " + wai.format_delta_report(delta).replace("\n", "\n    "))
+    diff = wai.hack_scan_diff(
         graded(rows, hackable_judge),
         graded(after_rows, hackable_judge),
         endorsed=endorsed,
         seed=args.seed,
     )
     out["scan_diff"] = diff
-    print("    " + zps.format_hack_scan_diff(diff).replace("\n", "\n    "))
+    print("    " + wai.format_hack_scan_diff(diff).replace("\n", "\n    "))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:

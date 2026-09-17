@@ -1,6 +1,6 @@
 """No VLLM_API_KEY, an account key: hosted runs go to the account endpoints.
 
-`zeroproof signup` and `zeroproof login` are enough for a hosted run. The
+`whileai signup` and `whileai login` are enough for a hosted run. The
 zeroproof-serve proxy behind ACCOUNT_AGENT / ACCOUNT_JUDGE takes the zp_ key,
 enforces the daily allowance with 429 and meters on the server. VLLM_API_KEY
 still wins and goes to the shared pool.
@@ -12,8 +12,8 @@ import json
 
 import pytest
 
-from zeroproof.simulations.generate import agents
-from zeroproof.simulations.generate.agents import (
+from whileai.simulations.generate import agents
+from whileai.simulations.generate.agents import (
     ACCOUNT_AGENT,
     ACCOUNT_JUDGE,
     DEFAULT_AGENT,
@@ -27,7 +27,7 @@ from zeroproof.simulations.generate.agents import (
     missing_hosted_key,
     resolve_completion_key,
 )
-from zeroproof.simulations.run.engine import _auth_error, _stop_reason
+from whileai.simulations.run.engine import _auth_error, _stop_reason
 
 ACCOUNT_URL = "https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1"
 POOL_URL = "https://zeroproofai--stressd-vllm-serve.modal.run/v1"
@@ -36,8 +36,8 @@ POOL_URL = "https://zeroproofai--stressd-vllm-serve.modal.run/v1"
 @pytest.fixture
 def saved_key(monkeypatch):
     monkeypatch.delenv("VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: "zp_saved")
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: "zp_saved")
 
 
 def test_account_key_alone_selects_the_account_endpoints(saved_key):
@@ -59,17 +59,17 @@ def test_vllm_key_still_wins_and_goes_to_the_shared_pool(saved_key, monkeypatch)
 
 def test_no_key_at_all_names_both_ways_in(monkeypatch):
     monkeypatch.delenv("VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: None)
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: None)
     assert default_agent_spec() == DEFAULT_AGENT
     msg = missing_hosted_key()
     assert msg == MISSING_HOSTED_KEY
-    assert "zeroproof login" in msg and "VLLM_API_KEY" in msg and "\n" not in msg
+    assert "whileai login" in msg and "VLLM_API_KEY" in msg and "\n" not in msg
 
 
 def test_explicit_env_specs_are_untouched(saved_key, monkeypatch):
-    monkeypatch.setenv("ZEROPROOF_AGENT", "openai:gpt-4.1-mini")
-    monkeypatch.setenv("ZEROPROOF_JUDGE", "vllm:x@http://localhost:8000/v1")
+    monkeypatch.setenv("WHILEAI_AGENT", "openai:gpt-4.1-mini")
+    monkeypatch.setenv("WHILEAI_JUDGE", "vllm:x@http://localhost:8000/v1")
     assert default_agent_spec() == "openai:gpt-4.1-mini"
     assert default_judge_spec() == "vllm:x@http://localhost:8000/v1"
 
@@ -157,7 +157,7 @@ def test_a_modal_303_on_cold_start_is_followed_to_the_result(monkeypatch):
 
 
 def test_status_names_the_hosted_route(saved_key, monkeypatch):
-    from zeroproof import auth
+    from whileai import auth
 
     monkeypatch.setattr(auth, "account", lambda key: {"tier": "full"})
     # status() reads the credentials file itself, not stored_api_key()
@@ -166,6 +166,6 @@ def test_status_names_the_hosted_route(saved_key, monkeypatch):
     monkeypatch.setenv("VLLM_API_KEY", "pool-key")
     assert auth.status()["hosted_route"] == "shared pool (VLLM_API_KEY)"
     monkeypatch.delenv("VLLM_API_KEY")
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: None)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: None)
     monkeypatch.setattr(auth, "_read", lambda path: {})
     assert auth.status()["hosted_route"] is None

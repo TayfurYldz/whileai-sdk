@@ -1,50 +1,54 @@
-"""``zeroproof_simulations`` is an alias of ``zeroproof.simulations``, not a copy."""
+"""``compat/zeroproof``: the old import names are aliases of ``whileai``, not copies.
+
+The shim is a separate distribution and is not installed in the dev
+environment; the test puts its source on ``sys.path`` instead.
+"""
 
 from __future__ import annotations
 
 import importlib
-import subprocess
 import sys
 import warnings
+from pathlib import Path
+
+import pytest
+
+COMPAT = Path(__file__).resolve().parents[2] / "compat" / "zeroproof"
 
 
-def test_legacy_top_level_name_is_the_same_module():
-    import zeroproof.simulations as new
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        old = importlib.import_module("zeroproof_simulations")
-    assert old is new
-
-
-def test_legacy_submodule_paths_are_the_same_objects():
-    from zeroproof.simulations.run import engine as new_engine
-    from zeroproof.simulations.score import judging as new_judging
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        old_engine = importlib.import_module("zeroproof_simulations.run.engine")
-        old_judging = importlib.import_module("zeroproof_simulations.score.judging")
-    assert old_engine is new_engine
-    assert old_judging is new_judging
+@pytest.fixture
+def compat_path(monkeypatch):
+    monkeypatch.syspath_prepend(str(COMPAT))
+    for name in list(sys.modules):
+        if name == "zeroproof" or name.startswith(("zeroproof.", "zeroproof_simulations")):
+            monkeypatch.delitem(sys.modules, name)
+    yield
+    sys.meta_path[:] = [f for f in sys.meta_path if type(f).__name__ != "_AliasFinder"]
 
 
-_FRESH = """
-import warnings
-with warnings.catch_warnings(record=True) as caught:
-    warnings.simplefilter("always")
-    import zeroproof_simulations as zps
-messages = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
-assert messages and "zeroproof.simulations" in messages[0], messages
-import zeroproof.simulations as new
-assert zps is new and callable(zps.simulate)
-print("warned-and-aliased")
-"""
+def test_zeroproof_is_whileai(compat_path):
+    import whileai
+    import whileai.simulations as new
 
-
-def test_fresh_interpreter_warns_and_aliases():
-    out = subprocess.run(
-        [sys.executable, "-c", _FRESH], capture_output=True, text=True, timeout=120
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        old = importlib.import_module("zeroproof")
+    assert old is whileai
+    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    assert importlib.import_module("zeroproof.simulations") is new
+    assert new.__spec__.name == "whileai.simulations"  # alias must not clobber it
+    assert importlib.import_module("zeroproof.simulations.run.engine") is importlib.import_module(
+        "whileai.simulations.run.engine"
     )
-    assert out.returncode == 0, out.stderr[-1500:]
-    assert "warned-and-aliased" in out.stdout
+    assert old.ZeroProofIngestError is whileai.WhileIngestError
+
+
+def test_zeroproof_simulations_is_whileai_simulations(compat_path):
+    import whileai.simulations as new
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        legacy = importlib.import_module("zeroproof_simulations")
+        judging = importlib.import_module("zeroproof_simulations.score.judging")
+    assert legacy is new
+    assert judging is importlib.import_module("whileai.simulations.score.judging")

@@ -65,16 +65,16 @@ def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
     for key in (
         "OPENAI_API_KEY",
-        "ZEROPROOF_API_KEY",
+        "WHILEAI_API_KEY",
         "VLLM_API_KEY",
-        "ZEROPROOF_MODEL_URL",
-        "ZEROPROOF_API_URL",
+        "WHILEAI_MODEL_URL",
+        "WHILEAI_API_URL",
         "HF_TOKEN",
     ):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
-    # A saved `zeroproof login` credential would count as a key too.
-    env["ZEROPROOF_HOME"] = str(REPO / "tests" / "fixtures" / "no-such-home")
+    # A saved `whileai login` credential would count as a key too.
+    env["WHILEAI_HOME"] = str(REPO / "tests" / "fixtures" / "no-such-home")
     return env
 
 
@@ -148,7 +148,7 @@ def test_hosted_loop_without_a_key_names_the_env_var(tmp_path):
     out = _run(EXAMPLES / "04-train/hosted-loop/run.py", cwd=tmp_path)
     assert out.returncode != 0
     message = out.stdout + out.stderr
-    assert "ZEROPROOF_API_KEY" in message, message[-2000:]
+    assert "WHILEAI_API_KEY" in message, message[-2000:]
     assert "http" in message, message[-2000:]
 
 
@@ -176,6 +176,6 @@ def test_missing_credential_is_a_message_not_a_traceback(rel, tmp_path):
     assert "Traceback (most recent call last)" not in message, (
         f"{rel} raised instead of exiting with a message:\n{message[-2000:]}"
     )
-    assert any(var in message for var in ("ZEROPROOF_API_KEY", "VLLM_API_KEY")), (
+    assert any(var in message for var in ("WHILEAI_API_KEY", "VLLM_API_KEY")), (
         f"{rel} does not name the env var to set:\n{message[-2000:]}"
     )

@@ -10,9 +10,9 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.generate import agents
+import whileai.simulations as wai
+from whileai.simulations import schema
+from whileai.simulations.generate import agents
 
 TOOLS = [
     {
@@ -127,12 +127,12 @@ def _fake_complete_factory(calls: dict, with_usage: bool):
 def _simulate(monkeypatch, with_usage: bool):
     calls: dict = {}
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.complete", _fake_complete_factory(calls, with_usage)
+        "whileai.simulations.generate.agents.complete", _fake_complete_factory(calls, with_usage)
     )
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
-    return zps.simulate(
+    return wai.simulate(
         tools=TOOLS,
         policy="Look up before you answer.",
         extra_situations=["where is order 4412"],

@@ -1,6 +1,6 @@
 """The Hugging Face example, with the platform stubbed.
 
-Every Hub call the SDK makes is a request to the ZeroProof API (the platform
+Every Hub call the SDK makes is a request to the While API (the platform
 holds the Hub token), so the whole script can run against a local HTTP stub
 that records what it was asked and answers what the platform would. That
 checks the three call sites, the request bodies, the printed numbers, and
@@ -121,9 +121,9 @@ def _env(tmp_path: Path, api_url: str | None, key: str | None) -> dict[str, str]
     env = dict(os.environ)
     for name in (
         "OPENAI_API_KEY",
-        "ZEROPROOF_API_KEY",
-        "ZEROPROOF_DELEGATED_CREDENTIAL",
-        "ZEROPROOF_API_URL",
+        "WHILEAI_API_KEY",
+        "WHILEAI_DELEGATED_CREDENTIAL",
+        "WHILEAI_API_URL",
         "VLLM_API_KEY",
         "HF_TOKEN",
         "HTTP_PROXY",
@@ -134,12 +134,12 @@ def _env(tmp_path: Path, api_url: str | None, key: str | None) -> dict[str, str]
         env.pop(name, None)
     env["PYTHONPATH"] = str(REPO)
     env["PYTHONIOENCODING"] = "utf-8"
-    env["ZEROPROOF_HOME"] = str(tmp_path / "home")  # never a real stored login
+    env["WHILEAI_HOME"] = str(tmp_path / "home")  # never a real stored login
     env["NO_PROXY"] = env["no_proxy"] = "127.0.0.1,localhost"
     if api_url:
-        env["ZEROPROOF_API_URL"] = api_url
+        env["WHILEAI_API_URL"] = api_url
     if key:
-        env["ZEROPROOF_API_KEY"] = key
+        env["WHILEAI_API_KEY"] = key
     return env
 
 
@@ -242,6 +242,6 @@ def test_push_without_a_connected_account_stops_before_pushing(stub, tmp_path):
 def test_without_a_key_it_names_the_env_var_and_makes_no_request(stub, tmp_path):
     out = _run(tmp_path, stub, key=None)
     assert out.returncode != 0
-    assert "ZEROPROOF_API_KEY" in out.stderr
-    assert "zeroproof login" in out.stderr
+    assert "WHILEAI_API_KEY" in out.stderr
+    assert "whileai login" in out.stderr
     assert stub.requests == []

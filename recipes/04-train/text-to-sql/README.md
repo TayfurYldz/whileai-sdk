@@ -18,11 +18,11 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
 | `tasks.jsonl` | 417 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 81 are held out by a hash of the id, the same split in every script |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
-| `sql_verifier.py` | `SQLExec`, the verifier (a `zeroproof.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
-| `rollout.py` | `zps.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `zps.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
+| `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
+| `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
 | `build.py` | grades every rollout file, pass@1 / pass^k / pass@k, `optimize(mode="rl")`, `hack_scan`, pushes train / holdout / eval sets to your account |
 | `train_grpo_modal.py` | TRL `GRPOTrainer` + LoRA on Modal with Postgres inside the container (reward = `sql_verifier.shaped_reward`); `--from-run` chains rounds |
-| `train.py` | the hosted SFT alternative: `zps.train(method="sft")` on the gold demonstrations, then `zps.serve` |
+| `train.py` | the hosted SFT alternative: `wai.train(method="sft")` on the gold demonstrations, then `wai.serve` |
 | `delta.py` | `delta_report` before vs after by difficulty and archetype, attached to the run page |
 
 ## Numbers so far (81 held-out tasks, 4 samples each, temperature 0.7)
@@ -47,8 +47,8 @@ climb is in thinking mode; rounds and their numbers are at the bottom.
 
 ## Run it
 
-Needs: Python 3.11+, `pip install "zeroproof>=0.47" "psycopg[binary]" openai anthropic`,
-a Postgres you can create a database on, `ZEROPROOF_API_KEY` from
+Needs: Python 3.11+, `pip install "whileai>=0.47" "psycopg[binary]" openai anthropic`,
+a Postgres you can create a database on, `WHILEAI_API_KEY` from
 [zeroproofai.com/platform](https://zeroproofai.com/platform) (the hosted
 Qwen3-4B endpoint, the datasets page and the training page), and a Modal
 account for the RL step.
@@ -72,10 +72,10 @@ python build.py                                              # grades, prints th
 python build.py --push                                       # also pushes the sets to your account
 ```
 
-Rollouts go through `zps.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
+Rollouts go through `wai.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
 the SDK replays the task prompts on the agent and the gold SQL is attached
 to the rows afterwards. Thinking on for the base model: serve it under a
-name and sample that (`zps.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
+name and sample that (`wai.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
 then `--hosted qwen3-4b-think`). Any other model: `--agent openai:<model>`
 with `OPENAI_BASE_URL`, or add a callable to `MODELS`.
 
@@ -96,16 +96,16 @@ from the served adapter in the next step, through vLLM, in minutes. `--spawn`
 submits the call and returns, so nothing depends on your laptop staying
 connected (a network drop cancelled a 3 h run at step 49 without it). The run
 shows on your training page as it goes (reward, KL, completion length); the
-adapter and `summary.json` land on the `zeroproof-train-runs` volume under
+adapter and `summary.json` land on the `whileai-train-runs` volume under
 the run id.
 
-**4. Serve and measure.** The adapter is saved on the `zeroproof-train-runs`
-volume under the run id, which is what `zps.serve` hosts.
+**4. Serve and measure.** The adapter is saved on the `whileai-train-runs`
+volume under the run id, which is what `wai.serve` hosts.
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
-zps.serve("t2s-r1", "run_...")  # the run id printed by step 3
+wai.serve("t2s-r1", "run_...")  # the run id printed by step 3
 ```
 
 ```bash
@@ -144,7 +144,7 @@ prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
 
 ## Why the tasks are authored, not simulated
 
-`zps.simulate` writes situations, rollouts and world state; it never writes
+`wai.simulate` writes situations, rollouts and world state; it never writes
 an answer key, so a verifiable task set is rows you bring that carry
 `privileged.reference` (the SDK README says the same under *Verifiers*).
 For SQL the reference has to be a query that is exactly right on the data,
@@ -196,10 +196,10 @@ training file.
   drops them; the RL set from 8 samples on 336 prompts was 144 rows in 38
   groups, `pool_exhausted` in the scan. Train on the prompts, not the set.
 - **Code-fenced replies read as truncated to `looks_finished` before 0.46**
-  (zeroproof-sdk#212, fixed in 0.46); `build.py` carries the same patch so
+  (whileai-sdk#212, fixed in 0.46); `build.py` carries the same patch so
   it also runs on 0.44.
 - **Thinking models need a reply budget.** `simulate(agent_max_tokens=4096,
-  timeout=300)` (zeroproof >= 0.47); on the default 2048-token cap and
+  timeout=300)` (whileai >= 0.47); on the default 2048-token cap and
   60 s timeout the base lost 8% of replies mid-thought and 4 of 81 tasks.
 
 ## The hill climb (thinking on, GRPO, execution reward)

@@ -1,4 +1,4 @@
-# Reward hacking detection with zeroproof
+# Reward hacking detection with whileai
 
 Reinforcement learning is a strong optimizer. Point it at a reward and it
 pulls every bit of reward out of the environment, including the bits the
@@ -42,9 +42,9 @@ because the reply can claim anything.
 ### 1. The scan: what would the policy learn?
 
 ```python
-scan = zps.hack_scan(scored.rows, endorsed=["tool:lookup_order", "marker:argument_grounding"])
+scan = wai.hack_scan(scored.rows, endorsed=["tool:lookup_order", "marker:argument_grounding"])
 scan["regime"]  # train | reward_hack | pool_exhausted | no_signal | unknown
-print(zps.format_hack_scan(scan))
+print(wai.format_hack_scan(scan))
 ```
 
 Reward and every candidate feature are centered within ask, ranked by
@@ -69,7 +69,7 @@ length penalty, and the within-ask number does not.
 ### 2. The probes: which shortcuts does the judge fall for?
 
 ```python
-trust = zps.judge_trust(scored.rows, judge=my_judge, probes="all", rubric=RUBRIC)
+trust = wai.judge_trust(scored.rows, judge=my_judge, probes="all", rubric=RUBRIC)
 trust["exploitable_by"]  # e.g. ["success_claim", "filler"]
 ```
 
@@ -85,8 +85,8 @@ rubric before training, not after.
 ### 3. The trajectory: did the agent fake the work?
 
 ```python
-rows = zps.trace_markers(scored.rows)  # honest_claims, reported_failure, no_test_tampering, ...
-report = zps.trace_flag_report(scored.rows)
+rows = wai.trace_markers(scored.rows)  # honest_claims, reported_failure, no_test_tampering, ...
+report = wai.trace_flag_report(scored.rows)
 ```
 
 Flags read from what the rollout did, not what it said: tests claimed
@@ -102,8 +102,8 @@ invented-argument case the same way.
 ### 4. The run: is it hacking right now?
 
 ```python
-monitor = zps.HackMonitor(
-    run, holdout=holdout_rows, gold=zps.reward_model(rm_run),
+monitor = wai.HackMonitor(
+    run, holdout=holdout_rows, gold=wai.reward_model(rm_run),
     every=10, k=4, endorsed=["tool:lookup_order"], stop_on="divergence",
 )
 trainer = GRPOTrainer(model, reward_funcs=[monitor.wrap(rule_reward)], ...)
@@ -122,9 +122,9 @@ curve. Four alarms: `divergence`, `length`, `drift`, `feature`.
 ### 5. The verdict: did it hack?
 
 ```python
-report = zps.delta_report(before, after, target="pass_at_1", proxy="marker:first_action")
+report = wai.delta_report(before, after, target="pass_at_1", proxy="marker:first_action")
 report["over_optimized"]
-diff = zps.hack_scan_diff(before_proxy_scored, after_proxy_scored, endorsed=["tool:lookup_order"])
+diff = wai.hack_scan_diff(before_proxy_scored, after_proxy_scored, endorsed=["tool:lookup_order"])
 diff["learned"]
 ```
 

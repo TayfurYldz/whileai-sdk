@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.curriculum import (
+from whileai.simulations.score.curriculum import (
     curriculum,
     format_curriculum,
     retire_solved,

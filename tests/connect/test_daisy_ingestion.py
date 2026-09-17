@@ -13,8 +13,8 @@ from __future__ import annotations
 import json
 
 from tests.helpers import scripted_agent
-from zeroproof.simulations import rows_from_otel
-from zeroproof.simulations.ingest.traces import load_traces, simulate_from_traces, trace_report
+from whileai.simulations import rows_from_otel
+from whileai.simulations.ingest.traces import load_traces, simulate_from_traces, trace_report
 
 DAISY_TOOLS = [
     {
@@ -259,7 +259,7 @@ def test_platform_gate_spans_order_by_started_ms():
                 "gen_ai.output.messages": json.dumps(
                     [{"role": "assistant", "content": "done, tests pass"}]
                 ),
-                "zeroproof.reward": 1,
+                "whileai.reward": 1,
             },
         }
     ]

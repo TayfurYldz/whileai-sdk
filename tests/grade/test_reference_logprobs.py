@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from zeroproof.simulations.score.logprobs import mean_kl
-from zeroproof.simulations.score.reference import reference_logprobs, score_turns
+from whileai.simulations.score.logprobs import mean_kl
+from whileai.simulations.score.reference import reference_logprobs, score_turns
 
 END = "<|im_end|>"
 

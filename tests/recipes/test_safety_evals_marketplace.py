@@ -185,7 +185,7 @@ def test_locked_down_fails_the_guard_and_hardened_passes(run, graded):
 
 def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     return env

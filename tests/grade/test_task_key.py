@@ -3,22 +3,22 @@ report reads off the rows (score/passat.run_config, delta_report config)."""
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.generate.test_logprobs import TOOLS
-from zeroproof.simulations.export import _stamp_groups
-from zeroproof.simulations.generate.adapters import HTTP_REPLY_TOKENS, resolve
-from zeroproof.simulations.generate.agents import (
+from whileai.simulations.export import _stamp_groups
+from whileai.simulations.generate.adapters import HTTP_REPLY_TOKENS, resolve
+from whileai.simulations.generate.agents import (
     LOCAL_MODEL_TEMPERATURE,
     default_agent_spec,
     hosted_model,
     parse_backend_spec,
     reply_budget,
 )
-from zeroproof.simulations.score.curriculum import curriculum, retire_solved
-from zeroproof.simulations.score.delta import delta_report
-from zeroproof.simulations.score.optimize import group_signal, trim_unanimous_groups
-from zeroproof.simulations.score.passat import pass_at, run_config
-from zeroproof.simulations.score.stats import compare_runs, task_key
+from whileai.simulations.score.curriculum import curriculum, retire_solved
+from whileai.simulations.score.delta import delta_report
+from whileai.simulations.score.optimize import group_signal, trim_unanimous_groups
+from whileai.simulations.score.passat import pass_at, run_config
+from whileai.simulations.score.stats import compare_runs, task_key
 
 
 def test_task_key_is_the_situation_id_then_task_id_then_prompt():
@@ -26,7 +26,7 @@ def test_task_key_is_the_situation_id_then_task_id_then_prompt():
     assert task_key({"task_id": "t1", "prompt": "p"}) == "t1"
     assert task_key({"prompt": "p"}) == "p"
     assert task_key({}) == ""
-    assert zps.task_key is task_key
+    assert wai.task_key is task_key
 
 
 def _situation_rows(n_tasks: int = 6, phrasings: int = 2, repeats: int = 2) -> list[dict]:
@@ -62,8 +62,8 @@ def test_every_report_counts_the_same_tasks():
     assert compare_runs(before, after)["n_paired"] == rates.n_groups
     assert group_signal(before)["n_groups"] == rates.n_groups
     assert curriculum(before)["n_tasks"] == rates.n_groups
-    assert zps.metric_summary(before)["n_tasks"] == rates.n_groups
-    assert zps.eval_variance(before, after)["tasks_in_every_run"] == rates.n_groups
+    assert wai.metric_summary(before)["n_tasks"] == rates.n_groups
+    assert wai.eval_variance(before, after)["tasks_in_every_run"] == rates.n_groups
 
 
 def test_phrasings_of_one_situation_pool_into_one_task():

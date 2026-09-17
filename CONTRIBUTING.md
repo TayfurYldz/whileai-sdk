@@ -18,7 +18,7 @@ python -m build && python -m twine check dist/*   # if you touched packaging or 
 
 ## Golden harness: proving an engine change left `simulate()` alone
 
-Any change under `zeroproof/simulations/` that could move `simulate()` output
+Any change under `whileai/simulations/` that could move `simulate()` output
 has to be shown to be output-preserving — or its diff has to be stated and
 justified. `scripts/golden.py` runs 13 offline configurations at
 `concurrency=1` on fixed seeds, scrubs the keys that cannot be reproducible

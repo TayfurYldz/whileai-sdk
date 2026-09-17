@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import time
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS
 
 _OFFLINE = dict(
@@ -25,7 +25,7 @@ def test_clock_stop_keeps_finished_rollouts_and_makes_no_late_calls():
         time.sleep(0.6)
         return {"steps": [], "final_text": "ok"}
 
-    data = zps.simulate(
+    data = wai.simulate(
         slow_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -50,7 +50,7 @@ def test_rollouts_still_running_after_the_grace_are_reported():
 
     t0 = time.monotonic()
     kw = dict(_OFFLINE, advanced={**_OFFLINE["advanced"], "stop_grace": 0.2})
-    data = zps.simulate(
+    data = wai.simulate(
         hanging_agent, tools=TOOLS, policy=POLICY, budget=50, concurrency=4, time_budget=0.3, **kw
     )
     # 6 s agent, 0.3 s clock, 0.2 s grace: even a loaded CI box returns
@@ -70,7 +70,7 @@ def test_budget_stop_has_no_stragglers():
         time.sleep(0.05)
         return {"steps": [], "final_text": "ok"}
 
-    data = zps.simulate(
+    data = wai.simulate(
         agent, tools=TOOLS, policy=POLICY, budget=6, concurrency=8, time_budget=None, **_OFFLINE
     )
     returned = time.monotonic()

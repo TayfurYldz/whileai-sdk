@@ -2,8 +2,8 @@
 
 import json
 
-from zeroproof.simulations.generate import agents as zagents
-from zeroproof.simulations.generate import generator as gen
+from whileai.simulations.generate import agents as zagents
+from whileai.simulations.generate import generator as gen
 
 
 def test_draft_tools_parses_fenced_json_and_marks_drafted(monkeypatch):

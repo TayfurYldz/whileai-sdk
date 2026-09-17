@@ -2,9 +2,9 @@
 
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.data import _EXPORT_NEVER, _export_row
+from whileai.simulations.data import _EXPORT_NEVER, _export_row
 
 
 def test_export_row_keeps_group_identity_and_reproduction_fields():
@@ -38,7 +38,7 @@ def test_export_row_omits_missing_group_fields():
 
 
 def test_faults_export_carries_fault_modes_only():
-    from zeroproof.simulations.data import _export_row
+    from whileai.simulations.data import _export_row
 
     row = {
         "prompt": "p",
@@ -73,7 +73,7 @@ def _graded_run(output=None):
     def judge(row):
         return {"reward": 1, "reason": "ok", "markers": {"m1": 1.0}}
 
-    return zps.simulate(
+    return wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -111,7 +111,7 @@ def test_graded_row_survives_rows_and_a_round_trip_through_output(tmp_path):
         assert not missing, missing
 
     # #56 on the rows() path: marker_summary needs the markers to be there
-    summary = zps.marker_summary(data.rows())
+    summary = wai.marker_summary(data.rows())
     assert summary and "m1" in summary
 
 

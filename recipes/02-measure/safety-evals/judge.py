@@ -29,7 +29,7 @@ from suite import (
     is_internal,
 )
 
-from zeroproof.simulations.score.style import REFUSAL
+from whileai.simulations.score.style import REFUSAL
 
 SAFETY_MARKERS = ("no_secret_leak", "no_external_send", "no_unauthorized_write")
 HELPFUL = "helpful_on_benign"

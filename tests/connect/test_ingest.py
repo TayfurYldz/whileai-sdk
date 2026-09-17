@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.adapters import detect, inspect, parse_claude_stream
+import whileai.simulations as wai
+from whileai.simulations.generate.adapters import detect, inspect, parse_claude_stream
 
 TOOLS = [
     {
@@ -72,7 +72,7 @@ def test_user_situations_and_spec_feed_simulate():
     from tests.helpers import POLICY, scripted_agent
     from tests.helpers import TOOLS as REFUND_TOOLS
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=REFUND_TOOLS,
         policy=POLICY,
@@ -93,7 +93,7 @@ def test_does_not_grade_after_rollout_by_default():
     from tests.helpers import POLICY, scripted_agent
     from tests.helpers import TOOLS as REFUND_TOOLS
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=REFUND_TOOLS,
         policy=POLICY,
@@ -119,7 +119,7 @@ def test_inspect_reads_tools_policy_capabilities():
     assert "read" in profile.capabilities["lookup_item"]
     assert "mutate" in profile.capabilities["create_order"]
     assert "item_id" in profile.constraints["required_user_fields"]
-    connected = zps.connect(
+    connected = wai.connect(
         lambda m: {"steps": [], "final_text": "ok"}, tools=TOOLS, policy="be careful"
     )
     assert connected.transport == "callable"
@@ -143,7 +143,7 @@ def test_inspect_fills_simulate_when_tools_omitted():
                 "final_text": "found it",
             }
 
-    data = zps.simulate(
+    data = wai.simulate(
         Holder(), budget=8, seed=0, grade=False, simulator=False, advanced={"per_round": 4}
     )
     assert data.profile.tools
@@ -179,7 +179,7 @@ def test_parse_claude_stream_pairs_any_tool_names():
 
 
 def test_parse_text_tool_calls():
-    from zeroproof.simulations.generate.agents import parse_text_tool_calls
+    from whileai.simulations.generate.agents import parse_text_tool_calls
 
     raw = (
         '<tool_call>\n{"name": "list_events", "arguments": {"date": "2023-10-05"}}\n'
@@ -197,14 +197,14 @@ def test_subprocess_adapter(tmp_path):
         "print(json.dumps({'steps': [{'tool': 'lookup_item', 'arguments': "
         "{'item_id': '1'}, 'result': {'status': 'ok'}}], 'final_text': 'ok'}))\n"
     )
-    connected = zps.connect([sys.executable, str(script)], tools=TOOLS, policy="ok")
+    connected = wai.connect([sys.executable, str(script)], tools=TOOLS, policy="ok")
     assert connected.transport == "subprocess"
     out = connected("hello")
     assert out["steps"][0]["tool"] == "lookup_item"
 
 
 def test_hash_embedder_does_not_claim_semantic_diversity():
-    data = zps.simulate(
+    data = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         tools=TOOLS,
         policy="ok",
@@ -222,7 +222,7 @@ def test_hash_embedder_does_not_claim_semantic_diversity():
 
 
 def test_refuses_to_mix_lexical_and_semantic_vectors():
-    from zeroproof.simulations.generate.embeddings import (
+    from whileai.simulations.generate.embeddings import (
         EmbeddingArchive,
         HashEmbedder,
         select_execution_batch,
@@ -245,7 +245,7 @@ def test_refuses_to_mix_lexical_and_semantic_vectors():
 
 
 def test_model_prompt_asks_for_gaps():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     sim = ModelSimulator(
         "vllm:fake@http://example",
@@ -271,7 +271,7 @@ def test_model_prompt_asks_for_gaps():
 
 def test_coverage_axes_come_from_this_agent():
     policy = "Look up an item before ordering it.\n2. Never invent an item_id."
-    dims = zps.build_dimensions(TOOLS, policy)
+    dims = wai.build_dimensions(TOOLS, policy)
     assert "lookup_item" in dims["tool"]
     assert "create_order" in dims["tool"]
     assert "unrelated" in dims["tool"]
@@ -281,7 +281,7 @@ def test_coverage_axes_come_from_this_agent():
     assert "vagueness" not in dims
     assert any("Look up an item" in clause for clause in dims["rule"])
     assert any("invent" in clause.lower() for clause in dims["rule"])
-    regions = zps.scenario_regions(TOOLS, policy)
+    regions = wai.scenario_regions(TOOLS, policy)
     tools_hit = {r["assignment"]["tool"] for r in regions}
     stances_hit = {r["assignment"]["stance"] for r in regions}
     assert {"lookup_item", "create_order"} <= tools_hit
@@ -289,7 +289,7 @@ def test_coverage_axes_come_from_this_agent():
 
 
 def test_selection_keeps_typical_and_fills_gaps():
-    from zeroproof.simulations.generate.embeddings import EmbeddingArchive, select_execution_batch
+    from whileai.simulations.generate.embeddings import EmbeddingArchive, select_execution_batch
 
     class Stub:
         name = "stub-semantic"
