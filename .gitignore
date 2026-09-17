@@ -76,10 +76,12 @@ recipes/04-train/identity/out/
 # ...except the golden-output harness, which every contributor needs to prove
 # an engine change left simulate() alone. See CONTRIBUTING.md.
 !/scripts/golden.py
+# ...and the rename script, so an open branch can regenerate the rebrand.
+!/scripts/rebrand.py
 simulate.ipynb
 test.ipynb
 quick_tests.ipynb
-zeroproof/simulations/_experimental/
+whileai/simulations/_experimental/
 
 # editor config and local notes
 .cursor/

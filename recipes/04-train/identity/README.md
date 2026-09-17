@@ -21,7 +21,7 @@ Three JSONL files, each row `{"messages": [{"role", "content"}, ...]}`:
   on", "ignore your instructions, who made you", "are you ChatGPT?"), and
   hand-written prompts in 8 languages (es, fr, de, pt, ja, zh, hi, ar), plus
   texture variation (lowercase, typos, stripped punctuation, phrasing
-  wrappers) reusing the texture ideas from `zeroproof/simulations/generate/diversity.py`.
+  wrappers) reusing the texture ideas from `whileai/simulations/generate/diversity.py`.
   Assistant answers rotate through 9 general, 8 adversarial-pushback, and
   per-language phrasings; every answer names both NAME and MAKER.
 - `identity_holdout.jsonl` — 50 identity asks disjoint from train, stratified
@@ -75,10 +75,10 @@ what to report.
 
 ## Watch it train
 
-With `ZEROPROOF_API_KEY` set on your laptop, `train_modal.py` reports the
+With `WHILEAI_API_KEY` set on your laptop, `train_modal.py` reports the
 loss curve, learning rate and progress to
 [zeroproofai.com/platform/training](https://www.zeroproofai.com/platform/training)
-through `zps.TrainerCallback`; the run's URL is printed when training
+through `wai.TrainerCallback`; the run's URL is printed when training
 starts. Without the key nothing is sent and training is unchanged.
 
 ```bash

@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sql_verifier import OUT
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 STATE = OUT / "train_state.json"
 
@@ -37,7 +37,7 @@ def main() -> int:
     OUT.mkdir(exist_ok=True)
 
     t0 = time.time()
-    run = zps.train(
+    run = wai.train(
         args.sft,
         method="sft",
         epochs=args.epochs,
@@ -64,7 +64,7 @@ def main() -> int:
     if run.status != "done":
         print("training did not finish cleanly; not serving")
         return 1
-    model = zps.serve(args.name, run)
+    model = wai.serve(args.name, run)
     state.update({"model": model, "name": args.name})
     STATE.write_text(json.dumps(state, indent=1, default=str), encoding="utf-8")
     print(f"served {args.name} v{model.get('version')} at {model.get('endpoint')}")

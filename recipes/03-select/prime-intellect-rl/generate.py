@@ -16,7 +16,7 @@ import argparse
 import os
 import sys
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 
 def main() -> int:
@@ -35,7 +35,7 @@ def main() -> int:
         )
         return 2
 
-    data = zps.simulate(
+    data = wai.simulate(
         spec=args.spec,
         mode="rl",
         situations=args.situations,

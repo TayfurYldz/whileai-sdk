@@ -6,12 +6,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.score import rubric as R
-from zeroproof.simulations.score.judging import run_judge
+import whileai.simulations as wai
+from whileai.simulations import schema
+from whileai.simulations.data import export_row
+from whileai.simulations.export import training_rows
+from whileai.simulations.score import rubric as R
+from whileai.simulations.score.judging import run_judge
 
 TOOLS = [
     {
@@ -171,7 +171,7 @@ def test_rubric_judge_scores_per_criterion_and_lifts_markers(monkeypatch):
     assert a["judge_meta"]["rubric_version"] == R.Rubric.from_dict(CRITERIA).version
     assert b["reward"] == 0 and b["judge_meta"]["hard_failed"] == ["Looks the order up"]
     assert b["markers"]["rubric:invents_an_id"] == 0.0  # pitfall exhibited
-    summary = zps.marker_summary(scored.rows)
+    summary = wai.marker_summary(scored.rows)
     assert summary["rubric:looks_the_order_up"]["mean"] == 0.5
     # a row with no rubric stays ungraded
     bare = run_judge(
@@ -260,5 +260,5 @@ def test_public_surface():
         "rubric_of",
         "write_rubrics",
     ):
-        assert name in zps.__all__
-    assert zps.Rubric is R.Rubric
+        assert name in wai.__all__
+    assert wai.Rubric is R.Rubric

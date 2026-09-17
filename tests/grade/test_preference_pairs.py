@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from zeroproof.simulations.export import export_preference
-from zeroproof.simulations.score.judging import build_preference_pairs
+from whileai.simulations.export import export_preference
+from whileai.simulations.score.judging import build_preference_pairs
 
 
 def _row(prompt, reward, final, model="qwen-a", **extra):

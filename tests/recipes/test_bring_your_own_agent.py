@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import evaluate, run_judge
+import whileai.simulations as wai
+from whileai.simulations.score.judging import evaluate, run_judge
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "01-simulate" / "bring-your-own-agent"
@@ -26,7 +26,7 @@ EXAMPLE = REPO / "recipes" / "01-simulate" / "bring-your-own-agent"
 
 def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     return env
@@ -63,7 +63,7 @@ def test_contract_run_carries_every_repeat(contract_data):
 
 
 def test_broken_agent_is_reported_as_the_agent(example, capsys):
-    data = zps.simulate(
+    data = wai.simulate(
         example.agent_that_raises,
         tools=example.TOOLS,
         system_prompt=example.POLICY,

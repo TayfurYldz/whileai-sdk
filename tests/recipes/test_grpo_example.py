@@ -15,7 +15,7 @@ from example_helpers import (
     load_script,
 )
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 GRPO = EXAMPLES / "04-train/grpo"
 README = GRPO / "README.md"
@@ -87,9 +87,9 @@ def test_reward_rows_feed_pass_at_and_delta():
             ["What is the order id?", "Order id?"],
         ],
     )
-    assert zps.pass_at(before).pass_at_1 == 0.0 and zps.pass_at(after).pass_at_1 == 1.0
+    assert wai.pass_at(before).pass_at_1 == 0.0 and wai.pass_at(after).pass_at_1 == 1.0
     assert before[0]["markers"]["tool_rule"] == pytest.approx(0.2)
-    rep = zps.delta_report(before, after, target="pass_at_1", must_not_regress=["well_formed"])
+    rep = wai.delta_report(before, after, target="pass_at_1", must_not_regress=["well_formed"])
     assert rep["target_delta"] == pytest.approx(1.0)
 
 
@@ -336,5 +336,5 @@ def test_readme_names_only_things_that_exist():
         assert f"`{fn}`" in text
     assert hasattr(p, "split_holdout_stratified")
     for api in ("HackMonitor", "TrainerCallback", "simulate"):
-        assert api in text and hasattr(zps, api)
+        assert api in text and hasattr(wai, api)
     assert "tests/recipes/test_grpo_example.py" in text

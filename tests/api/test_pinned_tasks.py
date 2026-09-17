@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import simulate_offline
 
 TOOLS = [
@@ -83,7 +83,7 @@ def test_pinning_keeps_every_task_across_a_policy_edit_and_a_seed():
     report = pinned.search["pinned_tasks"]
     assert report["ran"] == report["prompts"] == len(by_prompt)
     assert report["tasks"] == len(_tasks(base)) and report["missing"] == []
-    out = zps.compare_runs(list(base.trajectories), list(pinned.trajectories))
+    out = wai.compare_runs(list(base.trajectories), list(pinned.trajectories))
     assert out["n_paired"] == len(_tasks(base)) and out["n_only_a"] == out["n_only_b"] == 0
     assert out["note"] == ""
 

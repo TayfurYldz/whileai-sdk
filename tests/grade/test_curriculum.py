@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.curriculum import (
+from whileai.simulations.score.curriculum import (
     curriculum,
     format_curriculum,
     retire_solved,
@@ -70,7 +70,7 @@ def test_retire_solved_drops_rows():
 
 
 def test_default_edges_are_the_band_and_inclusive():
-    from zeroproof.simulations.score.optimize import DEFAULT_BAND
+    from whileai.simulations.score.optimize import DEFAULT_BAND
 
     rows = []
     rows += rows_for("one of eight", [1] + [0] * 7)  # 0.125: below the band

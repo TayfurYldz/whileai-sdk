@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.optimize import (
+import whileai.simulations as wai
+from whileai.simulations.score.optimize import (
     DEFAULT_BAND,
     group_signal,
     select_for_rl,
     trim_out_of_band,
 )
-from zeroproof.simulations.score.publish_gate import (
+from whileai.simulations.score.publish_gate import (
     PublishGateError,
     calibrate,
     is_rl_shaped,
@@ -76,7 +76,7 @@ def test_select_for_rl_enforces_band_by_default_and_can_rank_only():
 
 
 def test_optimize_passes_band_through():
-    _rows_out, report = zps.optimize(_rows(EIGHT), mode="rl", target=100, band=(0.1, 0.9))
+    _rows_out, report = wai.optimize(_rows(EIGHT), mode="rl", target=100, band=(0.1, 0.9))
     assert report["band"] == [0.1, 0.9]
     assert report["band_dropped"] == {"too_easy": 0, "too_hard": 0}
     assert report["groups_selected"] == 4  # easy, hard, mid, solo
@@ -94,14 +94,14 @@ def test_calibrate_stamps_pass_rate_k_and_policy():
 
 
 def test_calibration_carries_an_interval_and_the_rows_policy():
-    from zeroproof.simulations.score.publish_gate import carry_calibration
-    from zeroproof.simulations.score.stats import wilson_interval
+    from whileai.simulations.score.publish_gate import carry_calibration
+    from whileai.simulations.score.stats import wilson_interval
 
     rows = _rows({"a": [1, 0, 1, 1, 0, 1, 0, 1], "b": [0, 0, 0, 1]})
     for row in rows:
         row["policy_version"] = "qwen3-4b@abc123"
     calibrate(rows)  # no policy= given: the row's own version is the student
-    a = zps.calibration_of(next(r for r in rows if r["prompt"] == "a"))
+    a = wai.calibration_of(next(r for r in rows if r["prompt"] == "a"))
     assert a is not None and a.n == 8 and a.pass_rate == 0.625
     lo, hi = wilson_interval(5, 8)
     assert a.pass_rate_ci95 == (round(lo, 4), round(hi, 4))
@@ -113,7 +113,7 @@ def test_calibration_carries_an_interval_and_the_rows_policy():
     for row in kept:
         row.pop("calibration")
     report = carry_calibration(rows, kept)
-    b = zps.calibration_of(kept[0])
+    b = wai.calibration_of(kept[0])
     assert b is not None and b.n == 4 and b.pass_rate_ci95 is not None
     assert b.student.version == "qwen3-4b@abc123"
     assert report["tasks"] == [
@@ -121,7 +121,7 @@ def test_calibration_carries_an_interval_and_the_rows_policy():
     ]
     # An explicit policy still wins over the row's version.
     calibrate(rows, policy={"name": "v2", "version": "v2"})
-    assert zps.calibration_of(rows[0]).student.version == "v2"
+    assert wai.calibration_of(rows[0]).student.version == "v2"
 
 
 def test_is_rl_shaped_by_mode_or_repeats():
@@ -162,7 +162,7 @@ def test_push_gates_by_default_and_can_skip(monkeypatch):
         pushed.append(rows)
         return {"datasetId": "ds_new"}
 
-    monkeypatch.setattr("zeroproof.simulations.data.push_rows", fake_push_rows)
+    monkeypatch.setattr("whileai.simulations.data.push_rows", fake_push_rows)
 
     data = simulate_offline(budget=8, seed=0, mode="rl", repeats=4)
     with pytest.raises(PublishGateError, match="ungraded_rl_rows"):
@@ -191,7 +191,7 @@ def test_push_gates_by_default_and_can_skip(monkeypatch):
 
 
 def test_push_rows_gate_flag(monkeypatch):
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     calls = []
 
@@ -203,10 +203,10 @@ def test_push_rows_gate_flag(monkeypatch):
 
     monkeypatch.setattr(platform, "_call", fake_call)
     rows = _rows({"a": [1, 0, 1, 0]})
-    out = zps.push_rows(rows, "n", api_key="k", gate=True)
+    out = wai.push_rows(rows, "n", api_key="k", gate=True)
     assert out["gate"]["ok"] and calls[0] == ("POST", "/datasets")
     with pytest.raises(PublishGateError):
-        zps.push_rows([{"prompt": "a", "reward": None}] * 2, "n", api_key="k", gate=True)
+        wai.push_rows([{"prompt": "a", "reward": None}] * 2, "n", api_key="k", gate=True)
 
 
 def test_calibration_task_id_prefers_scenario_id_over_prompt_text():
@@ -255,26 +255,26 @@ def test_optimize_carries_the_graded_calibration_past_its_own_dedupe():
     # graded measurement has to survive it rather than be recomputed on
     # whatever is left.
     rows = _two_trajectory_rows()
-    graded = zps.pass_at(rows)
+    graded = wai.pass_at(rows)
     assert graded.k == 8 and graded.pass_at_1 == pytest.approx(0.75)
 
-    picked, report = zps.optimize(rows, mode="rl")
+    picked, report = wai.optimize(rows, mode="rl")
     assert report["duplicates"]["n_dropped"] == 12 * 6  # 8 rollouts -> 2 distinct
     assert report["calibration"]["n_stamped"] == len(picked)
-    assert zps.pass_at(picked).k == 2  # the rows themselves can no longer say
+    assert wai.pass_at(picked).k == 2  # the rows themselves can no longer say
 
-    stamp = zps.calibration_of(picked[0])
+    stamp = wai.calibration_of(picked[0])
     assert stamp is not None
     assert (stamp.n, stamp.pass_rate) == (8, pytest.approx(0.75))
 
 
 def test_publish_gate_keeps_a_carried_stamp_and_says_the_report_is_over_fewer_rows():
     rows = _two_trajectory_rows()
-    picked, _report = zps.optimize(rows, mode="rl")
+    picked, _report = wai.optimize(rows, mode="rl")
     gate = publish_gate(picked, mode="rl", policy={"name": "qwen-v3"})
 
     assert gate["calibration"]["n_carried"] == len(picked)
-    stamp = zps.calibration_of(picked[0])
+    stamp = wai.calibration_of(picked[0])
     assert stamp is not None and (stamp.n, stamp.pass_rate) == (8, pytest.approx(0.75))
     assert stamp.student.name == "qwen-v3"  # the gate still fills the policy in
     # The report's own pass_at is over the pruned rows, and says so.
@@ -287,23 +287,23 @@ def test_calibrate_recomputes_when_nothing_was_pruned():
     # the same rows must still measure them.
     rows = _rows({"a": [1, 0, 1, 1]})
     calibrate(rows)
-    assert zps.calibration_of(rows[0]).pass_rate == pytest.approx(0.75)
+    assert wai.calibration_of(rows[0]).pass_rate == pytest.approx(0.75)
     for row in rows:
         row["reward"] = 0
     report = calibrate(rows)
     assert report["n_carried"] == 0
-    assert zps.calibration_of(rows[0]).pass_rate == 0.0
+    assert wai.calibration_of(rows[0]).pass_rate == 0.0
 
 
 def test_optimize_warns_that_the_k_way_numbers_do_not_survive_the_prune():
     rows = _two_trajectory_rows()
-    _picked, report = zps.optimize(rows, mode="rl")
+    _picked, report = wai.optimize(rows, mode="rl")
     assert any("pass^k / pass@k do not survive the prune" in w for w in report["hygiene_warnings"])
     # Nothing to warn about when the groups come through intact.
     varied = [
         dict(row, final_text=f"{row['final_text']} note {i}")
         for i, row in enumerate(_rows({f"ask {t}": [1, 0, 1, 0, 1, 0, 1, 0] for t in range(6)}))
     ]
-    _kept, clean = zps.optimize(varied, mode="rl")
+    _kept, clean = wai.optimize(varied, mode="rl")
     assert clean["duplicates"]["n_dropped"] == 0
     assert not any("pass^k / pass@k" in w for w in clean["hygiene_warnings"])
