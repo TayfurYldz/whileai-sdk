@@ -18,6 +18,7 @@ from .generate.adapters import AgentProfile
 from .ingest.platform import push_rows
 from .schema import SCHEMA_KEY, SCHEMA_VERSION, check, stamp
 from .score.grade_llm import apply_grade_llm, require_judge_key, rubric_prompt
+from .score.judge_trust import trust_after_grade
 from .score.llm_judge import MISSING_JUDGE_KEY, apply_llm_grade, resolve_judge_key
 from .score.optimize import select_for_sft
 from .score.quality import rank as rank_source
@@ -420,6 +421,7 @@ class SimulationData:
         use_privileged: bool = False,
         scale: tuple[float, float] | None = None,
         rubric: str | None = None,
+        trust: str = "warn",
     ):
         """Grade after simulation with the hosted judge or a custom callable.
 
@@ -442,11 +444,17 @@ class SimulationData:
         feeds ``export_training`` and ``simulate(traces=...)`` directly.
         ``version=`` names the judge's version (model, rubric hash) and is
         recorded on every scored row; the hosted grader stamps its own.
+
+        Every path then checks the judge against the rows' human labels
+        (``attach_labels(kind="human")``) and stamps the summary on each
+        graded row's ``judge_meta["trust"]``. ``trust="warn"`` (default)
+        logs one line when the check failed or no labels exist,
+        ``"require"`` raises instead, ``"off"`` skips it.
         """
         if judge is not None:
             from .score.judging import run_judge
 
-            return run_judge(
+            scored = run_judge(
                 self.trajectories,
                 judge,
                 source="grade",
@@ -454,6 +462,10 @@ class SimulationData:
                 version=version,
                 scale=scale,
             )
+            note = trust_after_grade(scored.rows, mode=trust)["note"]
+            if note:
+                log.warning(note)
+            return scored
         if llm:
             return self.llm_grade(
                 spec=llm_spec, concurrency=llm_concurrency, api_key=api_key, path=path
@@ -466,6 +478,7 @@ class SimulationData:
                 api_key=api_key,
                 path=path,
                 use_privileged=use_privileged,
+                trust=trust,
             )
 
         def score(t):
@@ -493,6 +506,9 @@ class SimulationData:
             slot = self.arm_yield.setdefault(t["arm"], {"executed": 0, "failing": 0})
             slot["executed"] += 1
             slot["failing"] += t["reward"] < 1.0
+        note = trust_after_grade(self.trajectories, mode=trust)["note"]
+        if note:
+            log.warning(note)
         self._rewrite(path)
         return self
 
@@ -534,11 +550,13 @@ class SimulationData:
         prompt: str | None = None,
         use_privileged: bool = False,
         rubric: str | None = None,
+        trust: str = "warn",
     ):
         """Binary 0/1 situation grade. Default brain is the hosted judge
         (Phi-4 unless ``WHILEAI_JUDGE`` is set), never the policy model.
         ``use_privileged`` shows the judge each row's ``privileged`` block
-        (principle, reference, hidden state) the agent never saw."""
+        (principle, reference, hidden state) the agent never saw. ``trust``
+        is the judge check against human labels: see ``grade``."""
         require_judge_key(api_key, spec=spec, base_url=base_url, model=model)
         policy = str(self.profile.policy or "") if self.profile else ""
         tools = list(self.profile.tools) if self.profile else []
@@ -572,6 +590,7 @@ class SimulationData:
             concurrency=concurrency,
             limit=limit,
             degraded=self.degraded,
+            trust=trust,
         )
         report["rubric"] = rubric_source
         if rubric_source == "conduct_floor":
@@ -877,6 +896,7 @@ def grade_llm(
     policy: str = "",
     tools: list | None = None,
     use_privileged: bool = False,
+    trust: str = "warn",
 ):
     """Binary 0/1 situation grade. Default brain is hosted Qwen.
 
@@ -887,6 +907,8 @@ def grade_llm(
     that many rows then stops. Hosted Qwen reads ``VLLM_API_KEY``.
     For a path or row list, pass ``policy=`` and ``tools=`` so the judge
     sees the agent's rules; a ``SimulationData`` supplies its own.
+    ``trust`` is the judge check against human labels: see
+    ``SimulationData.grade``.
     """
     if isinstance(source, SimulationData):
         return source.grade_llm(
@@ -899,6 +921,7 @@ def grade_llm(
             limit=limit,
             prompt=prompt,
             use_privileged=use_privileged,
+            trust=trust,
         )
     from .score.quality import load_jsonl, write_jsonl
 
@@ -920,6 +943,7 @@ def grade_llm(
         concurrency=concurrency,
         limit=limit,
         use_privileged=use_privileged,
+        trust=trust,
     )
     dest = path or output or src
     if dest:

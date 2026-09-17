@@ -5,6 +5,30 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- The judge is checked by default. `grade` (the hosted judge, `judge=`, and
+  `grader=` paths) ends by measuring the judge against the rows' human labels
+  and stamps the summary on every graded row as `judge_meta["trust"]`
+  (`agreement`, `agreement_low`, `kappa`, `n_gold`, `ok`) and in the report's
+  `trust`; with no human labels it prints one line saying so. `trust="warn"`
+  (default), `"require"` (raise), or `"off"` on `data.grade`, `data.grade_llm`,
+  `grade_llm`, and `apply_grade_llm`. `publish_gate` reports it as
+  `judge_trust`. `trust_after_grade` is the helper.
+- Gold has provenance. `attach_labels` writes `gold_kind` next to
+  `gold_reward` (`"human"`, or `"model"` for a model's labels).
+  `judge_trust` and `judge_agreement` report `gold_kind` and return
+  `ok=False` with the reason when the labels are a model's, a second judge
+  pass, or unknown (older rows with `gold_reward` and no kind);
+  `allow_model_gold=True` keeps the old behavior. Rows hand-labeled before
+  this release need `gold_kind="human"` (re-run `attach_labels`) to count.
+- A floor, not a hint. `judge_trust(min_agreement=0.8, min_kappa=0.6)`: the
+  Wilson lower bound of agreement and kappa must clear the floors or `ok` is
+  false with the number, the floor, and the fix in one sentence. The
+  kappa-under-0.4 hint is replaced by the floor, so `ok` can now be false on
+  a labeled judge that used to pass.
+- The auditor cannot be the grader. `audit_grades` swaps to the other hosted
+  model when the resolved auditor is the model that graded the rows (Phi-4
+  to hosted Qwen and back), records `grader` and `auditor` in the report,
+  and raises `ValueError` when no different model is available.
 - Every row says how it was sampled. `sampling` is now on every row a
   model backend produces (the default hosted agent, `agent="vllm:..."` /
   `"openai:..."`, `backend=`, an HTTP agent), as `{"temperature",

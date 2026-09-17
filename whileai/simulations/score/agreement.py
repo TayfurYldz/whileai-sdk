@@ -11,7 +11,10 @@ judge that fails a pass only wastes a row.
 
 The same function measures self-consistency: judge the same rows twice
 and pass the second run as ``gold``. Agreement below what two humans
-would reach is the ceiling on any drift alarm built on this judge.
+would reach is the ceiling on any drift alarm built on this judge. That
+is a consistency number, not an accuracy one, so the report says so:
+``gold_kind`` names where the labels came from and ``ok`` is false
+unless they came from a person (``allow_model_gold=True`` opts out).
 """
 
 from __future__ import annotations
@@ -26,6 +29,27 @@ MIN_GOLD = 50
 # A judge that passes one in ten gold failures leaks that many bad rows
 # into a training set at the pass rate of the run.
 LEAK_THRESHOLD = 0.1
+# Where a row's gold label came from: "human" from attach_labels(kind="human"),
+# "model" from a model's labels or a second judge pass, "unknown" when a row
+# carries gold_reward with no record of who wrote it (older data).
+GOLD_KIND_KEY = "gold_kind"
+MODEL_GOLD_REASON = (
+    "The gold labels came from a model, not a person, so this does not measure the "
+    "judge. Label 50 rows with attach_labels(rows, labels, kind='human') and run again."
+)
+
+
+def gold_kind_of(kinds: Any) -> str | None:
+    """One word for a set of label kinds: ``"human"`` only when every
+    label is a person's; otherwise the other kind (``"model"``,
+    ``"unknown"``, or ``"mixed"`` when there are several)."""
+    names = {str(k or "unknown") for k in kinds}
+    if not names:
+        return None
+    if names == {"human"}:
+        return "human"
+    others = sorted(k for k in names if k != "human")
+    return others[0] if len(others) == 1 else "mixed"
 
 
 def _label(value: Any) -> int | None:
@@ -64,23 +88,30 @@ def judge_agreement(
     gold: str | Sequence[dict] = "gold_reward",
     *,
     reward: str = "reward",
+    allow_model_gold: bool = False,
 ) -> dict[str, Any]:
     """Agreement between the judge's ``reward`` and a trusted label.
 
     ``gold`` is either a key on the same rows (default ``gold_reward``,
-    the field to fill when you hand-label a sample) or a second row list
-    from another scoring pass, matched by rollout id, scenario id plus
-    rollout index, or prompt plus final text. Only exact 0/1 labels on
-    both sides count; partial scores and unjudged rows are reported as
-    skipped, not guessed.
+    the field ``attach_labels`` fills when you hand-label a sample) or a
+    second row list from another scoring pass, matched by rollout id,
+    scenario id plus rollout index, or prompt plus final text. Only exact
+    0/1 labels on both sides count; partial scores and unjudged rows are
+    reported as skipped, not guessed.
 
     Returns ``n``, ``agreement``, ``kappa`` (Cohen, chance-corrected), the
     confusion counts, ``pass_when_gold_fail`` (the leak rate: gold
     failures the judge passed) and ``fail_when_gold_pass``, both pass
-    rates, and ``warnings``.
+    rates, ``gold_kind`` (where the labels came from: ``"human"``,
+    ``"model"``, ``"unknown"`` for rows with no record), ``ok`` (rows were
+    compared and the labels are a person's), and ``warnings``. A second
+    judge pass is model gold; rows with ``gold_reward`` but no
+    ``gold_kind`` are unknown; either makes ``ok`` false with the reason
+    unless ``allow_model_gold=True``.
     """
     judged = [r for r in rows if isinstance(r, dict)]
     pairs: list[tuple[int, int]] = []
+    kinds: set[str] = set()
     skipped = 0
     unmatched = 0
     if isinstance(gold, str):
@@ -90,7 +121,9 @@ def judge_agreement(
                 skipped += 1
                 continue
             pairs.append((j, g))
+            kinds.add(str(row.get(GOLD_KIND_KEY) or "unknown"))
     else:
+        kinds.add("model")
         by_key: dict[str, dict] = {}
         for row in gold:
             if isinstance(row, dict):
@@ -131,6 +164,10 @@ def judge_agreement(
             f"judge passed {fp} of {fp + tn} gold failures ({leak:.0%}); those rows train "
             "the failure, not the behavior"
         )
+    gold_kind = gold_kind_of(kinds) if n else None
+    trusted = gold_kind == "human" or allow_model_gold
+    if n and not trusted:
+        warnings.append(MODEL_GOLD_REASON)
     return {
         "n": n,
         "n_skipped": skipped,
@@ -142,8 +179,18 @@ def judge_agreement(
         "fail_when_gold_pass": round(miss, 4) if miss is not None else None,
         "judge_pass_rate": round((tp + fp) / n, 4) if n else None,
         "gold_pass_rate": round((tp + fn) / n, 4) if n else None,
+        "gold_kind": gold_kind,
+        "ok": bool(n) and trusted,
         "warnings": warnings,
     }
 
 
-__all__ = ["LEAK_THRESHOLD", "MIN_GOLD", "judge_agreement", "row_key"]
+__all__ = [
+    "GOLD_KIND_KEY",
+    "LEAK_THRESHOLD",
+    "MIN_GOLD",
+    "MODEL_GOLD_REASON",
+    "gold_kind_of",
+    "judge_agreement",
+    "row_key",
+]
