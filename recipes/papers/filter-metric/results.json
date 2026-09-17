@@ -1,0 +1,20 @@
+{
+  "recipe": "filter-metric",
+  "title": "Filter metric: phantom advantages under a shaped reward",
+  "paper": "https://arxiv.org/abs/2609.13866",
+  "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "metric": "pass@1",
+  "n_holdout": 120,
+  "k": 4,
+  "arms": {
+    "base": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
+    "baseline": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
+    "recipe": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0}
+  },
+  "delta": {"recipe_vs_baseline": 0.0, "ci": [0.0, 0.0], "verdict": "flat"},
+  "gpu": "L40S",
+  "usd": 0.0,
+  "verified": "1970-01-01",
+  "zeroproof": "0.48",
+  "run_url": ""
+}
