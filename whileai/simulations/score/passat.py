@@ -195,6 +195,25 @@ class PassAt:
         return f"{head} {tail})"
 
 
+def _nothing_to_score(rows: Sequence[dict]) -> str:
+    """Why no row carried a binary reward.
+
+    "grade first" is right when nothing has been judged, and wrong -- it
+    sends the user back to the step that already ran -- when grading did
+    happen and every row failed. A cold hosted judge does exactly that: all
+    the concurrent calls time out together and the whole set reads as
+    ungraded.
+    """
+    judged = [r for r in rows if isinstance(r, dict) and r.get("judge_status")]
+    failed = [r for r in judged if str(r.get("judge_status")) != "ok"]
+    if not judged or len(failed) != len(judged):
+        return "no binary rewards; grade first"
+    statuses = "/".join(sorted({str(r.get("judge_status")) for r in failed}))
+    reason = next((str(r.get("reason") or "").strip() for r in failed if r.get("reason")), "")
+    tail = f": {reason[:120]}" if reason else ""
+    return f"the judge failed on all {len(failed)} rows ({statuses}){tail}; re-run the judge"
+
+
 def pass_at(
     rows: Sequence[dict] | Any,
     *,
@@ -249,7 +268,7 @@ def pass_at(
             pass_at_k=None,
             n_groups=0,
             n_rows=0,
-            note="no binary rewards; grade first",
+            note=_nothing_to_score(row_list),
             config=run_config(row_list, n_tasks=0, k=int(k or 1)),
         )
 
