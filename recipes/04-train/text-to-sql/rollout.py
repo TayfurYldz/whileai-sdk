@@ -22,6 +22,7 @@ sets when unset.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -39,7 +40,6 @@ from sql_verifier import (
     read_jsonl,
     split_of,
     system_prompt,
-    write_jsonl,
 )
 
 import zeroproof.simulations as zps
@@ -88,6 +88,41 @@ def claude_agent(model: str, max_tokens: int = 800):
     return agent
 
 
+def warm(spec: str, minutes: float = 15) -> None:
+    """One cheap request so a scale-to-zero endpoint is up before the run.
+
+    simulate() stops after 16 failed calls, which a cold vLLM server produces in
+    about a minute of startup; a single blocking call absorbs the cold start.
+    """
+    from urllib import error, request
+
+    from zeroproof.simulations.generate.agents import parse_backend_spec, resolve_completion_key
+
+    base_url, model = parse_backend_spec(spec)
+    key = resolve_completion_key(base_url)
+    body = json.dumps(
+        {"model": model, "messages": [{"role": "user", "content": "ok"}], "max_tokens": 1}
+    ).encode()
+    req = request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+    )
+    deadline = time.time() + minutes * 60
+    while True:
+        try:
+            with request.urlopen(req, timeout=600):
+                return
+        except error.HTTPError as exc:
+            if exc.code in (401, 403, 404):
+                return  # not a cold start; let the run report it
+        except Exception:
+            pass
+        if time.time() > deadline:
+            return
+        time.sleep(15)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen3-4b", choices=sorted(MODELS))
@@ -95,6 +130,16 @@ def main() -> int:
         "--hosted", default="", help="a model served from your account (zps.serve name)"
     )
     ap.add_argument("--agent", default="", help="any SDK agent spec, e.g. openai:gpt-4.1-mini")
+    ap.add_argument(
+        "--system-prefix",
+        default="",
+        help="text placed before the schema prompt (e.g. a Nemotron reasoning switch: 'detailed thinking on')",
+    )
+    ap.add_argument(
+        "--name",
+        default="",
+        help="file stem for raw/<name>.jsonl (default: derived from the model)",
+    )
     ap.add_argument("--k", type=int, default=4)
     ap.add_argument("--split", default="all", choices=["all", "holdout", "train"])
     ap.add_argument("--concurrency", type=int, default=8)
@@ -111,7 +156,9 @@ def main() -> int:
     if args.hosted:
         name, spec = f"hosted-{args.hosted}", f"vllm:{args.hosted}@{SERVE_URL}"
     elif args.agent:
-        name, spec = args.agent.replace(":", "-").replace("/", "-"), args.agent
+        name, spec = args.agent.split("@")[0].replace(":", "-").replace("/", "-"), args.agent
+    if args.name:
+        name = args.name
     if isinstance(spec, str) and spec.startswith("claude-"):
         spec = claude_agent(spec)
 
@@ -131,9 +178,16 @@ def main() -> int:
     if not todo:
         return 0
 
+    if isinstance(spec, str) and spec.startswith("vllm:"):
+        warm(spec)
     t0 = time.time()
+    sys_p = (
+        (args.system_prefix.strip() + "\n\n" + system_prompt())
+        if args.system_prefix
+        else system_prompt()
+    )
     kw = dict(
-        system_prompt=system_prompt(),
+        system_prompt=sys_p,
         tasks=[{"prompt": t["question"], "scenario_id": t["id"]} for t in todo],
         repeats=args.k,
         # one user turn, one reply: no simulated follow-ups. avg_turns=1 also
@@ -171,11 +225,21 @@ def main() -> int:
         r["agent"] = AGENT
         r["model_version"] = name
         rows.append(r)
-    write_jsonl(out_path, have + rows)
+    # append, never rewrite: two runs on the same file (a top-up next to a long
+    # sampling job) lost rows when the second finished with a stale copy
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, default=str) + "\n")
     print(
         f"  {len(rows)} rows in {time.time() - t0:.0f}s ({data.stopped_because}); {len(have) + len(rows)} on disk",
         flush=True,
     )
+    if data.search.get("agent_errors"):
+        print(
+            f"  agent errors {data.search['agent_errors']}; first: {data.search.get('first_agent_error')}",
+            flush=True,
+        )
     return 0
 
 
