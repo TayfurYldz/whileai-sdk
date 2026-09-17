@@ -26,7 +26,15 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from .passat import pass_at
-from .stats import DEFAULT_BOOT, compare_runs, eval_variance, marker_names, task_means
+from .stats import (
+    DEFAULT_BOOT,
+    compare_runs,
+    detectable_effect,
+    eval_variance,
+    holdout_size,
+    marker_names,
+    task_means,
+)
 
 GROUP_KEYS = ("delta", "ci95", "verdict", "mean_a", "mean_b", "n_used", "n_paired", "paired")
 
@@ -327,6 +335,32 @@ def delta_report(
     headline_key = target_key if target_result else "pass_at_1"
     if headline.get("note"):
         warnings.append(f"{headline_key}: {headline['note']}")
+    # Eval size: a no-change verdict is only as strong as the band the
+    # task count allows. Say what this holdout can prove and what the
+    # delta seen here would have needed (#257).
+    n_paired = int(headline.get("n_paired") or 0)
+    k_eval = int(pass_at(before).config.get("k") or 1)
+    base_rate = float(mean_a) if mean_a is not None else 0.6
+    can_prove = detectable_effect(n_paired, base=base_rate, k=k_eval) if n_paired >= 2 else None
+    tasks_needed: int | None = None
+    delta_seen: float | None = None
+    raw_delta = headline.get("delta")
+    if isinstance(raw_delta, (int, float)) and 0 < raw_delta < 1:
+        delta_seen = float(raw_delta)
+        tasks_needed = holdout_size(delta_seen, base=base_rate, k=k_eval)["n_tasks"]
+    verdict_word = (
+        target_verdict if target_result else _verdict_word(results["pass_at_1"], replicated)
+    )
+    if verdict_word == "no_change_detected" and can_prove is not None:
+        line = (
+            f"{n_paired} paired tasks at k={k_eval} can prove a gain of about "
+            f"+{can_prove:.2f} at 80% power"
+        )
+        if tasks_needed is not None and delta_seen is not None:
+            line += (
+                f"; to prove the {delta_seen:+.3f} seen here you need about {tasks_needed} tasks"
+            )
+        warnings.append(line + " (holdout_size).")
     if target_verdict == "target_not_measured":
         warnings.append(f"target {target!r} is not on both row sets")
     groups: dict[str, dict[str, Any]] | None = None
@@ -398,6 +432,8 @@ def delta_report(
         "eval_runs": eval_runs,
         "replicated": replicated,
         "ceiling": ceiling,
+        "detectable_effect": can_prove,
+        "tasks_needed": tasks_needed,
         "proxy": proxy_key,
         "proxy_verdict": proxy_verdict,
         "proxy_delta": proxy_result["delta"] if proxy_result else None,

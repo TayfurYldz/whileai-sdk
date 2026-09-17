@@ -57,6 +57,116 @@ def wilson_interval(successes: int, n: int, *, z: float = 1.96) -> tuple[float, 
     return (max(0.0, center - half), min(1.0, center + half))
 
 
+def _z(p: float) -> float:
+    from statistics import NormalDist
+
+    return NormalDist().inv_cdf(p)
+
+
+def _paired_task_sd(base: float, effect: float, k: int) -> float:
+    """Standard deviation of one task's paired difference (after minus
+    before pass rate over ``k`` rollouts each side) when the gain lands
+    uniformly: before at ``base``, after at ``base + effect``."""
+    p = min(1.0, max(0.0, float(base)))
+    q = min(1.0, max(0.0, p + float(effect)))
+    kk = max(1, int(k))
+    return math.sqrt((p * (1 - p) + q * (1 - q)) / kk)
+
+
+def _rows_base_and_k(rows: Sequence[dict]) -> tuple[float, int]:
+    """Mean per-task pass rate and the smallest rollouts-per-task on graded
+    rows: what ``delta_report`` would pair on."""
+    groups: dict[str, list[float]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        value = _binary(row)
+        if value is None:
+            continue
+        groups.setdefault(task_key(row), []).append(value)
+    if not groups:
+        raise ValueError("rows carry no 0/1 rewards; grade them first, or pass base= and k=")
+    base = _mean([_mean(v) for v in groups.values()])
+    k = min(len(v) for v in groups.values())
+    return base, k
+
+
+def holdout_size(
+    effect: float,
+    *,
+    base: float = 0.6,
+    k: int = 4,
+    power: float = 0.8,
+    alpha: float = 0.05,
+    rows: Sequence[dict] | None = None,
+) -> dict[str, Any]:
+    """How many paired tasks a holdout needs to prove a gain of ``effect``.
+
+    Models the test ``delta_report`` runs: each task's pass rate over
+    ``k`` rollouts on each side, the delta as the mean of the paired
+    differences, the interval from a bootstrap over tasks. A task's
+    difference then has standard deviation
+    ``sqrt((p(1-p) + q(1-q)) / k)`` with ``p = base`` and ``q = base +
+    effect``, and the usual two-sided power calculation gives
+    ``n = ((z_{1-alpha/2} + z_power) * sd / effect) ** 2`` (rlhf-book ch. 16,
+    appendix C: the eval's own variance decides what a delta can mean).
+    It assumes the gain lands uniformly across tasks; a gain concentrated
+    on a few tasks needs more.
+
+    ``rows`` (graded before-side rows) reads ``base`` and ``k`` off the
+    data instead. Returns ``n_tasks`` plus the inputs, ``sd_task``, and
+    ``half_width``: the 95% band on the delta at that ``n``.
+
+    The recipe that asked for this had 140 tasks at k=4 around 0.6: a
+    band of about +-0.06, so a real 3-point gain reads
+    ``no_change_detected`` every round. This says so before training.
+    """
+    if not 0 < float(effect) < 1:
+        raise ValueError(
+            "effect is the gain in pass rate to prove, between 0 and 1 (0.05 = 5 points)"
+        )
+    if not 0 < power < 1 or not 0 < alpha < 1:
+        raise ValueError("power and alpha are probabilities strictly between 0 and 1")
+    if rows is not None:
+        base, k = _rows_base_and_k(rows)
+    sd = _paired_task_sd(base, effect, k)
+    z = _z(1 - alpha / 2) + _z(power)
+    n = math.ceil((z * sd / float(effect)) ** 2) if sd > 0 else 1
+    n = max(n, 2)
+    return {
+        "n_tasks": n,
+        "effect": float(effect),
+        "base": float(base),
+        "k": int(k),
+        "power": float(power),
+        "alpha": float(alpha),
+        "sd_task": round(sd, 4),
+        "half_width": round(_z(1 - alpha / 2) * sd / math.sqrt(n), 4),
+    }
+
+
+def detectable_effect(
+    n_tasks: int,
+    *,
+    base: float = 0.6,
+    k: int = 4,
+    power: float = 0.8,
+    alpha: float = 0.05,
+) -> float | None:
+    """The smallest gain ``n_tasks`` paired tasks can prove at ``power``:
+    ``holdout_size`` solved for the effect (a few fixed-point steps, since
+    the after-side variance depends on it). ``None`` below two tasks."""
+    n = int(n_tasks)
+    if n < 2:
+        return None
+    z = _z(1 - alpha / 2) + _z(power)
+    effect = 0.0
+    for _ in range(12):
+        sd = _paired_task_sd(base, effect, k)
+        effect = z * sd / math.sqrt(n)
+    return round(min(1.0, effect), 4)
+
+
 def bootstrap_ci(
     values: Sequence[float],
     *,
