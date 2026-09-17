@@ -26,40 +26,50 @@ Needs `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` (Modal workspace `zeroproofai`).
 
 ## Result
 
-**Not run.** This recipe was written in a session with no Modal credentials, so there is no GPU number to report and `results.json` carries `"verified": "1970-01-01"`, which this repo uses to mean never run. Every cell below fills in on the first run. None of them are estimates.
+Run today, both arms, on one L40S. Round 2 is the headline because round 1's
+numbers were set by the eval's token budget rather than by the training: see
+Climb.
 
 | Arm | pass@1 | 95% CI | pass@k | Steps | GPU min |
 |---|---|---|---|---|---|
-| Base, no training | — | — | — | 0 | 0 |
-| Baseline (full trace) | — | — | — | — | — |
-| Recipe (endpoints only) | — | — | — | — | — |
+| Base, no training | 0.46 | [0.36, 0.56] | 0.69 | 0 | 0 |
+| Baseline (full trace) | 0.29 | [0.21, 0.37] | 0.53 | 75 | 47.7 |
+| Recipe (endpoints only) | 0.28 | [0.20, 0.36] | 0.50 | 75 | 21.7 |
 
-Recipe vs baseline: not measured. Verdict: **flat** — a verdict with no run behind it is not a result.
+Recipe vs baseline: **-0.012 [-0.074, +0.047]** over 64 paired problems.
+Verdict: **flat**. The interval covers zero, and the proxy check says
+**over-optimized**: the shape of the trace moved +0.137 [+0.070, +0.207] while
+pass@1 did not follow it.
 
-What did get measured today, on the CPU, through the shipped code path:
+The number that is not in the paper's table: **both SFT arms land below the
+untrained base** (0.46 -> 0.29 and 0.28). 600 traces of one epoch on a 1.5B
+teaches this model to write like R1 without teaching it to answer like R1. The
+paper starts from models that are already trained this way; this recipe starts
+from an instruct model, and that difference costs more than the change under
+test is worth.
+
+Also measured, on the CPU, before anything trained:
 
 | Measured without a GPU | Number |
 |---|---|
 | Train traces after filtering | 600, median 50 steps, median 2464 tokens |
 | `n` chosen by the paper's 20% rule | 21 steps at each end |
-| Trace tokens the cut removes | 19.2% (1,464,426 → 1,181,008 target tokens) |
-| Traces with no middle to remove (≤ 2n steps) | 230 of 600 |
+| Trace tokens the cut removes | 19.2% (1,464,426 -> 1,181,008 target tokens) |
+| Traces with no middle to remove (<= 2n steps) | 230 of 600 |
 | `decontaminate(train, against=holdout)` | 0 of 600 dropped, and 0 against all 500 MATH-500 problems |
-
-`python recipe.py --selftest` checks the truncation rule itself: that the ends keep `<think>`, `</think>` and the boxed answer, that a short trace comes back untouched, that the drop falls as `n` rises, and that `n` is chosen by token mass rather than by trace count. What none of it says is whether the change moves pass@1. That needs the GPU run.
 
 ## Checks
 
-Nothing here is ticked by hand: every cell is written by `recipe.py` into `results.json`. The rows that need a trained model are empty because the run has not happened; the rows that do not are filled in and say so.
+Nothing here is ticked by hand: every cell is written by `recipe.py` into `results.json`. These are the round 2 numbers.
 
 | Check | Book | Result |
 |---|---|---|
-| Eval noise: the base evaluated 3 times, `eval_variance` run_std | ch. 16 | not run — a delta under 2 x run_std will be called noise |
+| Eval noise: the base evaluated 3 times, `eval_variance` run_std | ch. 16 | **run_std 0.0135**, so a delta under 0.027 is noise. The measured delta, 0.012, is inside that band twice over |
 | Holdout is clean: `decontaminate(train, against=holdout)` | ch. 16 | **run today, CPU: 0 of 600 train rows dropped** (also 0 against all 500 MATH-500 problems). OpenR1-Math-220k comes from NuminaMath and MATH-500 is a slice of the MATH test set, so this was worth measuring rather than assuming |
 | Reward is a program, not a judge | ch. 7, 13 | `MathEqual` against the public MATH-500 gold answer. No judge, no model in the loop |
 | Proxy vs target: `delta_report(proxy=)` | ch. 14 | `proxy="marker:trace_form"`: SFT optimizes the *shape* of the trace (a closed `<think>` block ending in `\boxed{}`) whether or not the answer is right. If that rises and pass@1 does not, the report says over-optimized and the verdict cannot be "moved" |
-| Length: mean completion length before -> after, per arm | ch. 14 | not run. Worth watching here: the recipe arm is trained on shorter targets, so a length drop is expected and is not by itself a win |
-| Hack scan on the last training batch: `hack_scan` | ch. 14 | not run. SFT has no per-rollout training reward to scan, so this runs on the arm's graded holdout rollouts instead — what separates a right answer from a wrong one. Nothing is endorsed |
+| Length: mean completion length before -> after, per arm | ch. 14 | **1,619 chars base -> 5,473 baseline, 5,245 recipe.** Both arms more than tripled their output. The recipe arm is trained on shorter targets and still writes nearly as much, so the cut did not buy the brevity it looks like it should |
+| Hack scan on the last training batch: `hack_scan` | ch. 14 | SFT has no per-rollout training reward, so this scans the arm's graded holdout rollouts. Round 1's baseline named **`truncated`** as its top feature — the scan found the eval cap before I did. At 2048 tokens it names ordinary prose (`contains:approach AND contains:two`), which is the scan saying it has nothing |
 | Pinned: seed, torch, transformers, trl, peft | app. C | seed 17 in the trainer, `--seed 0` for the holdout draw; torch 2.7.1, transformers 4.54.0, trl 0.19.1, peft 0.16.0 |
 
 Both arms share the seed, the problems, the holdout, the grader and every trainer knob. The target text is the only difference, so the delta has one cause available to it.
@@ -68,14 +78,28 @@ Both arms share the seed, the problems, the holdout, the grader and every traine
 
 | Round | What changed | pass@1 | vs previous |
 |---|---|---|---|
-| 1 | as the paper: n chosen for a ~20% token drop (n=21 here), 600 traces, 1 epoch, lr 1e-4 | not run | — |
+| 1 | as the paper: n chosen for a ~20% token drop (n=21 here), 600 traces, 1 epoch, lr 1e-4, eval budget 1024 tokens | baseline 0.16, recipe 0.20 | +0.039 [-0.016, +0.094], flat |
+| 2 | same arms, same seed, eval budget raised 1024 -> 2048 tokens | baseline 0.29, recipe 0.28 | -0.012 [-0.074, +0.047], flat |
 
-The knob the paper says matters is the cutoff itself: Figure B reports that performance is flat across a broad band of retained-step counts but falls off under heavy truncation. Round 2, if round 1 is flat and budget is left, lowers the target drop so the cut reaches the 230 traces it currently leaves alone — the direction the paper's own curve says has room before it hurts.
+Round 2 does not change the method; it changes what the eval could see, and
+that is why it is the headline. Round 1's `hack_scan` named `truncated` as the
+feature separating right answers from wrong ones in the baseline arm: both arms
+had learned to write past the 1024-token cap, so the grader was reading
+unfinished answers. Doubling the cap recovered 13 points for the baseline and 8
+for the recipe — and took the recipe's apparent +0.039 edge with it. That edge
+was the recipe arm's shorter output fitting a budget the baseline arm
+overflowed, not the cut teaching anything.
+
+The knob the paper says matters is the cutoff itself (its Figure B: flat across
+a broad band of retained-step counts, falling off under heavy truncation).
+Testing that is round 3, and it is worth doing only on a base that SFT does not
+already move backwards.
 
 ## Learned
 
-- The paper's dataset-wide single `n` leaves a lot of the data alone: at n=21, 230 of 600 traces here have 42 steps or fewer, so they are byte-identical between the arms. The change is real for 62% of the rows and absent for the rest, which caps how large a delta this design can produce before anything is trained.
-- The effect size this recipe can see is far bigger than the effect the paper reports. On Qwen3-4B the paper's E-SFT gain averages +1.07 points, and it is *negative* on MATH itself (91.60 → 91.13). A 64-problem holdout at k=4 cannot resolve a point. So what this recipe actually tests is the paper's weaker, more useful claim: that dropping ~20% of the trace tokens does not cost pass@1. A flat verdict is the expected outcome and is worth shipping.
+- **The eval budget decided round 1.** At 1024 tokens both trained arms were being graded on answers they had not finished, and the recipe arm looked +0.039 better for writing less. At 2048 the gap is -0.012. Nothing about the method changed between those two numbers. A length-changing intervention measured under a length cap reports the cap.
+- **Dropping 19.2% of the trace tokens cost nothing measurable, which is the paper's weaker claim and the one this budget can test.** Its stronger claim is a +1.07 average gain on Qwen3-4B, and a 64-problem holdout at k=4 cannot resolve a point — so read the flat verdict as "no cost detected", not as "no gain exists". The paper's dataset-wide single `n` also leaves 230 of 600 traces byte-identical between the arms, so the change is absent for 38% of the rows before anything trains.
+- **Both arms are worse than not training at all** (0.46 -> 0.29 / 0.28), and the proxy check says why: trace *form* moved +0.137 while pass@1 moved -0.012. The model learned the costume — a closed `<think>` block ending in a boxed answer — and not the reasoning inside it. This is ch. 14's over-optimization with an SFT loss instead of a reward model, and it is the reason the verdict here could not be "moved" even if the delta had been large.
 - Gradient checkpointing is on here, unlike the GRPO recipes next door. Their rule is about trainers that generate while they train, where checkpointing corrupts Qwen generation on these pins. `SFTTrainer` is teacher-forced and never generates, so the rule does not reach it, and 4096-token sequences want the memory back.
 
-Verified 1970-01-01 (never run), whileai 0.51, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. Run page: none yet.
+Verified 2026-09-17, whileai 0.53, TRL 0.19.1 + PEFT 0.16.0 on torch 2.7.1. 69.4 GPU minutes, $2.31 on one L40S (round 1: 43.1 minutes, $1.42). Run page: https://www.zeroproofai.com/platform/training/run_aca24d9fdb020c5b
