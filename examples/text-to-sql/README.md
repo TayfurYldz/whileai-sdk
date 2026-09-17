@@ -205,13 +205,17 @@ training file.
 ## The hill climb (thinking on, GRPO, execution reward)
 
 Measured through `rollout.py --hosted <name>` (the SDK path, `agent_max_tokens=4096`,
-`timeout=300`), 81 held-out tasks, 4 samples each, paired by task.
+`timeout=300`), 4 samples per task, paired by task. The holdout grew from 81
+to 140 tasks when 324 more tasks were authored on the weak archetypes, so
+the intervals below are the 140-task ones (about +-0.06).
 
-| Round | From | Steps | lr / beta | pass@1 (95% CI) | delta vs previous |
+| Round | From | Method | pass@1 (95% CI) | pass^4 | has_sql |
 |---|---|---|---|---|---|
-| base | Qwen/Qwen3-4B, thinking on | - | - | 0.61 (0.53..0.69), pass@4 0.84 | - |
-| r1 | base | 100 | 2e-5 / 0.04 | 0.60 (0.52..0.69) | -0.003 (-0.062..+0.056), flat |
-| r2 | r1 | 200 | 5e-5 / 0.01 | 0.62 (0.53..0.70) | +0.009 (-0.052..+0.071) vs base, flat |
+| base | Qwen/Qwen3-4B, thinking on | - | 0.60 (0.54..0.66) | 0.31 | 0.87 |
+| r1 | base | GRPO 100 steps, lr 2e-5, beta 0.04, HF generate | 0.58 (0.52..0.64) | 0.29 | 0.89 |
+| r2 | r1 | GRPO 200 steps, lr 5e-5, beta 0.01 | 0.60 (0.54..0.67) | 0.34 | 0.90 |
+| sft-think | base | self-distillation: 199 verified traces, hosted SFT 2 epochs | 0.60 (0.54..0.67) | 0.39 | 0.96 |
+| r3 | r2 | GRPO 1,000 steps, vLLM generation, 8 prompts per generate | pending | | |
 
 Neither round moved the holdout, while the training reward did climb
 (round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
