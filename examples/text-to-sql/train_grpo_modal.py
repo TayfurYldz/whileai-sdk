@@ -441,6 +441,7 @@ def main(
     spawn: bool = False,
     use_vllm: bool = False,
     steps_per_generation: int = 1,
+    lora_rank: int = 16,
 ):
     import hashlib
     import json
@@ -477,6 +478,7 @@ def main(
         skip_eval=skip_eval,
         from_run=from_run,
         steps_per_generation=steps_per_generation,
+        lora_rank=lora_rank,
     )
     if spawn:
         # Submit and return. With `modal run --detach` the call keeps running
