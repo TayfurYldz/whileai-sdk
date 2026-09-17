@@ -13,7 +13,7 @@ import pytest
 import zeroproof.simulations as zps
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = REPO_ROOT / "examples" / "character"
+EXAMPLE = REPO_ROOT / "recipes" / "03-select" / "character"
 
 
 def _load(name: str):

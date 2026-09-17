@@ -6,7 +6,7 @@ machinery as everything else (rlhfbook.com ch. 17), aimed at the manner of
 a reply instead of its correctness, and it is mostly a data pipeline: which
 phrases never appear, which replies get chosen over which. This page is the
 recipe as the SDK runs it. The worked example is
-[`examples/character`](../examples/character).
+[`recipes/03-select/character`](../recipes/03-select/character).
 
 ## What the sources say
 
@@ -37,7 +37,7 @@ general capabilities did not move.
 ## The recipe
 
 1. **Constitution.** One principle per trait, in prose, with labeled
-   examples if you have them. `examples/character/from_model_spec.py`
+   examples if you have them. `recipes/03-select/character/from_model_spec.py`
    builds one from the spec. Your own spec works the same way: id, principle,
    examples with `prompt`, `good`, `bad`.
 2. **Prompts.** Situations that make the trait matter. Start from the

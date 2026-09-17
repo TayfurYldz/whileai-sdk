@@ -3,7 +3,7 @@
 ``conduct_grade`` is an honesty floor: it zeroes invented identifiers,
 claimed successes after a failed call, and ignored faults. It has no
 outcome term, so a policy trained on it alone learns that the cheapest
-honest reply is to call nothing (examples/prime-intellect-rl, measured).
+honest reply is to call nothing (recipes/03-select/prime-intellect-rl, measured).
 
 The simulator knows more about every task than a transcript judge does:
 which tool the situation targets, whether the entity exists, whether a

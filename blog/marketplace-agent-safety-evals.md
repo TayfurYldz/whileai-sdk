@@ -20,7 +20,7 @@ keywords:
   - zeroproof
 tags: [safety, evals, agents, prompt-injection, data-leakage, multi-tenant]
 reading_time: 14 min
-code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals-marketplace
+code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace
 ---
 
 # How to Test an AI Agent for Data Leaks: Safety Evals for Multi-Tenant Agents on User-Generated Content
@@ -37,7 +37,7 @@ is written by the public, the private data belongs to many tenants, and
 some of what it writes is public. The example runs offline in seconds on
 the open-source [zeroproof SDK](https://github.com/Zero-Proof-AI/zeroproof-sdk),
 and the same suite runs on a real model through Ollama with no API key.
-Code: [`examples/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals-marketplace).
+Code: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace).
 
 ## What is a data leak test for an AI agent?
 
@@ -441,12 +441,12 @@ with the same tasks pinned. Every red-team finding should become a seed
 in the suite, and every production incident too.
 
 **Where do the numbers come from?**
-`python examples/safety-evals-marketplace/run.py` in the SDK repo, seed
+`python recipes/02-measure/safety-evals-marketplace/run.py` in the SDK repo, seed
 0, k=4, about a second, no key. `python live.py` for the model run.
 
 ## Further reading
 
-- The runnable example: [`examples/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals-marketplace)
+- The runnable example: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace)
 - The first post, with the argument for each step on a support agent: [AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks Before You Ship](https://zeroproofai.com/blog/agent-safety-evals)
 - The recipe: [`docs/safety-evals.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/safety-evals.md)
 - OWASP Top 10 for LLM Applications: [owasp.org](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
@@ -466,7 +466,7 @@ in the suite, and every production incident too.
       "mainEntityOfPage": "https://zeroproofai.com/blog/marketplace-agent-safety-evals",
       "keywords": "how to test AI agent for data leaks, AI agent security testing, LLM agent safety evaluation, indirect prompt injection user-generated content, multi-tenant LLM data isolation, prompt injection in reviews, OWASP LLM Top 10, over-refusal, pass^k",
       "proficiencyLevel": "Expert",
-      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals-marketplace",
+      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace",
       "isBasedOn": "https://zeroproofai.com/blog/agent-safety-evals"
     },
     {

@@ -31,7 +31,7 @@ What counts as a read, a write, a delete, or a command is decided from
 the tool's name and its arguments (``path`` plus ``content`` is a write,
 ``command`` is a command, and so on); pass ``kinds={"my_tool": "write"}``
 when an agent's tools do not say what they do. This is a port of
-``examples/agent-behavior/signals.py`` onto the SDK's row shape; the
+``recipes/01-simulate/agent-behavior/signals.py`` onto the SDK's row shape; the
 names are kept so a trace from that example and one from a simulation
 chart on the same axes.
 """

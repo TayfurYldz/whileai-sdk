@@ -6,7 +6,7 @@ reward's author did not mean to pay for. rlhfbook.com ch. 14 calls the
 result over-optimization: the training reward keeps climbing while the
 evaluation you care about flattens and falls. This page is how the SDK
 looks for that gap, before a run, during it, and after. The worked
-example is [`examples/reward-hacking`](../examples/reward-hacking).
+example is [`recipes/02-measure/reward-hacking`](../recipes/02-measure/reward-hacking).
 
 ## What the book says
 

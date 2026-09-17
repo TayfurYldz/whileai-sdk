@@ -3,6 +3,26 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## 0.49 (2026-09-17)
+
+- `examples/` is now `recipes/`, grouped by the step of a post-training run:
+  `01-simulate`, `02-measure`, `03-select`, `04-train`, `05-export`. Every
+  recipe keeps its name (`recipes/04-train/grpo`, `recipes/01-simulate/verifiers`,
+  ...); `examples/README.md` stays as a table from old path to new so links
+  keep resolving. `recipes/README.md` is the index: the five steps, one row per
+  recipe with what you learn / needs / takes, the conventions every recipe
+  follows (README first, `--help`, keys from the environment, `out/` and
+  `raw/` gitignored, every claim a paired number with an interval), and how
+  to add one. Tests moved to `tests/recipes/`; the recipe registry test now
+  walks two levels. The `examples/*` catch-all in `.gitignore` is gone: a new
+  recipe is tracked without a gitignore edit, and only its data files and
+  output folders are listed.
+- `recipes/04-train/text-to-sql`: GRPO generates through vLLM
+  (`--use-vllm`: TRL colocate mode, about 5x the HF path), `--spawn` launches
+  that survive the client, `distill.py` (the base's verified thinking traces as
+  hosted SFT data), 741 tasks with 140 held out, and the round table through
+  round 2 (flat, with the reading).
+
 ## 0.48 (2026-09-16)
 
 - `audit_grades` says what it found. It returned agreement counts only, so a

@@ -28,36 +28,48 @@ htmlcov/
 
 # specs and generated rows stay local. Datasets ship on Hugging Face.
 specs/
+# Recipes are scripts and docs, not data. Generated rows there are covered by
+# the *.jsonl rule above; these are the checked-in exceptions and the
+# per-recipe output folders.
+!recipes/04-train/grpo/prompts.jsonl
+!recipes/04-train/text-to-sql/tasks.jsonl
+recipes/04-train/hosted-loop/hosted-loop.json
+recipes/02-measure/safety-evals-marketplace/*.json
+recipes/03-select/character/out/
+recipes/04-train/identity/out/
+recipes/04-train/text-to-sql/raw/
+recipes/04-train/text-to-sql/out/
+recipes/04-train/text-to-sql/pg/
+recipes/04-train/text-to-sql/author.done.txt
+# the old location; a stub README points at recipes/
 examples/*
-# ...except checked-in examples, which are scripts and docs, not data.
-# Generated rows there are still covered by the *.jsonl rule above.
 !examples/README.md
-!examples/prime-intellect-rl/
-!examples/agent-behavior/
-!examples/identity/
-!examples/schema/
-!examples/pass-at-k/
-!examples/grpo/
-!examples/grpo/prompts.jsonl
-!examples/dpo/
-!examples/character/
-!examples/hugging-face/
-!examples/bring-your-own-agent/
-!examples/hosted-loop/
-examples/hosted-loop/hosted-loop.json
-!examples/verifiers/
-!examples/reward-hacking/
-!examples/text-to-sql/
-!examples/text-to-sql/tasks.jsonl
-examples/text-to-sql/raw/
-examples/text-to-sql/out/
-examples/text-to-sql/pg/
-examples/text-to-sql/author.done.txt
-!examples/safety-evals/
-!examples/safety-evals-marketplace/
-examples/safety-evals-marketplace/*.json
-examples/character/out/
-examples/identity/out/
+!recipes/03-select/prime-intellect-rl/
+!recipes/01-simulate/agent-behavior/
+!recipes/04-train/identity/
+!recipes/03-select/schema/
+!recipes/02-measure/pass-at-k/
+!recipes/04-train/grpo/
+!recipes/04-train/grpo/prompts.jsonl
+!recipes/04-train/dpo/
+!recipes/03-select/character/
+!recipes/05-export/hugging-face/
+!recipes/01-simulate/bring-your-own-agent/
+!recipes/04-train/hosted-loop/
+recipes/04-train/hosted-loop/hosted-loop.json
+!recipes/01-simulate/verifiers/
+!recipes/02-measure/reward-hacking/
+!recipes/04-train/text-to-sql/
+!recipes/04-train/text-to-sql/tasks.jsonl
+recipes/04-train/text-to-sql/raw/
+recipes/04-train/text-to-sql/out/
+recipes/04-train/text-to-sql/pg/
+recipes/04-train/text-to-sql/author.done.txt
+!recipes/02-measure/safety-evals/
+!recipes/02-measure/safety-evals-marketplace/
+recipes/02-measure/safety-evals-marketplace/*.json
+recipes/03-select/character/out/
+recipes/04-train/identity/out/
 
 # helpers, not the product
 /scripts/*
