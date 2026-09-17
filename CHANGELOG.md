@@ -16,6 +16,11 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   status and the judge's own error, instead of `no binary rewards; grade
   first` -- which pointed at the step that had just run. Sets that were
   never judged, and partly graded sets, keep the old wording.
+- `leak_report` on exported rows says why it found nothing. `rows()`,
+  `save()` and `push()` scrub `privileged` at any depth, so the detector had
+  nothing to check and `checked: False` read as "nothing populated it"
+  rather than "you passed the scrubbed copy". When the rows came through the
+  export, `summary` now names it and points at `data.trajectories`.
 - `simulate(tasks=base, runs=3)`: the same task set replayed three times in
   one call, every row stamped `lineage.eval_run` (0, 1, 2), one
   `SimulationData` back (`search["eval_runs"]` has the rows and stop reason

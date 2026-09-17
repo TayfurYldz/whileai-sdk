@@ -255,3 +255,23 @@ def test_leak_report_says_when_it_is_vacuous(honest_run):
     assert report["n_checked"] == 0
     assert "says nothing about leaks" in report["summary"]
     assert wai.leak_report([])["checked"] is False
+
+
+def test_a_vacuous_report_on_exported_rows_names_the_export_and_the_fix(honest_run):
+    """rows() is the accessor every doc example uses, and it scrubs the
+    block, so the check reads as a clean pass. Say which accessor keeps
+    it instead of leaving "nothing populated it" as the only hint (#245)."""
+    summary = wai.leak_report(honest_run.rows())["summary"]
+    assert "scrubs privileged" in summary
+    assert "data.trajectories" in summary
+    # the same run through the accessor the message names is not vacuous
+    assert wai.leak_report(honest_run.trajectories)["checked"] is True
+
+
+def test_rows_that_never_went_through_the_export_keep_the_plain_wording():
+    # no scenario_id: hand-built rows, so the export cannot be the cause
+    report = wai.leak_report([{"final_text": "hello"}, {"final_text": "hi"}])
+    assert report["checked"] is False
+    assert "says nothing about leaks" in report["summary"]
+    assert "data.trajectories" not in report["summary"]
+    assert wai.leak_report([])["summary"].endswith("says nothing about leaks")
