@@ -3,6 +3,30 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `mine_traces` no longer counts a tool result as a fault because it has
+  a `status` key: `status: "paid"` is the tool's own vocabulary. A status
+  is a fault when it names one (`error`, `timeout`, `not_found`,
+  `denied`, ...), an HTTP failure, or a non-zero exit. (#261)
+- `serve(name, run)` takes the record `get_run` returns, and a wrong type
+  is a `TypeError` naming the accepted ones instead of a urllib
+  `InvalidURL`. `TrainingRun.id` is the run id. (#262)
+- `unserve(name)` (alias `delete_model`) removes a hosted model row; the
+  inverse of `serve`. `models()` says a row is a registry entry that
+  costs nothing idle. (#263)
+- `local_model(..., thinking=False)` sends
+  `chat_template_kwargs={"enable_thinking": False}` so a served Qwen3
+  answers instead of reasoning; `<think>` markup never reaches
+  `step["text"]` or `final_text` on any path. `complete(extra=)` passes
+  request fields through. (#264)
+- `build_preference_pairs` says which pairs the hosted DPO trainer can
+  use: `first_turn_differs` on each pair, `first_turn_identical` and
+  `trainer_pairs` in the report, and a warning when the contrast is
+  later in the rollout than the first assistant turn, since the trainer
+  compares first turns only and needs at least 8. `export_preference`
+  reports the same. (#260)
+
 ## 0.54 (2026-09-17)
 
 - Every row says how it finished: `finish_reason` is `stop`, `length`

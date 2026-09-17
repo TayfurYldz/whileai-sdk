@@ -563,6 +563,42 @@ def length_confound_warning(chosen_longer: int, n: int) -> str | None:
     return None
 
 
+def _first_turn(row: dict) -> str:
+    """What the policy emitted first, read the way the hosted DPO trainer
+    reads it: the first tool step as its call, else the first assistant
+    text, else ``final_text``."""
+    steps = [s for s in (row.get("steps") or []) if isinstance(s, dict)]
+    for step in steps:
+        if step.get("tool"):
+            args = step.get("arguments")
+            if args is None:
+                args = step.get("args")
+            return json.dumps({"name": step["tool"], "arguments": args or {}}, sort_keys=True)
+    for step in steps:
+        if str(step.get("text") or "").strip():
+            return str(step["text"]).strip()
+    for message in row.get("messages") or []:
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            text = str(message.get("content") or "").strip()
+            if text:
+                return text
+    return str(row.get("final_text") or "").strip()
+
+
+def first_turn_note(identical: int, n: int) -> str:
+    """The warning for pairs whose first assistant turns read the same."""
+    if not identical:
+        return ""
+    left = n - identical
+    return (
+        f"{identical}/{n} pairs have identical first assistant turns (same opening tool call "
+        "or line); their contrast is later in the rollout. The hosted DPO trainer compares "
+        f"first turns only and will drop them, leaving {left} (it needs at least 8). Keep "
+        "[p for p in pairs if p['first_turn_differs']] to see what it will train on, or "
+        "export_preference(pairs) for a trainer that reads whole conversations."
+    )
+
+
 def build_preference_pairs(
     rows: Sequence[dict],
     *,
@@ -651,6 +687,7 @@ def build_preference_pairs(
                     "rejected_model": r_model,
                     "same_policy": (c_model == r_model) if c_model and r_model else None,
                     "length_delta": reply_length(chosen) - reply_length(rejected),
+                    "first_turn_differs": _first_turn(chosen) != _first_turn(rejected),
                     "chosen_reason": str(chosen.get("reason") or ""),
                     "rejected_reason": str(rejected.get("reason") or ""),
                     "rejected_failure_class": rejected.get("failure_class"),
@@ -673,10 +710,13 @@ def build_preference_pairs(
         for p in pairs
         if p["chosen_score"] not in (0.0, 1.0) or p["rejected_score"] not in (0.0, 1.0)
     )
+    identical = sum(1 for p in pairs if not p["first_turn_differs"])
     warnings: list[str] = []
     length_note = length_confound_warning(chosen_longer, n)
     if length_note:
         warnings.append(length_note)
+    if identical:
+        warnings.append(first_turn_note(identical, n))
     if mixed_policy:
         warnings.append(
             f"{mixed_policy}/{n} pairs mix policies (chosen and rejected from different "
@@ -694,6 +734,8 @@ def build_preference_pairs(
         "min_margin": min_margin,
         "mean_margin": round(sum(p["margin"] for p in pairs) / n, 4) if n else None,
         "partial_score_pairs": partial,
+        "first_turn_identical": identical,
+        "trainer_pairs": n - identical,
         "same_policy_pairs": same_policy,
         "mixed_policy_pairs": mixed_policy,
         "eval_sourced": eval_pairs,

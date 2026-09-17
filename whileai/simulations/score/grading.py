@@ -40,6 +40,15 @@ _FAULT_ALIASES = {
     "entity already acted on": "already_done",
 }
 _CLEAN_FAULT = {"", "ok", "created", "deleted", "success", "exit_0", "no fault", "clean"}
+#: Statuses a tool result can carry that mean the call failed. A ``status``
+#: key with any other value (``paid``, ``open``, ``completed``) is the
+#: tool's own vocabulary, not a fault (#261).
+_KNOWN_FAULTS = (
+    _BAD_STATUS
+    | set(_FAULT_ALIASES)
+    | set(_FAULT_ALIASES.values())
+    | {"stale", "malformed", "already_done", "not_found", "deny", "garbled"}
+)
 _HTTP_FAIL = re.compile(r"^[45]\d\d$")
 _INFRA_STUB = re.compile(
     r"^<agent error:|returned\s+[45]\d\d\b|^(https?://\S+\s+)?[45]\d\d(\s|$)", re.I
@@ -426,10 +435,10 @@ def _fault_from_result(result) -> str:
     if status in {"already_done", "already_acted_on"} or reason == "already_acted_on":
         return "already_done"
     name = normalize_fault_name(status)
-    if name:
+    if name and (name in _KNOWN_FAULTS or status in _KNOWN_FAULTS):
         return name
     if _step_faulted(result):
-        return normalize_fault_name(status) or "error"
+        return name or "error"
     return ""
 
 
