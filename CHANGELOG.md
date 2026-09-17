@@ -3,6 +3,16 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- No github demo anywhere a user reads: the package docstrings, the README
+  and the identity recipe named `specs/github`, `github-rl-v1` and
+  `envs/github-agent`; they now show `tools=` plus `system_prompt=` and
+  neutral names. `recipes/04-train/identity` takes its control conversations
+  from `--control-file` (your own rows or traces) or from `wai.simulate` over
+  `--assistant`; the canned reply templates and the test-fixture spec are
+  gone from it.
+
 ## 0.53 (2026-09-17)
 
 - `rubric_judge` warms the hosted judge once before the rows fan out, the
