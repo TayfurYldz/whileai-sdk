@@ -110,7 +110,7 @@ def test_judge_trust_has_floors():
     attach_labels(shaky, _labels(shaky), annotator="ana")
     report = judge_trust(shaky)
     assert report["ok"] is False
-    (floor,) = [w for w in report["warnings"] if w.startswith("Judge agreement")]
+    (floor,) = [w for w in report["warnings"] if w.startswith("Judge agreement with human labels is")]
     low = report["agreement"]["ci95"][0]
     assert floor == (
         f"Judge agreement with human labels is {low:.2f} (lower bound), under the 0.80 "
