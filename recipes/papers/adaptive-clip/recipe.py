@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import statistics
 import sys
 from datetime import date
 from importlib.metadata import version
@@ -45,6 +46,11 @@ import modal
 HERE = Path(__file__).resolve().parent
 BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 METRIC = "pass@1"
+BOOK = "ch. 6 Policy gradients"  # the clipped surrogate and what the clip range does
+# The training reward here *is* the target: both are the same binary check
+# against the GSM8K gold, so there is no proxy to over-optimize against.
+PROXY = None
+EVAL_RUNS = 3  # re-runs of the base eval that set the noise floor (ch. 16)
 
 # The paper's token-level importance sampling defaults. EPS_LOW is the lower
 # clip bound in both arms; EPS_HIGH_MAX is the upper bound the baseline uses
@@ -135,11 +141,40 @@ def epsilon_high_per_rollout(
     return out
 
 
-def reward_fn(completions, answer, **kwargs) -> list[float]:
+def make_reward(recorder: list[dict]):
     """Binary outcome, a program against the public GSM8K gold. Both arms use
-    this untouched: the paper changes the clip, not the reward."""
-    texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
-    return [outcome_of(t, gold_of(a)) for t, a in zip(texts, answer)]
+    this untouched: the paper changes the clip, not the reward.
+
+    `recorder` is refilled with the batch it just graded, so after training
+    `hack_scan` can be run on the last one (rlhf-book ch. 14) without keeping
+    every step in memory.
+    """
+
+    def reward(completions, prompts, answer, **kwargs) -> list[float]:
+        texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
+        keys = [json.dumps(p, sort_keys=True, default=str) for p in prompts]
+        rewards = [outcome_of(t, gold_of(a)) for t, a in zip(texts, answer)]
+        seen: dict[str, int] = {}
+        recorder.clear()
+        for key, text, r in zip(keys, texts, rewards):
+            recorder.append(
+                {
+                    "prompt": key,
+                    "final_text": text,
+                    "reward": r,
+                    "scenario_id": key,
+                    "rollout_index": seen.get(key, 0),
+                }
+            )
+            seen[key] = seen.get(key, 0) + 1
+        return rewards
+
+    reward.__name__ = "gsm8k_outcome"
+    return reward
+
+
+def mean_length(rows: list[dict]) -> float:
+    return statistics.fmean(len(r.get("final_text") or "") for r in rows) if rows else 0.0
 
 
 def graded_rows(holdout: list[dict], replies: list[list[str]]) -> list[dict]:
@@ -339,10 +374,12 @@ def run_arm(
     sys.path.insert(0, "/root")
     from recipe_mod import (
         EPS_LOW,
+        EVAL_RUNS,
         adaptive_clip_trainer,
         graded_rows,
+        make_reward,
+        mean_length,
         messages_for,
-        reward_fn,
     )
 
     import zeroproof.simulations as zps
@@ -385,13 +422,18 @@ def run_arm(
         print(f"dashboard: {run.url}")
 
     questions = [t["question"] for t in holdout]
-    base_rows = None
+    # The base is evaluated EVAL_RUNS times, not once. The spread across those
+    # re-runs is the eval's own noise, and a delta smaller than it is not a
+    # result (rlhf-book ch. 16). Only the first arm pays for this.
+    base_runs = []
     if eval_base:
-        replies = _sample(
-            model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
-        )
-        base_rows = graded_rows(holdout, replies)
-        print(f"base:   {zps.pass_at(base_rows)}")
+        for i in range(EVAL_RUNS):
+            replies = _sample(
+                model, tokenizer, questions, n=eval_samples, max_new_tokens=max_completion_length
+            )
+            rows = graded_rows(holdout, replies)
+            base_runs.append(rows)
+            print(f"base run {i + 1}/{EVAL_RUNS}: {zps.pass_at(rows)}")
 
     dataset = Dataset.from_list(
         [{"prompt": messages_for(t["question"]), "answer": t["answer"]} for t in train_tasks]
@@ -439,9 +481,10 @@ def run_arm(
             "down_proj",
         ],
     )
+    last_batch: list[dict] = []
     trainer = adaptive_clip_trainer(GRPOTrainer)(
         model=model,
-        reward_funcs=[reward_fn],
+        reward_funcs=[make_reward(last_batch)],
         args=grpo,
         train_dataset=dataset,
         processing_class=tokenizer,
@@ -465,6 +508,14 @@ def run_arm(
     after = zps.pass_at(after_rows)
     print(f"{arm}: {after}")
 
+    # What the reward actually paid for in the last training batch (ch. 14).
+    # Nothing here is endorsed: the reward is the answer being right, and any
+    # surface feature that correlates with it is the thing to be suspicious of.
+    scan = zps.hack_scan(last_batch) if last_batch else {}
+    hack_top = (scan.get("top_feature") or {}) if isinstance(scan, dict) else {}
+    hack_scan_top = hack_top.get("name", "") if isinstance(hack_top, dict) else str(hack_top)
+    print(f"{arm} hack scan: top feature {hack_scan_top or 'none above the floor'}")
+
     adapter_dir = os.path.join(out_dir, "adapter")
     trainer.model.save_pretrained(adapter_dir)
     tokenizer.save_pretrained(adapter_dir)
@@ -483,10 +534,12 @@ def run_arm(
         summary["run_url"] = run.url
     return {
         "arm": arm,
-        "base_rows": base_rows,
+        "base_runs": base_runs,
         "after_rows": after_rows,
         "gpu_minutes": gpu_minutes,
         "steps": steps,
+        "length_after": mean_length(after_rows),
+        "hack_scan_top": hack_scan_top,
         "run_url": summary.get("run_url", ""),
     }
 
@@ -623,6 +676,11 @@ def main() -> None:
     import zeroproof.simulations as zps
 
     train_tasks, holdout = data(args.seed, args.n_train, args.n_holdout)
+    # GSM8K's train and test splits are already disjoint, so this should drop
+    # nothing. It runs anyway, and the count goes in the Checks table, because
+    # "should" is not a measurement (rlhf-book ch. 16).
+    train_tasks, decon = zps.decontaminate(train_tasks, against=holdout)
+    print(f"decontaminate: {decon['n_contaminated']} of {decon['n']} train rows dropped")
     arms = ["baseline", "recipe"] if args.arm == "both" else [args.arm]
     adaptive = {"baseline": False, "recipe": True}
 
@@ -635,6 +693,7 @@ def main() -> None:
             "recipe": HERE.name,
             "title": "Adaptive clip: the upper bound follows how rare a correct answer was",
             "paper": "https://arxiv.org/abs/2609.00444",
+            "book": BOOK,
             "base_model": BASE_MODEL,
             "metric": METRIC,
             "n_holdout": len(holdout),
@@ -644,7 +703,12 @@ def main() -> None:
         }
     )
     results.setdefault("arms", {})
+    checks = results.setdefault("checks", {})
+    checks["decontaminated_dropped"] = int(decon.get("n_contaminated", 0))
+    checks["seed"] = args.seed
+    checks.setdefault("length_after", {})
     arm_rows: dict[str, list[dict]] = {}
+    run_std = 0.0
     usd_per_hour = {"A10G": 1.10, "L40S": 2.00, "H100": 4.00}.get(DEFAULT_GPU, 2.00)
     gpu_minutes = 0.0
     run_url = ""
@@ -666,27 +730,45 @@ def main() -> None:
             )
             gpu_minutes += out["gpu_minutes"]
             run_url = out["run_url"] or run_url
-            if out["base_rows"]:
-                arm_rows["base"] = out["base_rows"]
+            if out["base_runs"]:
+                base_runs = out["base_runs"]
+                noise = zps.eval_variance(*base_runs)
+                run_std = float(noise["run_std"])
+                print(f"eval noise over {len(base_runs)} base runs: run_std {run_std:.4f}")
+                arm_rows["base"] = base_runs[0]
                 results["arms"]["base"] = {
-                    **summarize(out["base_rows"]),
+                    **summarize(base_runs[0]),
                     "steps": 0,
                     "gpu_minutes": 0,
                 }
+                checks["run_std"] = run_std
+                checks["length_before"] = mean_length(base_runs[0])
             arm_rows[arm] = out["after_rows"]
             results["arms"][arm] = {
                 **summarize(out["after_rows"]),
                 "steps": out["steps"],
                 "gpu_minutes": round(out["gpu_minutes"], 1),
             }
+            checks["length_after"][arm] = out["length_after"]
+            checks["hack_scan_top"] = out["hack_scan_top"]
 
     if "baseline" in arm_rows and "recipe" in arm_rows:
-        d = zps.delta_report(arm_rows["baseline"], arm_rows["recipe"], target="pass_at_1")
+        # run_std makes "moved" mean bigger than the eval's own re-run noise,
+        # and proxy names the training reward when it differs from the target.
+        # Here it does not, so there is nothing for PROXY to point at.
+        d = zps.delta_report(
+            arm_rows["baseline"],
+            arm_rows["recipe"],
+            target="pass_at_1",
+            run_std=run_std,
+            proxy=PROXY,
+        )
         results["delta"] = {
             "recipe_vs_baseline": d["target_delta"],
             "ci": list(d["target_ci95"] or (0.0, 0.0)),
             "verdict": "moved" if d["target_verdict"] == "moved" else "flat",
         }
+        checks["over_optimized"] = bool(d.get("over_optimized"))
         results["verified"] = date.today().isoformat()
         results.pop("partial_run", None)
         print(zps.format_delta_report(d))

@@ -1,6 +1,7 @@
 # Adaptive clip: the upper bound follows how rare a correct answer was
 
 **Paper:** Group Adaptive Clipping Policy Optimization, Sheng Jia et al., arXiv:2609.00444, August 2026. https://arxiv.org/abs/2609.00444
+**Book:** rlhfbook.com ch. 6 Policy gradients: the clipped surrogate objective, and what the width of the clip range does to an update the group thinks is worth making.
 **Claim:** GRPO clips every rollout against the same upper bound, so the one correct answer in a hard group and the seventh correct answer in an easy group are held back equally; letting the bound widen as correct answers get rarer gives the informative rollouts more room and raises pass@1 and pass@k on math and code.
 **The change:** the upper clip bound is computed per group from how many of its rollouts were right, instead of being one fixed number.
 
@@ -10,7 +11,7 @@
 2. Reward, both arms: the binary outcome, `MathEqual` against the GSM8K gold number. A program, not a judge. The paper changes the clip, not the reward, so nothing here is shaped.
 3. Baseline arm: GRPO with `epsilon` 0.20 and `epsilon_high` 0.28, fixed for every rollout. That pair is DAPO's clip-higher and it is the paper's own token-level default.
 4. Recipe arm: same 0.20 floor and the same 0.28 ceiling, but the upper bound slides per group, `eps_hi(c) = eps_lo + (eps_hi_max - eps_lo) * (k - c) / (k - 1)` with `c` correct out of `k = 8` rollouts. One right out of eight keeps the full 0.28; seven right gets 0.2114.
-5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task, before and after each arm, paired delta with a 95% interval (`zps.pass_at`, `zps.delta_report`).
+5. Eval: pass@1 on the same 120 held-out tasks, 4 samples per task. The untrained base is evaluated three times first, and that spread is the noise floor a delta has to clear; the train set is decontaminated against the holdout before any training. Paired delta with a 95% interval (`zps.pass_at`, `zps.delta_report`).
 
 Both arms share the floor and the ceiling, so the comparison isolates the sliding and not the width. There is no KL term (`beta` 0), which leaves the clip as the only trust region in the run — the thing the paper is about. The recipe runs the paper's token-level importance sampling, not its sequence-level GSPO variant, so its Seq-IS epsilons (3e-3 / 5e-3) do not apply here.
 
@@ -37,6 +38,24 @@ Recipe vs baseline: not measured. Verdict: flat, because a verdict with no run b
 What did get checked today, without a GPU. `python recipe.py --selftest` prints the schedule and shows the bound reaching a real loss. Separately, the trainer subclass was run end to end on the CPU against TRL 0.19.1 with a tiny Qwen2 model and a reward rigged to give each group a known number of correct rollouts. Each group got the bound equation 11 says it should, every value that arrived at the loss was one the equation can produce, and the bounds stayed glued to their own rollouts through TRL's batch shuffle and its gradient-accumulation split — the alignment that this whole change rests on. The baseline arm came through carrying no per-group bound at all. What none of that says is whether the change moves pass@1; that needs the GPU run.
 
 The selftest also turned up one thing worth knowing before you read the paper's equation 11 literally: at `c = 0` it returns 0.2914, above the 0.28 ceiling it is supposed to stop at. The equation is written for a group that splits, `1 <= c <= k`. All-wrong groups have a zero advantage and contribute no gradient, so the recipe clamps the count into `[1, k]` and they land on the ceiling instead of over it.
+
+## Checks
+
+Nothing in this table is ticked by hand: every cell is written by `recipe.py`
+into `results.json`, and it is empty here because the run has not happened.
+
+| Check | Book | Result |
+|---|---|---|
+| Eval noise: the base evaluated 3 times, `eval_variance` run_std | ch. 16 | not run — a delta under 2 x run_std will be called noise |
+| Holdout is clean: `decontaminate(train, against=holdout)` | ch. 16 | not run — expected 0, since GSM8K train and test are separate splits, but it is measured rather than assumed |
+| Reward is a program, not a judge | ch. 7, 13 | `MathEqual` against the public GSM8K gold number. No judge, no model in the loop |
+| Proxy vs target: `delta_report(proxy=)` | ch. 14 | `proxy=None`: the training reward *is* the target metric, the same binary check, so there is no proxy to over-optimize |
+| Length: mean completion length before -> after, per arm | ch. 14 | not run |
+| Hack scan on the last training batch: `hack_scan` | ch. 14 | not run — nothing is endorsed, so any surface feature that tracks the reward is a finding |
+| Pinned: seed, torch, transformers, trl, peft | app. C | seed 17 in the trainer, `--seed 0` for the data split; torch 2.7.1, transformers 4.54.0, trl 0.19.1, peft 0.16.0 |
+
+The two arms share the seed, the data, the holdout, the reward and every
+trainer knob except the clip bound, so the delta has one cause available to it.
 
 ## Climb
 
