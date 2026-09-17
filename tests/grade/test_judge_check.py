@@ -126,7 +126,7 @@ def test_judge_trust_has_floors():
     strict = judge_trust(fair, min_kappa=0.9)
     assert strict["ok"] is False
     assert any(
-        w.startswith("Judge kappa with human labels is 0.80, under the 0.90")
+        w.startswith("Judge agreement with human labels beyond chance (kappa) is 0.80, under the 0.90")
         for w in strict["warnings"]
     )
     # the small-sample warning stays
