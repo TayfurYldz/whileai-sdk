@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.56 (2026-09-17)
 
 - `holdout_size(effect, base=, k=, power=, alpha=, rows=)` says how many
   paired tasks a holdout needs to prove a gain, modelled on the paired
