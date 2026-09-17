@@ -702,6 +702,13 @@ def export_training(
             "context in an assistant turn and are exported anyway (validate=False); "
             "report['privileged_leaks']['leaked'] names them."
         )
+    n_cut = sum(1 for r in raw if isinstance(r, dict) and r.get("finish_reason") == "length")
+    if n_cut:
+        warnings.append(
+            f"{n_cut} of {len(raw)} rows were cut by the reply token cap (finish_reason "
+            "'length') and are exported as SFT targets; a model trained on them learns to "
+            "stop mid-thought. Filter on finish_reason == 'stop' or raise agent_max_tokens=."
+        )
     if n_fail:
         warnings.append(
             f"{n_fail} of {len(rows)} rows have reward below 0.5 and are exported as "

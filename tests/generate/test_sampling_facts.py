@@ -184,3 +184,65 @@ def test_staleness_report_counts_versions_stale_rows_and_coverage():
     clean = staleness_report(rows[:2])
     assert clean["warnings"] == [] and clean["stale"] is None
     assert wai.staleness_report([])["n"] == 0
+
+
+def test_every_row_says_how_it_finished(monkeypatch):
+    """#253: finish_reason on the row. The fake backend's final turn is a
+    length cut, so the model-backed row reads ``length``; a callable agent
+    that finishes on its own reads ``stop``; one that raises reads ``error``."""
+    data, _ = _simulate(monkeypatch)
+    row = data.trajectories[0]
+    assert row["finish_reason"] == "length"
+    assert data.rows()[0]["finish_reason"] == "length"
+    assert schema.validate(data.rows()[0]) == []
+
+    honest = simulate_offline(tools=TOOLS, policy=POLICY, budget=4, per_round=4, concurrency=1)
+    assert {r["finish_reason"] for r in honest.trajectories} == {"stop"}
+    assert wai.pass_at(honest.trajectories).config["truncated_share"] == 0.0
+
+    # The engine re-rolls a raised rollout and drops it if it keeps failing,
+    # so the error and tool cases are checked at the function.
+    from whileai.simulations.run.engine import _finish_reason
+
+    assert _finish_reason({}, [], "<agent error: RuntimeError: boom>") == "error"
+    assert _finish_reason({}, [{"tool": "get_order", "args": {}}], "") == "tool"
+    assert _finish_reason({}, [{"tool": "get_order", "truncated": True}], "cut") == "length"
+    assert _finish_reason({}, [], "fine.") == "stop"
+    assert _finish_reason({"finish_reason": "bogus"}, [], "fine.") == "stop"
+
+    def told(prompt, **_):
+        return {"steps": [], "final_text": "done", "finish_reason": "tool"}
+
+    said = simulate_offline(told, tools=TOOLS, policy=POLICY, budget=2, per_round=2, concurrency=1)
+    assert {r["finish_reason"] for r in said.trajectories} == {"tool"}
+
+
+def test_pass_at_and_delta_report_carry_the_truncated_share():
+    from whileai.simulations.score.delta import delta_report
+
+    def rows(n, cut, reward):
+        out = []
+        for i in range(n):
+            out.append(
+                {
+                    "scenario_id": f"s{i}",
+                    "rollout_index": 0,
+                    "prompt": f"p{i}",
+                    "final_text": "x",
+                    "reward": reward,
+                    "judge_status": "ok",
+                    "finish_reason": "length" if i < cut else "stop",
+                }
+            )
+        return out
+
+    before = rows(20, 8, 1)
+    after = rows(20, 0, 1)
+    assert wai.pass_at(before).config["truncated_share"] == 0.4
+    assert "40% of rows cut by the token cap" in str(wai.pass_at(before))
+    assert "cut by the token cap" not in str(wai.pass_at(after))
+    report = delta_report(before, after)
+    assert any("cut 40% of before rows and 0% of after rows" in w for w in report["warnings"])
+    # rows that never said how they finished do not pretend
+    old = [{k: v for k, v in r.items() if k != "finish_reason"} for r in before]
+    assert wai.pass_at(old).config["truncated_share"] is None

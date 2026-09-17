@@ -370,6 +370,13 @@ def delta_report(
             f"Before allowed {cfg_a['max_tokens']} reply tokens and after {cfg_b['max_tokens']}; "
             "re-run one side so both use the same agent_max_tokens=."
         )
+    if _both("truncated_share") and abs(cfg_a["truncated_share"] - cfg_b["truncated_share"]) > 0.05:
+        warnings.append(
+            f"The token cap cut {cfg_a['truncated_share']:.0%} of before rows and "
+            f"{cfg_b['truncated_share']:.0%} of after rows; a side that is cut more often is "
+            "not the same eval. Raise agent_max_tokens= on both sides or read the delta with "
+            "that in mind."
+        )
     if _both("policy_version") and cfg_a["policy_version"] == cfg_b["policy_version"]:
         warnings.append(
             "Before and after are the same policy version; this compares a model to itself."

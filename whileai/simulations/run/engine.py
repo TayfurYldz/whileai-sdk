@@ -160,6 +160,32 @@ def _agent_error_text(exc: BaseException) -> str:
     return f"<agent error: {type(exc).__name__}: {public_llm_error(exc)}>"
 
 
+FINISH_REASONS = ("stop", "length", "tool", "error")
+
+
+def _finish_reason(raw: dict, steps: list, final_text: str) -> str:
+    """Why the rollout ended, on the row where a trainer can read it.
+
+    ``length``: a turn was cut by the reply token cap (the backend said
+    so). ``error``: the agent raised. ``tool``: the last thing the agent
+    did was call a tool and no final reply followed, so the turn budget
+    ran out. ``stop``: the agent finished on its own. A callable agent may
+    say it outright with ``finish_reason`` in what it returns. A length
+    cut scored 0 teaches the cheapest fix, shorter thinking, before it
+    teaches the task (#253), so the trainer masks these by default.
+    """
+    told = raw.get("finish_reason")
+    if isinstance(told, str) and told in FINISH_REASONS:
+        return told
+    if final_text.startswith("<agent error:"):
+        return "error"
+    if any(isinstance(s, dict) and s.get("truncated") for s in steps):
+        return "length"
+    if not final_text.strip() and steps and isinstance(steps[-1], dict) and steps[-1].get("tool"):
+        return "tool"
+    return "stop"
+
+
 def _hit_length_cap(row: dict) -> bool:
     """A step the backend flagged as cut by its token cap, or a reply that
     ends mid-sentence by the hygiene rule."""
@@ -802,6 +828,7 @@ class Run:
             t["seeded"] = [str(x) for x in seeded]
         t.update(_row_conversation(meta, prompt, c.seed))
         t["behavior_signature"] = behavior_signature(t)
+        t["finish_reason"] = _finish_reason(raw, t["steps"], t["final_text"])
         # Sampling facts roll up from the agent turns: the summed logprob
         # and token count a trainer needs for an importance ratio or a KL.
         lp_steps = [
