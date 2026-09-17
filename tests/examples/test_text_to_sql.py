@@ -75,7 +75,7 @@ def test_shipped_tasks_are_well_formed():
         for r in rows
         if int(hashlib.sha256(r["id"].encode()).hexdigest()[:8], 16) / 0xFFFFFFFF < 0.2
     ]
-    assert 60 <= len(hold) <= 110
+    assert 0.15 * len(rows) <= len(hold) <= 0.25 * len(rows)
 
 
 def test_prompt_file_matches_the_schema_prompt():
