@@ -211,13 +211,21 @@ the intervals below are the 140-task ones (about +-0.06).
 
 | Round | From | Method | pass@1 (95% CI) | pass^4 | has_sql |
 |---|---|---|---|---|---|
-| base | Qwen/Qwen3-4B, thinking on | - | 0.60 (0.54..0.66) | 0.31 | 0.87 |
+| base | Qwen/Qwen3-4B, thinking on | - | 0.58 (0.52..0.64) | 0.31 | 0.86 |
 | r1 | base | GRPO 100 steps, lr 2e-5, beta 0.04, HF generate | 0.58 (0.52..0.64) | 0.29 | 0.89 |
 | r2 | r1 | GRPO 200 steps, lr 5e-5, beta 0.01 | 0.60 (0.54..0.67) | 0.34 | 0.90 |
 | sft-think | base | self-distillation: 199 verified traces, hosted SFT 2 epochs | 0.60 (0.54..0.67) | 0.39 | 0.96 |
-| r3 | r2 | GRPO 1,000 steps, vLLM generation, 8 prompts per generate | pending | | |
+| r3 | r2 | GRPO 1,000 steps, lr 2e-5, beta 0.01, vLLM generation, 8 prompts per generate | 0.62 (0.55..0.68) | 0.34 | 0.87 |
 
-Neither round moved the holdout, while the training reward did climb
+r3 vs base: +0.032 (95% -0.018..+0.082), up at every difficulty (easy +0.04,
+medium +0.02, hard +0.04), the first round whose interval is mostly above
+zero and the best checkpoint so far; not yet a proven climb by the SDK's
+rule (interval excludes zero). Each checkpoint's holdout rollouts and adapter
+are on Hugging Face: dataset `zero-proof-ai/text-to-sql-shop` (configs
+`eval-base`, `eval-r1`, `eval-r2`, `eval-sft-think`, `eval-r3`), adapters
+`zero-proof-ai/text-to-sql-shop-<checkpoint>`.
+
+The first two rounds did not move the holdout, while the training reward did climb
 (round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
 with KL 0.08), and thinking length fell from ~1,090 to ~800 tokens. That
 combination means the policy got better at the prompts it was shown and no

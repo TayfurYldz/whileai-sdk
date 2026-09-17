@@ -88,6 +88,41 @@ def claude_agent(model: str, max_tokens: int = 800):
     return agent
 
 
+def warm(spec: str, minutes: float = 15) -> None:
+    """One cheap request so a scale-to-zero endpoint is up before the run.
+
+    simulate() stops after 16 failed calls, which a cold vLLM server produces in
+    about a minute of startup; a single blocking call absorbs the cold start.
+    """
+    from urllib import error, request
+
+    from zeroproof.simulations.generate.agents import parse_backend_spec, resolve_completion_key
+
+    base_url, model = parse_backend_spec(spec)
+    key = resolve_completion_key(base_url)
+    body = json.dumps(
+        {"model": model, "messages": [{"role": "user", "content": "ok"}], "max_tokens": 1}
+    ).encode()
+    req = request.Request(
+        base_url.rstrip("/") + "/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+    )
+    deadline = time.time() + minutes * 60
+    while True:
+        try:
+            with request.urlopen(req, timeout=600):
+                return
+        except error.HTTPError as exc:
+            if exc.code in (401, 403, 404):
+                return  # not a cold start; let the run report it
+        except Exception:
+            pass
+        if time.time() > deadline:
+            return
+        time.sleep(15)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen3-4b", choices=sorted(MODELS))
@@ -143,6 +178,8 @@ def main() -> int:
     if not todo:
         return 0
 
+    if isinstance(spec, str) and spec.startswith("vllm:"):
+        warm(spec)
     t0 = time.time()
     sys_p = (
         (args.system_prefix.strip() + "\n\n" + system_prompt())
@@ -198,6 +235,11 @@ def main() -> int:
         f"  {len(rows)} rows in {time.time() - t0:.0f}s ({data.stopped_because}); {len(have) + len(rows)} on disk",
         flush=True,
     )
+    if data.search.get("agent_errors"):
+        print(
+            f"  agent errors {data.search['agent_errors']}; first: {data.search.get('first_agent_error')}",
+            flush=True,
+        )
     return 0
 
 
