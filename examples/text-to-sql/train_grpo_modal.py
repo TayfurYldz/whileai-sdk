@@ -30,7 +30,7 @@ VOLUME_ROOT = "/vol"
 
 app = modal.App("zeroproof-t2s-grpo")
 
-image = (
+_base = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("postgresql", "postgresql-contrib")
     .pip_install(
@@ -50,12 +50,26 @@ image = (
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
         }
     )
-    .add_local_file(str(HERE / "sql_verifier.py"), "/root/sql_verifier.py")
-    .add_local_file(str(HERE / "schema_prompt.py"), "/root/schema_prompt.py")
-    .add_local_file(str(HERE / "schema.sql"), "/root/schema.sql")
-    .add_local_file(str(HERE / "seed.sql"), "/root/seed.sql")
-    .add_local_file(str(HERE / "prompt.txt"), "/root/prompt.txt")
 )
+# Generation through vLLM instead of HF generate: 5-10x faster rollouts.
+# vllm 0.10.0 pins torch 2.7.1 (the same pin) and still ships the V0
+# engine, which TRL 0.19.1's colocate weight sync assumes (VLLM_USE_V1=0).
+_vllm_base = _base.pip_install("vllm==0.10.0").env({"VLLM_USE_V1": "0"})
+
+
+def _with_files(img: modal.Image) -> modal.Image:
+    # local files last, so an edit does not rebuild the image
+    return (
+        img.add_local_file(str(HERE / "sql_verifier.py"), "/root/sql_verifier.py")
+        .add_local_file(str(HERE / "schema_prompt.py"), "/root/schema_prompt.py")
+        .add_local_file(str(HERE / "schema.sql"), "/root/schema.sql")
+        .add_local_file(str(HERE / "seed.sql"), "/root/seed.sql")
+        .add_local_file(str(HERE / "prompt.txt"), "/root/prompt.txt")
+    )
+
+
+image = _with_files(_base)
+image_vllm = _with_files(_vllm_base)
 
 runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=True)
 hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
@@ -111,14 +125,7 @@ def _sample(
     return out
 
 
-@app.function(
-    image=image,
-    gpu=DEFAULT_GPU,
-    timeout=4 * 60 * 60,
-    volumes={VOLUME_ROOT: runs_volume, "/root/.cache/huggingface": hf_cache},
-    secrets=[dashboard_secret],
-)
-def train(
+def _train(
     train_tasks: list[dict],
     holdout_tasks: list[dict],
     run_name: str,
@@ -137,6 +144,8 @@ def train(
     thinking: bool = False,
     skip_eval: bool = False,
     from_run: str = "",
+    use_vllm: bool = False,
+    steps_per_generation: int = 1,
 ) -> dict:
     import json
 
@@ -151,6 +160,17 @@ def train(
 
     import zeroproof.simulations as zps
 
+    if use_vllm:
+        # TRL's colocate mode builds vLLM with the external_launcher executor,
+        # which reads the torchrun rank variables; one process, one GPU.
+        for k, v in {
+            "RANK": "0",
+            "LOCAL_RANK": "0",
+            "WORLD_SIZE": "1",
+            "MASTER_ADDR": "127.0.0.1",
+            "MASTER_PORT": "29511",
+        }.items():
+            os.environ.setdefault(k, v)
     R.start_postgres(open("/root/schema.sql").read(), open("/root/seed.sql").read())
     system_prompt = open("/root/prompt.txt", encoding="utf-8").read()
 
@@ -184,6 +204,8 @@ def train(
         "reward": "sql_verifier.py: execute on the seeded store Postgres, 1.0 result match / 0.1 runs but wrong / 0",
         "thinking": thinking,
         "from_run": from_run or None,
+        "use_vllm": use_vllm,
+        "steps_per_generation": steps_per_generation,
         "eval": "hosted (served adapter, rollout.py --hosted <name>)"
         if skip_eval
         else "in-container",
@@ -256,6 +278,13 @@ def train(
         max_completion_length=max_completion_length,
         max_prompt_length=2048,
         temperature=0.9,
+        # vLLM colocate: the policy's weights are pushed into a vLLM engine on
+        # the same GPU before each generation; steps_per_generation batches
+        # several prompts into one generate call, then takes that many steps.
+        use_vllm=use_vllm,
+        vllm_mode="colocate",
+        vllm_gpu_memory_utilization=0.25,
+        steps_per_generation=steps_per_generation,
         bf16=True,
         logging_steps=1,
         save_strategy="no",
@@ -278,6 +307,23 @@ def train(
             "down_proj",
         ],
     )
+    if use_vllm:
+        # TRL 0.19.1 scores the old/reference log-probs over the whole
+        # generation batch in one forward (32 sequences x 3k tokens x 152k
+        # vocab = 28 GB of logits); chunk it at the micro-batch size.
+        _orig_logps = GRPOTrainer._get_per_token_logps
+
+        def _chunked(self, model, input_ids, attention_mask, logits_to_keep, batch_size=None):
+            return _orig_logps(
+                self,
+                model,
+                input_ids,
+                attention_mask,
+                logits_to_keep,
+                batch_size=batch_size or max(1, num_generations // accum),
+            )
+
+        GRPOTrainer._get_per_token_logps = _chunked
     trainer = GRPOTrainer(
         model=model,
         reward_funcs=[sql_reward],
@@ -357,6 +403,24 @@ def train(
     return summary
 
 
+_FN = dict(
+    gpu=DEFAULT_GPU,
+    timeout=4 * 60 * 60,
+    volumes={VOLUME_ROOT: runs_volume, "/root/.cache/huggingface": hf_cache},
+    secrets=[dashboard_secret],
+)
+
+
+@app.function(image=image, **_FN)
+def train(**kwargs) -> dict:
+    return _train(**kwargs)
+
+
+@app.function(image=image_vllm, **_FN)
+def train_vllm(**kwargs) -> dict:
+    return _train(use_vllm=True, **kwargs)
+
+
 @app.local_entrypoint()
 def main(
     run_name: str = "text-to-sql-shop-grpo-v1",
@@ -375,6 +439,8 @@ def main(
     skip_eval: bool = False,
     from_run: str = "",
     spawn: bool = False,
+    use_vllm: bool = False,
+    steps_per_generation: int = 1,
 ):
     import hashlib
     import json
@@ -391,7 +457,8 @@ def main(
     if limit:
         train_tasks, holdout_tasks = train_tasks[:limit], holdout_tasks[: max(4, limit // 4)]
     print(f"{len(tasks)} tasks: {len(train_tasks)} train, {len(holdout_tasks)} holdout")
-    fn = train if gpu == DEFAULT_GPU else train.with_options(gpu=gpu)
+    base_fn = train_vllm if use_vllm else train
+    fn = base_fn if gpu == DEFAULT_GPU else base_fn.with_options(gpu=gpu)
     kwargs = dict(
         train_tasks=train_tasks,
         holdout_tasks=holdout_tasks,
@@ -409,6 +476,7 @@ def main(
         thinking=thinking,
         skip_eval=skip_eval,
         from_run=from_run,
+        steps_per_generation=steps_per_generation,
     )
     if spawn:
         # Submit and return. With `modal run --detach` the call keeps running
