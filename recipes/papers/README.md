@@ -55,10 +55,13 @@ the chapter it rests on, and the `## Checks` table is run, not ticked:
 | Hack scan | ch. 14 | `hack_scan` on the last training batch; the top feature is named |
 | Pinned | app. C | seed and library versions in results.json |
 
-Chapter map: 3 training overview, 4 instruction tuning, 5 reward modeling,
-6 reinforcement learning, 7 reasoning, 8 direct alignment, 9 rejection
-sampling, 11 preference data, 12 synthetic data, 13 tool use, 14
-over-optimization, 15 regularization, 16 evaluation, 17 character.
+Chapter map (source files under `book/chapters/` in
+[natolambert/rlhf-book](https://github.com/natolambert/rlhf-book); the site
+serves them at `rlhfbook.com/c/<file name without .md>`): 03 training
+overview, 04 instruction tuning, 05 reward models, 06 policy gradients, 07
+reasoning, 08 direct alignment, 09 rejection sampling, 10 preferences, 11
+preference data, 12 synthetic data, 13 tools, 14 over-optimization, 15
+regularization, 16 evaluation, 17 product, appendix-c practical.
 
 ## Maintenance
 
