@@ -48,6 +48,7 @@ CLI_EXAMPLES = [
     "04-train/text-to-sql/train.py",
     "01-simulate/verifiers/run.py",
     "community/same-entrypoint-before-after/run.py",
+    "community/force-the-branch/run.py",
 ]
 
 # Need the ``modal`` client, which is not a dev dependency. Compiled, not run.
