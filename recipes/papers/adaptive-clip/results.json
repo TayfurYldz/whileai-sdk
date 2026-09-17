@@ -8,23 +8,60 @@
   "n_holdout": 120,
   "k": 4,
   "arms": {
-    "base": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
-    "baseline": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
-    "recipe": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0}
+    "base": {
+      "score": 0.3458333333333333,
+      "ci": [
+        0.2791666666666667,
+        0.4166666666666667
+      ],
+      "pass_at_k": 0.5833333333333334,
+      "steps": 0,
+      "gpu_minutes": 0
+    },
+    "baseline": {
+      "score": 0.60625,
+      "ci": [
+        0.5395833333333333,
+        0.6791666666666667
+      ],
+      "pass_at_k": 0.825,
+      "steps": 40,
+      "gpu_minutes": 26.2
+    },
+    "recipe": {
+      "score": 0.59375,
+      "ci": [
+        0.5208333333333334,
+        0.66875
+      ],
+      "pass_at_k": 0.7916666666666666,
+      "steps": 40,
+      "gpu_minutes": 16.9
+    }
   },
-  "delta": {"recipe_vs_baseline": 0.0, "ci": [0.0, 0.0], "verdict": "flat"},
+  "delta": {
+    "recipe_vs_baseline": -0.0125,
+    "ci": [
+      -0.05416666666666667,
+      0.03125
+    ],
+    "verdict": "flat"
+  },
   "checks": {
-    "run_std": 0.0,
+    "run_std": 0.0012,
     "decontaminated_dropped": 0,
     "over_optimized": false,
-    "length_before": 0.0,
-    "length_after": {"baseline": 0.0, "recipe": 0.0},
-    "hack_scan_top": "",
+    "length_before": 726.5541666666667,
+    "length_after": {
+      "baseline": 382.4895833333333,
+      "recipe": 325.9875
+    },
+    "hack_scan_top": "contains:2 = AND contains:of",
     "seed": 0
   },
   "gpu": "L40S",
-  "usd": 0.0,
-  "verified": "1970-01-01",
+  "usd": 1.44,
+  "verified": "2026-09-17",
   "whileai": "0.53",
-  "run_url": ""
+  "run_url": "https://www.zeroproofai.com/platform/training/run_93d7700f9602fbd7"
 }

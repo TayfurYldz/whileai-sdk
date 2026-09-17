@@ -361,6 +361,7 @@ def run_arm(
     lora_rank: int = 32,
     eval_samples: int = 4,
     eval_base: bool = False,
+    num_iterations: int = 1,
 ) -> dict:
     """One arm: eval the base model (optionally), train, eval again."""
     import time
@@ -402,6 +403,7 @@ def run_arm(
         "learning_rate": learning_rate,
         "epsilon_low": EPS_LOW,
         "epsilon_high_max": eps_high_max,
+        "num_iterations": num_iterations,
         "beta": 0.0,
         "lora_rank": lora_rank,
         "max_completion_length": max_completion_length,
@@ -446,6 +448,12 @@ def run_arm(
         per_device_train_batch_size=num_generations,
         gradient_accumulation_steps=prompts_per_step,
         learning_rate=learning_rate,
+        # How many policy updates TRL takes per batch of rollouts. At 1 the
+        # run is fully on-policy: the importance ratio is exactly 1 on the
+        # only update, so no bound above 1 is ever reached and a per-group
+        # upper bound cannot change a single gradient. Round 1 measured that
+        # the hard way -- clip_ratio/high_mean was 0.0 in all 80 logged steps.
+        num_iterations=num_iterations,
         # No KL term, so the clip is the only trust region in the run and the
         # arms differ in the thing the paper is about and nothing else.
         beta=0.0,
@@ -666,6 +674,12 @@ def main() -> None:
     )
     ap.add_argument("--prompts-per-step", type=int, default=6)
     ap.add_argument("--eps-high-max", type=float, default=EPS_HIGH_MAX)
+    ap.add_argument(
+        "--num-iterations",
+        type=int,
+        default=1,
+        help="policy updates per batch of rollouts; at 1 the run is on-policy and no clip binds",
+    )
     ap.add_argument("--selftest", action="store_true", help="the clip schedule, offline")
     args = ap.parse_args()
 
@@ -727,6 +741,7 @@ def main() -> None:
                 eps_high_max=args.eps_high_max,
                 eval_samples=args.k,
                 eval_base=(i == 0),
+                num_iterations=args.num_iterations,
             )
             gpu_minutes += out["gpu_minutes"]
             run_url = out["run_url"] or run_url
