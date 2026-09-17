@@ -89,7 +89,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
     import random
     import re
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY, TOOLS, scripted_agent
 
     timing = re.compile(r"(seconds|elapsed|rate|_s$|_at$|per_second)")
@@ -110,7 +110,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
             time.sleep(rng.random() * 0.03)
             return scripted_agent(message)
 
-        d = zps.simulate(
+        d = wai.simulate(
             jittery,
             tools=TOOLS,
             policy=POLICY,
@@ -153,7 +153,7 @@ def test_serial_graded_reruns_in_one_process_are_identical():
     import re
     import time
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY, TOOLS, scripted_agent
     from whileai.simulations.generate.agents import current_rollout
 
@@ -186,7 +186,7 @@ def test_serial_graded_reruns_in_one_process_are_identical():
                 }
             return scripted_agent(message)
 
-        d = zps.simulate(
+        d = wai.simulate(
             careless,
             tools=TOOLS,
             policy=POLICY,

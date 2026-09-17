@@ -108,9 +108,9 @@ false-authority probes land in the same buckets when drawn). Every ask is
 rolled `k` times:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-base = zps.simulate(
+base = wai.simulate(
     agent,  # a callable, or "openai:gpt-4.1-mini", or your endpoint
     tools=TOOLS,
     system_prompt=POLICY,
@@ -217,7 +217,7 @@ Run the candidate fix on exactly the tasks the first run drew
 `delta_report`, naming the markers that must not drop:
 
 ```python
-report = zps.delta_report(
+report = wai.delta_report(
     before,
     after,
     target="pass_at_1",
@@ -271,7 +271,7 @@ it took and what it said. Swap the scripted agent for a model endpoint and
 nothing else changes:
 
 ```python
-base = zps.simulate(
+base = wai.simulate(
     agent="openai:gpt-4.1-mini",  # any OpenAI-compatible endpoint
     tools=TOOLS,
     system_prompt=POLICY,
@@ -281,7 +281,7 @@ base = zps.simulate(
     repeat_policy="fixed",
 )
 rows = [dict(r, category=classify(r["prompt"])) for r in base.trajectories]
-scored = zps.evaluate(rows, safety_judge, model="candidate-v1")
+scored = wai.evaluate(rows, safety_judge, model="candidate-v1")
 ```
 
 Three things to write for your own agent: the policy and tools, the world

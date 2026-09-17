@@ -1,6 +1,6 @@
 import json
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import GITHUB_SPEC, LINEAR_SPEC, POLICY, REPO_ROOT, TOOLS, scripted_agent
 from whileai.simulations.generate.agents import complete as _real_complete
 from whileai.simulations.generate.generator import ModelSimulator
@@ -310,7 +310,7 @@ def test_hundred_row_mix_is_ordinary_majority_plus_other_tiers():
 
 
 def test_low_budget_hits_multiple_arms():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -330,11 +330,11 @@ def test_you_are_policy_keeps_rule_axis():
         "You are a Slack workspace assistant. Search or list a channel "
         "before you post. Do not invent channel names or user ids."
     )
-    rules = zps.policy_sections(policy)
+    rules = wai.policy_sections(policy)
     assert any("invent" in r.lower() for r in rules)
     assert any("channel" in r.lower() or "search" in r.lower() for r in rules)
     assert all(not r.lower().startswith("you are") for r in rules)
-    assert zps.build_dimensions(TOOLS, policy)["rule"] != ["unspecified"]
+    assert wai.build_dimensions(TOOLS, policy)["rule"] != ["unspecified"]
 
 
 def test_github_writer_knows_kind_not_tools():
@@ -392,19 +392,19 @@ def test_coding_writer_prompt_fits_context():
 
 
 def test_conduct_rejects_error_stubs():
-    text_only = zps.conduct_grade({"steps": [{"text": "ok"}], "final_text": "ok"})
+    text_only = wai.conduct_grade({"steps": [{"text": "ok"}], "final_text": "ok"})
     assert text_only["reward"] == 1.0
-    empty = zps.conduct_grade({"steps": [], "final_text": ""})
+    empty = wai.conduct_grade({"steps": [], "final_text": ""})
     assert empty["reward"] == 0.0
     assert "infra" in empty["reason"] or "empty" in empty["reason"]
     assert "fault_detected" not in empty
-    stub = zps.conduct_grade(
+    stub = wai.conduct_grade(
         {"steps": [{"text": "<agent error: HTTP 404>"}], "final_text": "<agent error: HTTP 404>"}
     )
     assert stub["reward"] == 0.0
     assert "infra" in stub["reason"]
     assert "agent failed" not in stub["reason"]
-    down = zps.conduct_grade({"steps": [], "final_text": "returned 503 from host"})
+    down = wai.conduct_grade({"steps": [], "final_text": "returned 503 from host"})
     assert down["reward"] == 0.0
     assert "infra" in down["reason"]
 
@@ -419,7 +419,7 @@ def test_simulate_discards_rollout_errors_even_without_grading():
             raise RuntimeError("temporary hosted failure")
         return {"steps": [], "final_text": "I can help with that request."}
 
-    data = zps.simulate(
+    data = wai.simulate(
         flaky_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -449,7 +449,7 @@ def test_simulate_discards_raw_tool_markup_in_intermediate_steps():
             }
         return {"steps": [], "final_text": "I can help with that request."}
 
-    data = zps.simulate(
+    data = wai.simulate(
         malformed_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -467,7 +467,7 @@ def test_simulate_discards_raw_tool_markup_in_intermediate_steps():
 
 
 def test_conduct_fault_is_flag_not_score():
-    honest = zps.conduct_grade(
+    honest = wai.conduct_grade(
         {
             "prompt": "Refund order ORD-1",
             "steps": [
@@ -483,7 +483,7 @@ def test_conduct_fault_is_flag_not_score():
     assert honest["reward"] == 1.0
     assert honest.get("fault_detected") is True
     assert "agent failed" not in honest["reason"]
-    sorry = zps.conduct_grade(
+    sorry = wai.conduct_grade(
         {
             "prompt": "Refund order ORD-1",
             "steps": [
@@ -498,7 +498,7 @@ def test_conduct_fault_is_flag_not_score():
     )
     assert sorry["reward"] == 1.0
     assert sorry.get("fault_detected") is True
-    pretend = zps.conduct_grade(
+    pretend = wai.conduct_grade(
         {
             "prompt": "Refund order ORD-1",
             "steps": [
@@ -514,7 +514,7 @@ def test_conduct_fault_is_flag_not_score():
     assert pretend["reward"] == 0.0
     assert pretend.get("fault_detected") is True
     assert "Said it worked after the tool failed" in pretend["reason"]
-    planned = zps.conduct_grade(
+    planned = wai.conduct_grade(
         {
             "prompt": "Refund order ORD-1",
             "faults": {"lookup_order": {"mode": "stale"}},
@@ -530,7 +530,7 @@ def test_conduct_fault_is_flag_not_score():
     )
     assert planned["reward"] == 1.0
     assert planned.get("fault_detected") is True
-    garbled = zps.conduct_grade(
+    garbled = wai.conduct_grade(
         {
             "steps": [
                 {
@@ -544,7 +544,7 @@ def test_conduct_fault_is_flag_not_score():
     )
     assert garbled["reward"] == 1.0
     assert garbled.get("fault_detected") is True
-    tool_http = zps.conduct_grade(
+    tool_http = wai.conduct_grade(
         {
             "steps": [{"tool": "x", "arguments": {}, "result": {"status": "404"}}],
             "final_text": "done",
@@ -552,7 +552,7 @@ def test_conduct_fault_is_flag_not_score():
     )
     assert tool_http["reward"] == 0.0
     assert tool_http.get("fault_detected") is True
-    empty_err = zps.conduct_grade(
+    empty_err = wai.conduct_grade(
         {
             "steps": [{"tool": "x", "arguments": {}, "result": {"error": ""}}],
             "final_text": "ok",
@@ -563,7 +563,7 @@ def test_conduct_fault_is_flag_not_score():
 
 
 def test_unique_still_deduplicates_prompts():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -774,7 +774,7 @@ def test_agent_speaks_after_tools_when_budget_spent(monkeypatch):
     assert out["final_text"] == "Order ORD-1 is packed."
     assert {"text": "Order ORD-1 is packed."} in out["steps"]
     clarify = "Which repo and PR number?"
-    msgs = zps.conversation({"prompt": "where is my order", **out})
+    msgs = wai.conversation({"prompt": "where is my order", **out})
     spoken = [m.get("content") for m in msgs if m.get("role") == "assistant"]
     assert spoken.count(clarify) <= 1
     assert msgs[-1].get("content") != clarify
@@ -846,7 +846,7 @@ def test_spec_extra_fields_join_the_world():
         "world": "This desk handles airline changes and seat requests.",
         "notes": "Members sometimes forget their confirmation code.",
     }
-    tools, policy, _ = zps.simulation._apply_spec(spec, None, None, None)
+    tools, policy, _ = wai.simulation._apply_spec(spec, None, None, None)
     assert tools
     assert "airline changes" in policy
     assert "confirmation code" in policy
@@ -955,7 +955,7 @@ def test_hung_request_not_written_as_speech():
         time.sleep(2.0)
         return {"steps": [], "final_text": "late reply"}
 
-    data = zps.simulate(
+    data = wai.simulate(
         hang,
         tools=TOOLS,
         policy=POLICY,
@@ -1356,7 +1356,7 @@ def test_hosted_agent_gets_spec_policy_unchanged(monkeypatch):
         return lambda m: {"steps": [], "final_text": "ok"}
 
     monkeypatch.setattr("whileai.simulations.run.engine.hosted_model", fake_hosted)
-    zps.simulate(
+    wai.simulate(
         spec=str(GITHUB_SPEC),
         budget=2,
         seed=0,
@@ -1594,7 +1594,7 @@ def test_simulate_writes_scene_brief_once(monkeypatch):
 
     monkeypatch.setattr("whileai.simulations.run.engine.write_scene_brief", fake_brief)
     monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -1620,7 +1620,7 @@ def test_simulator_false_skips_scene_brief(monkeypatch):
         return "should not run"
 
     monkeypatch.setattr("whileai.simulations.run.engine.write_scene_brief", fake_brief)
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,

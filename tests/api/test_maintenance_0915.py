@@ -15,7 +15,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import simulate_offline
 from whileai import auth, cli
 from whileai.simulations.export import export_preference, export_training
@@ -93,11 +93,11 @@ def test_preflight_destructive_is_a_word_not_a_substring():
 
 
 def test_recommend_takes_simulate_spelling_of_the_policy():
-    by_policy = zps.recommend(TOOLS, POLICY, mode="rl")
-    by_system_prompt = zps.recommend(TOOLS, system_prompt=POLICY, mode="rl")
+    by_policy = wai.recommend(TOOLS, POLICY, mode="rl")
+    by_system_prompt = wai.recommend(TOOLS, system_prompt=POLICY, mode="rl")
     assert by_policy["budget"] == by_system_prompt["budget"]
     with pytest.raises(ValueError, match="not both"):
-        zps.recommend(TOOLS, POLICY, system_prompt=POLICY + " x")
+        wai.recommend(TOOLS, POLICY, system_prompt=POLICY + " x")
 
 
 # ------------------------------------------------------------- status

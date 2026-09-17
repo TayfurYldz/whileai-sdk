@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from example_helpers import EXAMPLES, load_script
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 README = EXAMPLES / "04-train/hosted-loop" / "README.md"
 
@@ -156,7 +156,7 @@ def test_data_step_simulates_grades_splits_and_pushes(hl, monkeypatch, capsys):
         pushed.append((name, rows, kw))
         return {"datasetId": f"ds_{name}", "gate": {"ok": True, "warnings": ["w1"]}}
 
-    monkeypatch.setattr(zps, "push_rows", fake_push)
+    monkeypatch.setattr(wai, "push_rows", fake_push)
     hl.step_data(_args(budget=24))
     assert [p[0] for p in pushed] == ["hl-train", "hl-holdout"]
     (_, train, train_kw), (_, held, held_kw) = pushed
@@ -198,7 +198,7 @@ def test_train_step_passes_the_method_knobs_and_waits(hl, monkeypatch, capsys):
         calls.append((dataset, kw))
         return run
 
-    monkeypatch.setattr(zps, "train", fake_train)
+    monkeypatch.setattr(wai, "train", fake_train)
     hl.step_train(_args(method="sft", epochs=2.0, steps=99, timeout=60.0))
     dataset, kw = calls[-1]
     assert dataset == "ds_t" and kw["holdout"] == "ds_h" and kw["base_model"] == "Qwen/Qwen3-4B"
@@ -218,7 +218,7 @@ def test_train_step_needs_the_data_step_and_reports_a_failed_run(hl, monkeypatch
         hl.step_train(_args())
     assert "train_id" in str(exc.value.code)
     hl.save(train_id="ds_t", holdout_id="ds_h")
-    monkeypatch.setattr(zps, "train", lambda *a, **k: _FakeRun("failed", error="OOM"))
+    monkeypatch.setattr(wai, "train", lambda *a, **k: _FakeRun("failed", error="OOM"))
     with pytest.raises(SystemExit) as exc:
         hl.step_train(_args())
     assert "failed" in str(exc.value.code) and "OOM" in str(exc.value.code)
@@ -237,7 +237,7 @@ def test_serve_step_saves_the_endpoint_and_model_name(hl, monkeypatch, capsys):
             "endpoint": "https://example.modal.run/v1",
         }
 
-    monkeypatch.setattr(zps, "serve", fake_serve)
+    monkeypatch.setattr(wai, "serve", fake_serve)
     hl.step_serve(_args())
     assert seen == {"name": "hl", "run": "run_1"}
     assert hl.load()["endpoint"] == "https://example.modal.run/v1"
@@ -272,7 +272,7 @@ def test_call_step_posts_a_chat_completion_with_the_resolved_key(hl, monkeypatch
 
 def test_models_step_lists_what_the_account_hosts(hl, monkeypatch, capsys):
     monkeypatch.setattr(
-        zps,
+        wai,
         "models",
         lambda: [{"name": "hl", "version": 2, "baseModel": "Qwen/Qwen3-4B", "adapterRunId": "r"}],
     )

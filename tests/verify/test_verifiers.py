@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.verify import (
     All,
     Any,
@@ -28,9 +28,9 @@ def row(final, **kw):
 
 
 def test_exposed_on_package():
-    assert hasattr(zps, "verify")
-    assert zps.Verifier is not None
-    assert callable(zps.verifier)
+    assert hasattr(wai, "verify")
+    assert wai.Verifier is not None
+    assert callable(wai.verifier)
 
 
 def test_contract_shape():

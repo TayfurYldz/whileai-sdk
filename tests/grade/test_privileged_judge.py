@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.data import export_row
 from whileai.simulations.score import grade_llm as G
 
@@ -47,7 +47,7 @@ def test_privileged_block_reaches_the_judge_only_when_asked(monkeypatch):
     seen: list[dict] = []
     _capture(monkeypatch, seen)
     rows = [_row()]
-    zps.grade_llm(rows, spec=SPEC, use_privileged=True)
+    wai.grade_llm(rows, spec=SPEC, use_privileged=True)
     user = seen[-1]["user"]
     body = json.loads(user[user.index("{") :])
     assert body["judge_only"]["reference"] == "Refunds within 14 days, unopened."
@@ -59,7 +59,7 @@ def test_privileged_block_reaches_the_judge_only_when_asked(monkeypatch):
 
     seen.clear()
     plain = [_row()]
-    zps.grade_llm(plain, spec=SPEC)
+    wai.grade_llm(plain, spec=SPEC)
     user = seen[-1]["user"]
     assert "judge_only" not in user and "judge_only" not in seen[-1]["system"]
     assert "privileged" not in plain[0]["judge_meta"]
@@ -71,7 +71,7 @@ def test_use_privileged_without_a_block_is_the_plain_judge(monkeypatch):
     seen: list[dict] = []
     _capture(monkeypatch, seen)
     rows = [_row(with_priv=False)]
-    zps.grade_llm(rows, spec=SPEC, use_privileged=True)
+    wai.grade_llm(rows, spec=SPEC, use_privileged=True)
     assert "judge_only" not in seen[-1]["user"]
     assert "privileged" not in export_row(rows[0])
 

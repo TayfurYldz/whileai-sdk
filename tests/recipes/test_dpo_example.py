@@ -13,7 +13,7 @@ from example_helpers import (
     load_script,
 )
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 GRPO = EXAMPLES / "04-train/grpo"
 DPO = EXAMPLES / "04-train/dpo"
@@ -129,10 +129,10 @@ def test_load_export_reads_export_preference_output(tmp_path):
         ],
         [[CALL, REFUND]],
     )
-    pairs, _ = zps.build_preference_pairs(rows)
+    pairs, _ = wai.build_preference_pairs(rows)
     assert len(pairs) == 1
     out = tmp_path / "pairs.jsonl"
-    zps.export_preference(pairs, str(out), validate=False)
+    wai.export_preference(pairs, str(out), validate=False)
     loaded = p.load_export(str(out), system="SYS")
     assert len(loaded) == 1
     assert loaded[0]["prompt"][0] == {"role": "system", "content": "SYS"}
@@ -238,4 +238,4 @@ def test_readme_has_no_placeholders_and_names_only_real_things():
     _, p = _modules()
     assert "pairs.constructed_negatives" in text and hasattr(p, "constructed_negatives")
     for api in ("build_preference_pairs", "export_preference", "TrainerCallback"):
-        assert api in text and hasattr(zps, api)
+        assert api in text and hasattr(wai, api)

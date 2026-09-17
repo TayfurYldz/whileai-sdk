@@ -3,6 +3,13 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- The import alias in every example, recipe, docstring and the skill is
+  `wai` (`import whileai.simulations as wai`), not `zps`. Nothing in the
+  package changes; `zps` was only ever a name in your own code.
+  `scripts/rebrand.py --alias` applies the same rename to an open branch.
+
 ## 0.51 (2026-09-16)
 
 - **Renamed to `whileai`.** ZeroProof is now While, and the package follows:

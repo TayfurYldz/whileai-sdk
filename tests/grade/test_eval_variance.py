@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.delta import delta_report, format_delta_report
 from whileai.simulations.score.stats import eval_variance
 
@@ -96,9 +96,9 @@ def test_delta_report_refuses_a_verdict_inside_the_noise_band():
 
 
 def test_public_surface():
-    assert "eval_variance" in zps.__all__ and callable(zps.eval_variance)
+    assert "eval_variance" in wai.__all__ and callable(wai.eval_variance)
     with pytest.raises(ValueError, match="at least one"):
-        zps.eval_variance()
+        wai.eval_variance()
 
 
 # --- #31: the wrong-shape argument must name the next action ---

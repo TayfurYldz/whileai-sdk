@@ -8,7 +8,7 @@ pip install whileai
 
 ```python
 import whileai
-import whileai.simulations as zps
+import whileai.simulations as wai
 ```
 
 This package is the old name. Installing it installs `whileai` and keeps

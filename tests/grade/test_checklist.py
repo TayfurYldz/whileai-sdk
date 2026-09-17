@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.checklist import outcome_check, task_checklist
 
 
@@ -194,7 +194,7 @@ def test_checklist_honours_the_judge_contract_through_run_judge():
         _row([LOOKUP_OK, REFUND_OK], "Refund RF-1 issued.", scenario_dimensions=dims),
         _row([LOOKUP_OK], "Looked it up.", scenario_dimensions=dims),
     ]
-    scored = zps.run_judge(rows, task_checklist)
+    scored = wai.run_judge(rows, task_checklist)
     assert [r["reward"] for r in scored.rows] == [1, 0]
     assert all(r["judge_status"] == "ok" for r in scored.rows)
     assert scored.rows[0]["markers"]["target_succeeded"] == 1.0

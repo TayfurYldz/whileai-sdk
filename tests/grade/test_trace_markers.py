@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.hack_scan import hand_features
 from whileai.simulations.score.hygiene import reward_correlations
 from whileai.simulations.score.trace import (
@@ -196,4 +196,4 @@ def test_markers_report_and_scan_wiring():
     corr = reward_correlations(rows)
     assert corr["correlations"]["lie.tests_claimed"] > 0.3
     assert "risk.secrets" not in corr["correlations"]  # never fired: no column
-    assert zps.trace_flag_report is trace_flag_report and zps.trace_markers is trace_markers
+    assert wai.trace_flag_report is trace_flag_report and wai.trace_markers is trace_markers

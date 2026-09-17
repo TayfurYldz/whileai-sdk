@@ -4,10 +4,10 @@ DPO needs a chosen and a rejected reply to the same prompt. Two supplies:
 
 * **On-policy (default here)**: sample the base policy a few times per
   prompt, score every reply with the rule in ``reward.py``, and let
-  ``zps.build_preference_pairs`` pair a pass with a fail of similar length.
+  ``wai.build_preference_pairs`` pair a pass with a fail of similar length.
   Both sides come from the policy being trained, which is where DPO works
   best (rlhf-book ch. 11).
-* **Exported**: a file written by ``zps.export_preference`` (chosen and
+* **Exported**: a file written by ``wai.export_preference`` (chosen and
   rejected as full message lists) from any graded dataset, for example one
   pulled from the platform. Pass it as ``--pairs``.
 
@@ -191,14 +191,14 @@ def sampled_pairs(
     without a tool call also pairs that reply against an invented call."""
     from reward import reward_rows
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
 
     rows = reward_rows(prompts, replies)
     for row in rows:
         # build_preference_pairs reads ``reward``; the raw rule score is the
         # finer signal, so a 1.0 vs 0.5 pair exists at min_margin 0.5.
         row["reward"] = float(row["markers"]["tool_rule"])
-    pairs, report = zps.build_preference_pairs(
+    pairs, report = wai.build_preference_pairs(
         rows, min_margin=min_margin, max_pairs_per_prompt=max_pairs_per_prompt, length_match=True
     )
     out = dpo_rows(pairs, system)
@@ -216,7 +216,7 @@ def sampled_pairs(
 
 
 def load_export(path: str, *, system: str | None = None) -> list[dict[str, Any]]:
-    """Rows from a ``zps.export_preference`` JSONL. Each line carries
+    """Rows from a ``wai.export_preference`` JSONL. Each line carries
     ``chosen`` and ``rejected`` as full conversations; the prompt is every
     message before the first assistant turn, the sides are that turn."""
     out: list[dict[str, Any]] = []

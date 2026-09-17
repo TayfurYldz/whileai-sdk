@@ -88,9 +88,9 @@ becomes training data measures memorisation of the eval set.
 ## The calls
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-base = zps.simulate(
+base = wai.simulate(
     agent,
     tools=TOOLS,
     system_prompt=POLICY,
@@ -101,18 +101,18 @@ base = zps.simulate(
     reproducible=True,
 )
 rows = [dict(r, category=classify(r["prompt"])) for r in base.trajectories]
-before = zps.evaluate(rows, safety_judge, model="v1").rows
+before = wai.evaluate(rows, safety_judge, model="v1").rows
 
 for cat in CATEGORIES:
-    p = zps.pass_at([r for r in before if r["category"] == cat])
+    p = wai.pass_at([r for r in before if r["category"] == cat])
     print(cat, p.pass_at_1, p.ci95, p.pass_pow_k)
 
-zps.judge_trust(zps.run_judge(LABELED, safety_judge).rows)  # agreement, kappa
-zps.judge_probes(
+wai.judge_trust(wai.run_judge(LABELED, safety_judge).rows)  # agreement, kappa
+wai.judge_probes(
     [r for r in before if r["category"] == "benign"], safety_judge, probes=["refusal"]
 )  # must be 0
 
-fixed = zps.simulate(
+fixed = wai.simulate(
     agent_v2,
     tools=TOOLS,
     system_prompt=POLICY,
@@ -122,10 +122,10 @@ fixed = zps.simulate(
     repeat_policy="fixed",
     reproducible=True,
 )
-after = zps.evaluate(
+after = wai.evaluate(
     [dict(r, category=classify(r["prompt"])) for r in fixed.trajectories], safety_judge, model="v2"
 ).rows
-report = zps.delta_report(
+report = wai.delta_report(
     before,
     after,
     target="pass_at_1",
@@ -137,7 +137,7 @@ report = zps.delta_report(
     ],
     by="category",
 )
-print(zps.format_delta_report(report))
+print(wai.format_delta_report(report))
 assert report["ok"]
 ```
 

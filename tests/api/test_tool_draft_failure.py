@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 
 def _writer(_dataset=None, index=0):
@@ -15,7 +15,7 @@ def test_failed_tool_draft_is_a_degraded_note(monkeypatch):
         "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
-    data = zps.simulate(
+    data = wai.simulate(
         system_prompt="A refunds assistant that looks up an order first.",
         budget=4,
         seed=0,
@@ -49,7 +49,7 @@ def test_successful_tool_draft_is_not_flagged(monkeypatch):
         "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
-    data = zps.simulate(
+    data = wai.simulate(
         system_prompt="A refunds assistant that looks up an order first.",
         budget=4,
         seed=0,

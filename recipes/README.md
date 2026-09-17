@@ -63,7 +63,7 @@ reading the others:
 
 | Recipe | What you learn | Needs | Takes |
 |---|---|---|---|
-| [`hosted-loop`](04-train/hosted-loop) | push graded rows, `zps.train` SFT on Qwen3-4B, `zps.serve` the adapter, one chat completion from the endpoint | `WHILEAI_API_KEY` | about a minute of A10G, plus a cold start |
+| [`hosted-loop`](04-train/hosted-loop) | push graded rows, `wai.train` SFT on Qwen3-4B, `wai.serve` the adapter, one chat completion from the endpoint | `WHILEAI_API_KEY` | about a minute of A10G, plus a cold start |
 | [`identity`](04-train/identity) | a leak-free SFT set that teaches a name and maker, with Modal scripts for the LoRA and for the identity/leak eval | nothing to generate; Modal and an A10G to train | seconds to generate |
 | [`grpo`](04-train/grpo) | TRL `GRPOTrainer` with LoRA on a verifiable rule, `HackMonitor` and reward/KL on the run page, paired pass@1 before/after with per-category deltas, loss variants and `--balance` as flags | Modal, one A10G; the key is optional | under 15 min at 40 steps |
 | [`dpo`](04-train/dpo) | on-policy pairs from `build_preference_pairs`, TRL `DPOTrainer`, the reward margin on the run page, iterated rounds with `--from-run`, constructed negatives | Modal, one A10G; the key is optional | about 10 min |
@@ -97,7 +97,7 @@ is generated from each recipe's `results.json`.
   (rejection sampling through `optimize(mode="sft")`).
 - **Train:** `04-train/hosted-loop` (platform trainer, no GPU of yours);
   `identity`, `grpo`, `dpo`, `text-to-sql` (your trainer on Modal, reporting
-  into the same run page through `zps.TrainerCallback`).
+  into the same run page through `wai.TrainerCallback`).
 - **Before and after:** `grpo`, `dpo` and `text-to-sql` call `run.delta(...)`;
   `character/measure.py` and `safety-evals` call `delta_report` directly, the
   latter with `must_not_regress=["helpful_on_benign"]` so a fix that got safe

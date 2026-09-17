@@ -2,7 +2,7 @@
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.grade_llm import (
     AUDIT_SYSTEM,
     JUDGE_MAX_TOKENS,
@@ -26,7 +26,7 @@ def test_data_grade_is_the_optional_qwen_followup(monkeypatch):
         return {"status": "judged", "graded": 1}
 
     monkeypatch.setattr("whileai.simulations.data.apply_grade_llm", fake_apply)
-    data = zps.SimulationData(
+    data = wai.SimulationData(
         trajectories=[
             {
                 "prompt": "help",

@@ -5,7 +5,7 @@ Offline: hash embedder, template generator, scripted agent. No GPU.
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent
 from whileai.simulations.ingest.traces import (
     dimensions_from_traces,
@@ -50,7 +50,7 @@ def test_mine_traces_counts_tools_faults_and_flaws():
 
 def test_dimensions_focus_on_observed_behaviors():
     dims = dimensions_from_traces(TRACES, TOOLS, POLICY, broaden=False)
-    base = zps.build_dimensions(TOOLS, POLICY)
+    base = wai.build_dimensions(TOOLS, POLICY)
     # Failing tool leads; the never-observed tool is dropped when narrow.
     assert dims["tool"][0] == "lookup_order"
     assert "get_refund_status" not in dims["tool"]

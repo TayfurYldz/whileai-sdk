@@ -12,7 +12,7 @@ What happens:
 3. The holdout split is sampled 4x before and after training and graded with
    the binary verdict; pass@1 before/after and the delta land on the run
    page. The adapter is saved on volume whileai-train-runs under the run
-   id so zps.serve can host it on Qwen/Qwen3-4B.
+   id so wai.serve can host it on Qwen/Qwen3-4B.
 """
 
 from __future__ import annotations
@@ -159,7 +159,7 @@ def _train(
     sys.path.insert(0, "/root")
     import sql_verifier as R
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
 
     if use_vllm:
         # TRL's colocate mode builds vLLM with the external_launcher executor,
@@ -218,7 +218,7 @@ def _train(
     }
     run = None
     if os.environ.get("WHILEAI_API_KEY"):
-        run = zps.training_run(
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-grpo-lora-sql",
@@ -237,7 +237,7 @@ def _train(
             model, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
         before_rows = R.reward_rows(holdout_tasks, before_replies, f"{base_model}@before")
-        before = zps.pass_at(before_rows)
+        before = wai.pass_at(before_rows)
         print(f"before: {before}")
 
     calls = {"n": 0}
@@ -345,7 +345,7 @@ def _train(
         peft_config=None if from_run else lora,
     )
     if run is not None:
-        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+        trainer.add_callback(wai.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -360,7 +360,7 @@ def _train(
             policy, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
         after_rows = R.reward_rows(holdout_tasks, after_replies, f"{run_name}@after")
-        after = zps.pass_at(after_rows)
+        after = wai.pass_at(after_rows)
         print(f"after:  {after}")
 
     adapter_dir = os.path.join(out_dir, "adapter")
@@ -395,14 +395,14 @@ def _train(
                 by="difficulty",
             )
         else:
-            delta = zps.delta_report(
+            delta = wai.delta_report(
                 before_rows,
                 after_rows,
                 target="pass_at_1",
                 must_not_regress=["executes"],
                 by="difficulty",
             )
-        print(zps.format_delta_report(delta))
+        print(wai.format_delta_report(delta))
         summary["delta_verdict"] = delta["target_verdict"]
     if run is not None:
         run.finish("done", summary=summary, adapter=f"volume whileai-train-runs:/{run_id}/adapter")

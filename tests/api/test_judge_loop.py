@@ -221,12 +221,12 @@ def test_selection_lanes_and_dataset_alias(tmp_path):
 
 
 def test_scaffold_is_generation_only():
-    import whileai.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY as HP
     from tests.helpers import TOOLS as HT
     from tests.helpers import scripted_agent
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=HT,
         policy=HP,
@@ -237,7 +237,7 @@ def test_scaffold_is_generation_only():
     )
     assert data.scaffold_chars == len("Ground every claim in tool results.")
     assert "Ground every claim" not in str(data.profile.policy)
-    exported = zps.training_rows(data.trajectories[:1], system_prompt=HP, tools=HT)
+    exported = wai.training_rows(data.trajectories[:1], system_prompt=HP, tools=HT)
     assert "Ground every claim" not in exported[0]["messages"][0]["content"]
 
 

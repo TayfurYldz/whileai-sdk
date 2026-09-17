@@ -32,7 +32,7 @@ python recipe.py                    # both arms, writes results.json
 ## The contract
 
 - `README.md` in the shape of [`_template/README.md`](_template/README.md): Paper, Claim, The change, numbered steps, one command, the Result table, the Climb table, three Learned bullets, the Verified line.
-- `recipe.py`: one file. Data, then train, then eval, then `results.json`. Two arms on the same holdout: the baseline and the paper's change. Paired delta with a 95% interval (`zps.delta_report`).
+- `recipe.py`: one file. Data, then train, then eval, then `results.json`. Two arms on the same holdout: the baseline and the paper's change. Paired delta with a 95% interval (`wai.delta_report`).
 - `results.json`: the numbers the table above reads. Shape in [`_template/results.json`](_template/results.json).
 - Default run: under 60 GPU minutes, under $10. Bigger runs behind a flag.
 - Public data or a seeded environment that lives in the recipe directory. No customer data.

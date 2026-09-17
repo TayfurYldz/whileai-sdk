@@ -7,7 +7,7 @@ import warnings
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.training import TrainerCallback, TrainingRun, training_run
 
 
@@ -123,11 +123,11 @@ def test_trainer_callback_maps_transformers_logs():
 
 
 def test_package_exports_and_repr():
-    assert zps.training_run is training_run and zps.TrainerCallback is TrainerCallback
+    assert wai.training_run is training_run and wai.TrainerCallback is TrainerCallback
     run = TrainingRun("run_1", name="n", transport=lambda *a, **k: {})
     assert "run_1" in repr(run) and run.status == "running"
     for name in ("list_runs", "get_run", "delete_run"):
-        assert name in zps.__all__
+        assert name in wai.__all__
 
 
 def test_trainer_callback_maps_rl_keys():

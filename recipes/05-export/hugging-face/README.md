@@ -9,9 +9,9 @@ connection); a minute end to end.
 
 | call | what moves | where it lands |
 |---|---|---|
-| `zps.hf_publish("ds_...")` | your rows | `huggingface.co/datasets/<you>/<repo>`, one split per purpose, commit tagged `zp-<dataset id>` |
-| `zps.import_hf("ns/name", split=...)` | any Hub split | a dataset on your account, profiled (pass rate, support, mixed prompts) |
-| `zps.hf_publish_run("run_...")` | a run's LoRA adapter | `huggingface.co/<you>/<repo>` with a model card, private by default |
+| `wai.hf_publish("ds_...")` | your rows | `huggingface.co/datasets/<you>/<repo>`, one split per purpose, commit tagged `zp-<dataset id>` |
+| `wai.import_hf("ns/name", split=...)` | any Hub split | a dataset on your account, profiled (pass rate, support, mixed prompts) |
+| `wai.hf_publish_run("run_...")` | a run's LoRA adapter | `huggingface.co/<you>/<repo>` with a model card, private by default |
 
 Versions are commits. Every push is tagged with the While id it came
 from, so `load_dataset(repo, split, revision="zp-ds_...")` loads exactly

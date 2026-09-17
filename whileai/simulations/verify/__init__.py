@@ -6,12 +6,12 @@ honors the judge contract (``callable(row) -> {"reward", "reason"}``), so it
 drops into ``data.grade(judge=v)``, ``evaluate``, ``optimize`` and a gated
 ``push`` exactly where an LLM judge would go.
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
     from whileai.simulations.verify import MathEqual, All, Regex
 
     v = All([MathEqual(), Regex(r"</think>")])       # right answer, and it closed its reasoning
     scored = data.grade(judge=v)                     # verifier IS the reward
-    rows, _ = zps.optimize(scored, mode="rl")        # GRPO data with a verifiable reward
+    rows, _ = wai.optimize(scored, mode="rl")        # GRPO data with a verifiable reward
 
 The gold answer is read from the row's ``privileged.reference`` (never
 exported to training rows), with flat fields (``answer``, ``target``, ...)

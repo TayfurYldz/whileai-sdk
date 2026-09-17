@@ -31,14 +31,14 @@ row (``judge_status`` of ``missing_reward`` / ``invalid_result`` /
 
 The five-line loop::
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
     judge = lambda t: {"reward": int("sorry" not in t["final_text"])}
-    scored = zps.run_judge(data.trajectories, judge)     # or data.grade(judge=judge)
-    zps.export_training(scored.passes(), output="train.jsonl",
+    scored = wai.run_judge(data.trajectories, judge)     # or data.grade(judge=judge)
+    wai.export_training(scored.passes(), output="train.jsonl",
                         system_prompt=POLICY, tools=TOOLS)
     # ...train externally, roll the model on a holdout...
-    evald = zps.evaluate(rollouts, judge, model="my-tuned-v1")
-    nxt = zps.simulate(tools=TOOLS, system_prompt=POLICY,
+    evald = wai.evaluate(rollouts, judge, model="my-tuned-v1")
+    nxt = wai.simulate(tools=TOOLS, system_prompt=POLICY,
                        traces=evald.failed_traces())     # loop closed
 """
 

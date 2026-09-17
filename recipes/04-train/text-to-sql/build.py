@@ -33,7 +33,7 @@ from sql_verifier import (
     write_jsonl,
 )
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.hack_scan import format_hack_scan, hack_scan
 from whileai.simulations.score.judging import run_judge
 from whileai.simulations.score.passat import pass_at
@@ -239,7 +239,7 @@ def main() -> int:
         pol = scored[args.policy]
         train = [r for r in pol if r.get("split") == "train"]
         holdout_rows = [r for r in pol if r.get("split") == "holdout"]
-        rl_rows, rl_report = zps.optimize(train, mode="rl", endorsed=["marker:executes"])
+        rl_rows, rl_report = wai.optimize(train, mode="rl", endorsed=["marker:executes"])
         print(
             f"optimize(rl): {len(rl_rows)} rows from {len(train)}; report keys {sorted(rl_report)[:12]}"
         )
@@ -261,7 +261,7 @@ def main() -> int:
     if args.push:
         desc = "Text-to-SQL over a small online-store Postgres database (8 tables, seeded). Reward = execution match against gold SQL."
         if rl_rows:
-            e = zps.push_rows(
+            e = wai.push_rows(
                 rl_rows,
                 f"{AGENT}-rl",
                 gate=True,
@@ -277,7 +277,7 @@ def main() -> int:
                 "gate": e.get("gate"),
             }
             print("pushed rl", e.get("datasetId"))
-        e = zps.push_rows(
+        e = wai.push_rows(
             sft_rows,
             f"{AGENT}-sft",
             mode="sft",
@@ -292,7 +292,7 @@ def main() -> int:
             "rows": len(sft_rows),
         }
         print("pushed sft", e.get("datasetId"))
-        e = zps.push_rows(
+        e = wai.push_rows(
             holdout_gold,
             f"{AGENT}-holdout",
             mode="sft",
@@ -311,7 +311,7 @@ def main() -> int:
             hold = [r for r in rows if r.get("split") == "holdout"]
             if not hold:
                 continue
-            e = zps.push_rows(
+            e = wai.push_rows(
                 hold,
                 f"{AGENT}-eval-{m}",
                 purpose="eval",
@@ -333,7 +333,7 @@ def main() -> int:
             if not hold:
                 print(f"no holdout rows for {m}")
                 continue
-            e = zps.push_rows(
+            e = wai.push_rows(
                 hold,
                 f"{AGENT}-eval-{m}",
                 purpose="eval",

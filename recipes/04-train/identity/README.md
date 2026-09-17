@@ -78,7 +78,7 @@ what to report.
 With `WHILEAI_API_KEY` set on your laptop, `train_modal.py` reports the
 loss curve, learning rate and progress to
 [zeroproofai.com/platform/training](https://www.zeroproofai.com/platform/training)
-through `zps.TrainerCallback`; the run's URL is printed when training
+through `wai.TrainerCallback`; the run's URL is printed when training
 starts. Without the key nothing is sent and training is unchanged.
 
 ```bash

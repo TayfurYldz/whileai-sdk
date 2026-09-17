@@ -1,8 +1,8 @@
-"""Sample a policy on the task set, k times per task, through `zps.simulate`.
+"""Sample a policy on the task set, k times per task, through `wai.simulate`.
 
     python rollout.py --model qwen3-4b                       # hosted Qwen3-4B, thinking off
     python rollout.py --model sonnet-5 --split holdout       # Claude via OPENAI_BASE_URL or Bedrock
-    python rollout.py --hosted t2s-r1 --split holdout        # a model you served with zps.serve
+    python rollout.py --hosted t2s-r1 --split holdout        # a model you served with wai.serve
     python rollout.py --agent "openai:gpt-4.1-mini"          # any agent spec the SDK accepts
 
 `simulate(tasks=...)` replays exactly these prompts on their scenario ids,
@@ -11,9 +11,9 @@ afterwards (the SDK never carries an answer key through a rollout) and the
 rows land in raw/<model>.jsonl for build.py.
 
 The account's Qwen3-4B endpoint runs with thinking off through the SDK. A
-model served under its own name (zps.serve, `--hosted`) thinks by default;
+model served under its own name (wai.serve, `--hosted`) thinks by default;
 to benchmark the *base* with thinking on, serve it under a name:
-`zps.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`, then
+`wai.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`, then
 `--hosted qwen3-4b-think`. The agent's reply budget follows
 ZP_CONTEXT_TOKENS (2048 tokens once it is above 8192), which this script
 sets when unset.
@@ -42,7 +42,7 @@ from sql_verifier import (
     system_prompt,
 )
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 SERVE_URL = "https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1"
 
@@ -127,7 +127,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen3-4b", choices=sorted(MODELS))
     ap.add_argument(
-        "--hosted", default="", help="a model served from your account (zps.serve name)"
+        "--hosted", default="", help="a model served from your account (wai.serve name)"
     )
     ap.add_argument("--agent", default="", help="any SDK agent spec, e.g. openai:gpt-4.1-mini")
     ap.add_argument(
@@ -201,7 +201,7 @@ def main() -> int:
     )
     try:
         # a reasoning model thinks for 1-3k tokens before the query (whileai >= 0.47)
-        data = zps.simulate(spec, agent_max_tokens=args.max_tokens, timeout=args.timeout, **kw)
+        data = wai.simulate(spec, agent_max_tokens=args.max_tokens, timeout=args.timeout, **kw)
     except TypeError as exc:
         if "agent_max_tokens" not in str(exc) and "timeout" not in str(exc):
             raise
@@ -210,7 +210,7 @@ def main() -> int:
             "replies capped at 2048 tokens, 60 s per call; thinking models lose some rows",
             flush=True,
         )
-        data = zps.simulate(spec, **kw)
+        data = wai.simulate(spec, **kw)
     by_id = {t["id"]: t for t in todo}
     rows = []
     for r in data.trajectories:

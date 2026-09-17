@@ -466,9 +466,9 @@ def send_score(
 ) -> dict:
     """Grade a run that has already finished — the number ``cut()`` filters on::
 
-        zps.send_score("4bf92f3577b34da6", 1.0)   # passed
-        zps.send_score("4bf92f3577b34da6", 0.0)   # failed
-        zps.cut(agent="my-agent", kind="rl")      # now there is something to cut
+        wai.send_score("4bf92f3577b34da6", 1.0)   # passed
+        wai.send_score("4bf92f3577b34da6", 0.0)   # failed
+        wai.cut(agent="my-agent", kind="rl")      # now there is something to cut
 
     A run counts as a pass at **1.0 or above**, which is what puts its prompt
     in the 20-80% band ``cut(kind="rl")`` keeps. Send a 0-to-1 quality number
@@ -479,8 +479,8 @@ def send_score(
     judging has closed, and a human disagreeing with the judge answers a day
     later. Re-sending the same ``name`` is a correction, not a duplicate::
 
-        zps.send_score("4bf92f3577b34da6", 0.82, name="helpfulness")
-        zps.send_score(scores=[{"traceId": t, "value": v} for t, v in graded])
+        wai.send_score("4bf92f3577b34da6", 0.82, name="helpfulness")
+        wai.send_score(scores=[{"traceId": t, "value": v} for t, v in graded])
 
     Any other keyword rides along to every measurement sent: ``label=``,
     ``pass_at=``, ``max=``, ``description=``, ``direction=``, ``kind=``.
@@ -594,8 +594,8 @@ def cut(
 
     Returns the gate's reply with the two sets pulled out::
 
-        made = zps.cut(agent="my-agent", kind="rl")
-        zps.pull(made["train"]["datasetId"], "train.jsonl")
+        made = wai.cut(agent="my-agent", kind="rl")
+        wai.pull(made["train"]["datasetId"], "train.jsonl")
         made["holdout"]["datasetId"]   # measure on this, never train on it
     """
     body: dict[str, Any] = {
@@ -731,7 +731,7 @@ def import_hf(
 
     Returns the dataset row. With ``wait`` (the default) the row is
     ``ready`` (or this raises with the import error); otherwise it is
-    ``importing`` and ``zps.datasets()`` shows it settle.
+    ``importing`` and ``wai.datasets()`` shows it settle.
     """
     body: dict = {"repo": repo, "split": split, "purpose": purpose, "max_rows": max_rows}
     for key, value in (

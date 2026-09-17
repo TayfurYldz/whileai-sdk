@@ -2,7 +2,7 @@
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations import schema
 from whileai.simulations.score import grade_llm
 from whileai.simulations.score.agreement import judge_agreement
@@ -114,7 +114,7 @@ def test_agreement_against_a_second_pass_and_small_sample_warning():
 
 
 def test_agreement_is_exported():
-    assert zps.judge_agreement is judge_agreement
+    assert wai.judge_agreement is judge_agreement
     with pytest.raises(TypeError):
         judge_agreement()  # type: ignore[call-arg]
 
@@ -143,7 +143,7 @@ def test_markers_a_judge_returns_reach_marker_summary():
     )
     # judge_meta keeps its copy: nothing that read it before breaks.
     assert rows[0]["judge_meta"]["markers"] == {"phantom_number": 1.0}
-    summary = zps.marker_summary(rows)
+    summary = wai.marker_summary(rows)
     assert summary["phantom_number"]["n_rows"] == 10
     assert summary["phantom_number"]["mean"] == pytest.approx(0.5)
 
@@ -151,7 +151,7 @@ def test_markers_a_judge_returns_reach_marker_summary():
 def test_judge_markers_merge_with_markers_already_on_the_row():
     rows = [dict(row, markers={"kept": 1.0}) for row in _rows(2)]
     scored = run_judge(rows, _marker_judge, judge_name="m")
-    assert sorted(zps.marker_summary(scored.rows)) == ["kept", "phantom_number"]
+    assert sorted(wai.marker_summary(scored.rows)) == ["kept", "phantom_number"]
 
 
 def test_a_judge_without_markers_adds_no_markers_key():
@@ -167,7 +167,7 @@ def test_simulate_grader_markers_survive_onto_the_trajectories():
     data = simulate_offline(budget=8, per_round=8, concurrency=1, grader=_marker_judge)
     assert data.trajectories
     assert all(isinstance(row.get("markers"), dict) for row in data.trajectories)
-    assert zps.marker_summary(data.trajectories)["phantom_number"]["n_rows"] == len(
+    assert wai.marker_summary(data.trajectories)["phantom_number"]["n_rows"] == len(
         data.trajectories
     )
     # The lifted markers are wire-legal and round-trip to Marker objects.

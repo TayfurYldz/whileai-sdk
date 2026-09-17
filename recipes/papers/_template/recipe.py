@@ -14,7 +14,7 @@ Shape of every recipe:
   5. results.json + the checks the README table reads
 
 Training runs on Modal (TRL + LoRA, see recipes/04-train/grpo/train_modal.py)
-or through the hosted trainer (zps.train(..., method=, loss_type=, beta=, ...)).
+or through the hosted trainer (wai.train(..., method=, loss_type=, beta=, ...)).
 Keep the default under 60 GPU minutes.
 """
 
@@ -27,7 +27,7 @@ from datetime import date
 from importlib.metadata import version
 from pathlib import Path
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 HERE = Path(__file__).resolve().parent
 BASE_MODEL = "Qwen/Qwen3-4B"
@@ -55,7 +55,7 @@ def evaluate(model: str | None, holdout: list[dict], k: int, seed: int) -> list[
 
 
 def summarize(rows: list[dict]) -> dict:
-    p = zps.pass_at(rows)  # pass@1 with its task-bootstrap interval, pass@k, pass^k
+    p = wai.pass_at(rows)  # pass@1 with its task-bootstrap interval, pass@k, pass^k
     return {"score": p.pass_at_1, "ci": list(p.ci95 or (0.0, 0.0)), "pass_at_k": p.pass_at_k}
 
 
@@ -72,10 +72,10 @@ def main() -> None:
     args = ap.parse_args()
 
     train_tasks, holdout = data(args.seed)
-    train_tasks, decon = zps.decontaminate(train_tasks, against=holdout)
+    train_tasks, decon = wai.decontaminate(train_tasks, against=holdout)
 
     base_runs = [evaluate(None, holdout, args.k, args.seed + i) for i in range(EVAL_RUNS)]
-    noise = zps.eval_variance(*base_runs)
+    noise = wai.eval_variance(*base_runs)
     run_std = float(noise["run_std"])
     base_rows = base_runs[0]
 
@@ -107,7 +107,7 @@ def main() -> None:
         results["arms"][arm] = {**summarize(arm_rows[arm]), "steps": args.steps}
         results["checks"]["length_after"][arm] = mean_length(arm_rows[arm])
     if len(arm_rows) == 2:
-        d = zps.delta_report(
+        d = wai.delta_report(
             arm_rows["baseline"],
             arm_rows["recipe"],
             target="pass_at_1",
@@ -120,7 +120,7 @@ def main() -> None:
             "verdict": "moved" if d["target_verdict"] == "moved" else "flat",
         }
         results["checks"]["over_optimized"] = bool(d["over_optimized"])
-        print(zps.format_delta_report(d))
+        print(wai.format_delta_report(d))
     (HERE / "results.json").write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import hashlib
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.generate.test_logprobs import POLICY, TOOLS, _simulate
 from tests.helpers import simulate_offline
 from whileai.simulations import schema
@@ -81,7 +81,7 @@ def test_token_logprobs_roll_up_from_steps_in_order(monkeypatch):
     monkeypatch.setattr(
         "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
-    data = zps.simulate(
+    data = wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         extra_situations=["where is order 4412"],
@@ -104,7 +104,7 @@ def test_token_logprobs_roll_up_from_steps_in_order(monkeypatch):
     exported = data.rows()[0]
     assert exported["token_logprobs"] == [-0.4, -0.6, -0.5]
     assert training_rows(data)[0]["token_logprobs"] == [-0.4, -0.6, -0.5]
-    assert zps.staleness_report([exported])["token_logprob_coverage"] == 1.0
+    assert wai.staleness_report([exported])["token_logprob_coverage"] == 1.0
 
 
 def test_policy_version_round_trips_through_the_schema():
@@ -161,4 +161,4 @@ def test_staleness_report_counts_versions_stale_rows_and_coverage():
 
     clean = staleness_report(rows[:2])
     assert clean["warnings"] == [] and clean["stale"] is None
-    assert zps.staleness_report([])["n"] == 0
+    assert wai.staleness_report([])["n"] == 0

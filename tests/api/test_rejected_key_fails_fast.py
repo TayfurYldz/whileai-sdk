@@ -12,7 +12,7 @@ import time
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS
 from whileai.simulations.run.engine import _auth_error
 
@@ -33,7 +33,7 @@ def _rejected_agent(message: str) -> dict:
 def test_rejected_key_on_the_agent_stops_on_the_first_rollout():
     t0 = time.monotonic()
     with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)\.$"):
-        zps.simulate(
+        wai.simulate(
             _rejected_agent,
             tools=TOOLS,
             system_prompt=POLICY,
@@ -56,7 +56,7 @@ def test_rejected_key_on_the_writer_stops_the_run(monkeypatch):
     monkeypatch.setattr("whileai.simulations.generate.agents.complete", rejecting)
     t0 = time.monotonic()
     with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)"):
-        zps.simulate(
+        wai.simulate(
             tools=TOOLS,
             system_prompt=POLICY,
             budget=20,

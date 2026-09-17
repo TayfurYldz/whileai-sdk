@@ -1,13 +1,13 @@
 import random
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, REPO_ROOT, TOOLS, scripted_agent
 from whileai.simulations.generate.diversity import accept_anneal_candidate, sample_request_axes
 from whileai.simulations.generate.generator import ModelSimulator
 
 
 def test_rollouts_per_prompt_same_prompt_two_rows():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -220,7 +220,7 @@ def test_conversation_features_use_live_tiers():
 
 
 def test_same_scenario_id_different_prompts_allowed():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,

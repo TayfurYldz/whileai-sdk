@@ -234,7 +234,7 @@ def publish_gate(
     if rl and graded == 0:
         refusal = (
             "ungraded_rl_rows: RL data needs a 0/1 reward on every rollout so a "
-            "grouped update has contrast; grade first (zps.grade or data.grade)"
+            "grouped update has contrast; grade first (wai.grade or data.grade)"
         )
     elif rl and signal.get("n_mixed", 0) == 0:
         refusal = (

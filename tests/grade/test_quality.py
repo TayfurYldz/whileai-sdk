@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import REPO_ROOT, simulate_offline
 from whileai.simulations.score.quality import DIMENSIONS, FAIL, score_row
 
@@ -213,7 +213,7 @@ def test_rank_rows_writes_fields():
             "final_text": "I am the assistant.",
         },
     ]
-    out = zps.rank_rows(rows)
+    out = wai.rank_rows(rows)
     assert out is rows
     assert rows[0]["quality"] >= 0.85
     assert rows[1]["quality"] < rows[0]["quality"]
@@ -238,7 +238,7 @@ def test_rank_path_rewrites_jsonl(tmp_path):
             )
             + "\n"
         )
-    report = zps.rank(str(src))
+    report = wai.rank(str(src))
     assert report["n"] == 2
     assert report["worst"]
     lines = src.read_text().strip().splitlines()
@@ -267,7 +267,7 @@ def test_rank_filter_writes_kept_only(tmp_path):
             )
             + "\n"
         )
-    report = zps.rank(str(src), output=str(dest), min_quality=0.7)
+    report = wai.rank(str(src), output=str(dest), min_quality=0.7)
     kept = [json.loads(line) for line in dest.read_text().splitlines() if line]
     assert report["n"] == 2
     assert report["n_kept"] == 1
@@ -312,7 +312,7 @@ def test_simulate_does_not_write_quality_until_rank(tmp_path):
     report = data.rank()
     assert report["n"] == 4
     assert all(t.get("quality") is not None for t in data.trajectories)
-    exported = zps.data._export_row(data.trajectories[0])
+    exported = wai.data._export_row(data.trajectories[0])
     assert "quality" in exported and "quality_scores" in exported
     assert exported["quality_reason"]
 
@@ -322,6 +322,6 @@ def test_live_example_sample_scores():
     if not path.is_file():
         return
     rows = [json.loads(line) for line in path.read_text().splitlines() if line][:8]
-    zps.rank_rows(rows)
+    wai.rank_rows(rows)
     assert all("quality" in r for r in rows)
     assert any(r["quality_scores"]["opener"] >= FAIL for r in rows)

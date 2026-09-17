@@ -125,12 +125,12 @@ it. Connect the account once on any dataset page; the platform holds the
 token, the SDK never sees it.
 
 ```python
-zps.hf_status()  # connected? namespaces
-hf = zps.hf_publish("ds_...", repo="airline-refunds", wait=True)
+wai.hf_status()  # connected? namespaces
+hf = wai.hf_publish("ds_...", repo="airline-refunds", wait=True)
 hf["commit"], hf["tag"]  # one commit per push, tagged zp-<dataset id>
-row = zps.import_hf("cornell-movie-review-data/rotten_tomatoes", split="test", purpose="eval")
-zps.profile(row["datasetId"])  # rows, prompts, pass rate, support, mixed
-zps.hf_publish_run("run_...", private=True)  # a finished run's LoRA adapter, as a model repo
+row = wai.import_hf("cornell-movie-review-data/rotten_tomatoes", split="test", purpose="eval")
+wai.profile(row["datasetId"])  # rows, prompts, pass rate, support, mixed
+wai.hf_publish_run("run_...", private=True)  # a finished run's LoRA adapter, as a model repo
 ```
 
 One repo holds one split per purpose (`train`, `holdout`, `eval`), so the

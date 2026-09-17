@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO_ROOT / "recipes" / "03-select" / "character"
@@ -88,7 +88,7 @@ def test_offline_run_is_deterministic_and_valid(tmp_path):
     assert a["pass_at"] == b["pass_at"]
     assert a["counts"] == b["counts"]
     rows = [json.loads(line) for line in (tmp_path / "a" / "rows.jsonl").open(encoding="utf-8")]
-    assert rows and all(not zps.validate(r) for r in rows)
+    assert rows and all(not wai.validate(r) for r in rows)
     trait_rows = [r for r in rows if r["trait"]]
     assert all(r["spec_id"].startswith("model_spec#") for r in trait_rows)
     assert all(r["privileged"]["principle"] for r in trait_rows)
@@ -107,11 +107,11 @@ def test_offline_run_has_contrast_and_exports(tmp_path):
     assert 0.0 < rep["pass_at"]["pass_at_1"] < 1.0
     assert rep["exports"]["pairs"]["pairs"] >= 1
     pairs = [json.loads(line) for line in (tmp_path / "pairs.jsonl").open(encoding="utf-8")]
-    assert all(not zps.validate(p, "preference") for p in pairs)
+    assert all(not wai.validate(p, "preference") for p in pairs)
     assert all(p["chosen"][0] == {"role": "system", "content": RUN.DEPLOY_PROMPT} for p in pairs)
     assert all(p["margin"] == 1.0 for p in pairs)
     sft = [json.loads(line) for line in (tmp_path / "sft.jsonl").open(encoding="utf-8")]
-    assert sft and all(not zps.validate(s, "training") for s in sft)
+    assert sft and all(not wai.validate(s, "training") for s in sft)
     assert all(s["loss_mask"][-1] == 1 and s["loss_mask"][0] == 0 for s in sft)
     assert rep["decontaminate"]["n_contaminated"] == 0
 

@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.ingest.platform import PlatformError
 
 
@@ -29,11 +29,11 @@ def fmt_num(v: float | None) -> str:
 
 
 def import_half(repo: str, split: str, keep: bool) -> None:
-    row = zps.import_hf(
+    row = wai.import_hf(
         repo, split=split, purpose="eval", name=f"{repo.split('/')[-1]}:{split} (example)"
     )
     print(f"imported {repo}:{split} -> {row['datasetId']} ({row.get('rows') or '?'} rows)")
-    p = zps.profile(row["datasetId"])
+    p = wai.profile(row["datasetId"])
     print(
         f"  rows {p['rows']} · prompts {p['tasks']} · graded {p['graded']} · "
         f"pass {fmt_pct(p.get('pass_rate'))} · support {fmt_num(p.get('support'))}"
@@ -43,12 +43,12 @@ def import_half(repo: str, split: str, keep: bool) -> None:
     if keep:
         print(f"  kept as {row['datasetId']}")
     else:
-        zps.delete_dataset(row["datasetId"])
+        wai.delete_dataset(row["datasetId"])
         print("  deleted")
 
 
 def connected_username() -> str:
-    me = zps.hf_status()
+    me = wai.hf_status()
     if not me["connected"]:
         sys.exit(
             "Connect a Hugging Face account first: any dataset page under Platform → Datasets."
@@ -58,7 +58,7 @@ def connected_username() -> str:
 
 def push_half(dataset_id: str, repo: str | None, private: bool) -> None:
     print(f"pushing {dataset_id} as {connected_username()} ...")
-    hf = zps.hf_publish(dataset_id, repo=repo, private=private, wait=True)
+    hf = wai.hf_publish(dataset_id, repo=repo, private=private, wait=True)
     print(f"  {hf['url']}")
     print(f"  split {hf['split']} · commit {hf['commit'][:7]} · tag {hf['tag']}")
     if hf.get("previous"):
@@ -73,7 +73,7 @@ def push_run_half(run_id: str, repo: str | None) -> None:
     """A finished training run's LoRA adapter becomes a model repo. Always
     private from here: it is a checkpoint, not a release."""
     print(f"pushing adapter of {run_id} as {connected_username()} ...")
-    hf = zps.hf_publish_run(run_id, repo=repo, private=True, wait=True)
+    hf = wai.hf_publish_run(run_id, repo=repo, private=True, wait=True)
     print(f"  {hf['url']}")
     print(f"  commit {hf['commit'][:7]} · tag {hf['tag']}")
     print(f'  PeftModel.from_pretrained(base, "{hf["repo"]}", revision="{hf["tag"]}")')

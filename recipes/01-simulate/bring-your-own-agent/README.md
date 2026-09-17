@@ -34,7 +34,7 @@ def my_agent(message: str) -> dict:
     }
 
 
-data = zps.simulate(
+data = wai.simulate(
     my_agent,
     tools=TOOLS,
     system_prompt=POLICY,

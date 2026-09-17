@@ -2,7 +2,7 @@ import inspect
 import threading
 import time
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import GITHUB_SPEC, POLICY, TOOLS, scripted_agent, simulate_offline
 
 
@@ -11,7 +11,7 @@ def _lower_headers(headers):
 
 
 def test_default_budget_is_500():
-    sig = inspect.signature(zps.simulate)
+    sig = inspect.signature(wai.simulate)
     params = sig.parameters
     public = [
         "agent",
@@ -113,13 +113,13 @@ def test_platform_delegated_credential_helpers(monkeypatch):
     monkeypatch.setenv("WHILEAI_API_URL", "https://example.test")
     monkeypatch.setattr("whileai.simulations.ingest.platform.urllib.request.urlopen", fake_urlopen)
 
-    out = zps.issue_delegated_credential("clerk.jwt.abc", ttl_seconds=900)
+    out = wai.issue_delegated_credential("clerk.jwt.abc", ttl_seconds=900)
     assert out["credential"] == "zp_dc_123"
     assert seen[0]["url"] == "https://example.test/auth/issue-credential"
     assert seen[0]["headers"]["authorization"] == "Bearer clerk.jwt.abc"
     assert "x-api-key" not in seen[0]["headers"]
 
-    refreshed = zps.refresh_delegated_credential("clerk.jwt.abc", "zp_dc_123", ttl_seconds=1800)
+    refreshed = wai.refresh_delegated_credential("clerk.jwt.abc", "zp_dc_123", ttl_seconds=1800)
     assert refreshed["credential"] == "zp_dc_123"
     assert seen[1]["url"] == "https://example.test/auth/refresh-credential"
     assert seen[1]["headers"]["authorization"] == "Bearer clerk.jwt.abc"
@@ -209,7 +209,7 @@ def test_system_prompt_alias_policy():
 
 def test_adaptive_defaults_follow_allocator_not_n1_k1():
     data = simulate_offline(budget=4, mode="adaptive", per_round=6)
-    plan = zps.adaptive_allocator(None, "compute")
+    plan = wai.adaptive_allocator(None, "compute")
     assert data.mode == "adaptive"
     assert data.requests_per_situation == plan["n_req"]
     assert data.rollouts_per_request == plan["k"]
@@ -244,7 +244,7 @@ def test_repeats_two_same_prompt():
 
 def test_missing_spec_path_is_clear():
     try:
-        zps.simulate(spec="specs/definitely-missing-xyz")
+        wai.simulate(spec="specs/definitely-missing-xyz")
     except FileNotFoundError as exc:
         assert "definitely-missing-xyz" in str(exc)
         assert "spec.json" in str(exc)
@@ -256,7 +256,7 @@ def test_missing_spec_path_is_clear():
 
 def test_empty_simulate_is_one_sentence():
     try:
-        zps.simulate()
+        wai.simulate()
     except ValueError as exc:
         assert "agent" in str(exc) and "system prompt" in str(exc)
         assert "\n" not in str(exc)
@@ -384,7 +384,7 @@ def test_output_does_not_wipe_when_no_rows(tmp_path):
     dest = tmp_path / "out.jsonl"
     dest.write_text('{"keep": true}\n')
     try:
-        zps.simulate(spec="specs/definitely-missing-xyz", output=str(dest))
+        wai.simulate(spec="specs/definitely-missing-xyz", output=str(dest))
     except FileNotFoundError:
         pass
     else:
@@ -413,7 +413,7 @@ def test_scenario_producers_run_concurrently():
             active -= 1
         return [f"human request {index}-{i}" for i in range(20)]
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -446,7 +446,7 @@ def test_unique_writer_flight_stays_small():
             active -= 1
         return [f"human request {index}-{i}" for i in range(16)]
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -487,7 +487,7 @@ def test_unique_enables_distinct_model_cards(monkeypatch):
         return writer
 
     monkeypatch.setattr("whileai.simulations.run.engine.make_default_generator", fake_generator)
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -510,7 +510,7 @@ def test_refill_does_not_stall_inflight_rollouts():
         return [f"human request {index}-{i}" for i in range(8)]
 
     t0 = time.monotonic()
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -539,7 +539,7 @@ def test_unique_dupes_do_not_stop_as_generator_exhausted():
             return [f"human request {index}-{i}-{n}" for i in range(6)]
         return ["please refund this order now"] * 6
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -568,7 +568,7 @@ def test_unique_dupes_do_not_stop_as_generator_exhausted():
 def test_generator_exhausted_is_not_emitted():
     from pathlib import Path
 
-    src = Path(zps.__file__).read_text()
+    src = Path(wai.__file__).read_text()
     assert "generator_exhausted" not in src
 
 
@@ -655,4 +655,4 @@ def test_grader_must_be_callable():
     from tests.helpers import offline, scripted_agent
 
     with pytest.raises(TypeError, match="grader= takes a callable"):
-        zps.simulate(scripted_agent, budget=2, grader="hosted", **offline())
+        wai.simulate(scripted_agent, budget=2, grader="hosted", **offline())

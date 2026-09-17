@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "02-measure" / "pass-at-k"
@@ -69,7 +69,7 @@ def test_headline_carries_the_interval(measure, rows):
     assert out["pass_at"]["ci95"] is not None
     lo, hi = out["pass_at"]["ci95"]
     assert f"[{lo:.2f}..{hi:.2f}]" in out["summary"]
-    assert out["summary"] == str(zps.pass_at(rows))
+    assert out["summary"] == str(wai.pass_at(rows))
 
 
 def test_below_min_k_withholds_the_k_way_numbers(measure):

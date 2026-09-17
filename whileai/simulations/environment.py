@@ -9,10 +9,10 @@ sampling, ch. 13 on multi-turn tool use with a single end-of-trajectory
 reward). ``export_environment`` writes those three as an installable
 ``verifiers`` package, the shape Prime Intellect and TRL consume::
 
-    import whileai.simulations as zps
-    data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+    import whileai.simulations as wai
+    data = wai.simulate(spec="specs/github", mode="rl", repeats=8)
     scored = data.grade()
-    zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+    wai.export_environment(scored, "envs/github-agent", reward=my_verifier)
 
     # then, with verifiers installed:
     #   pip install -e envs/github-agent
