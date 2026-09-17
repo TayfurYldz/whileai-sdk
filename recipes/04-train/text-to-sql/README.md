@@ -247,7 +247,8 @@ three above zero. The adapter is served the same way as the base
 (`serve_modal.py --adapter volume:run_f69e975a1571d445 --runs-volume
 zeroproof-train-runs`, model id `nvidia/Llama-3.1-Nemotron-Nano-8B-v1-adapter`);
 eval sets `ds_34f0fbd9337ab519` (base) and `ds_2fbd036dd8597150` (r1) on the
-platform.
+platform, Hugging Face configs `eval-nemotron-8b-base` / `eval-nemotron-8b-r1`
+and adapter `zero-proof-ai/text-to-sql-shop-nemotron-8b-r1`.
 
 Read next to the Qwen table: the same reward, task set, and trainer moved a
 weaker base by nine points in one 44-minute round and a stronger base by
