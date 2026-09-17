@@ -402,6 +402,11 @@ def run_judge(
     name = judge_name or getattr(judge, "__name__", "") or _instance_name(judge) or "judge"
     if name == "<lambda>":
         name = "lambda_judge"
+    # A Verifier says what it is (``kind="rule"``); a function judge does
+    # not, and the schema then infers "judge" from the name. Stamp the
+    # declared kind so a verifier does not read back as a model judge (#250).
+    kind = getattr(judge, "kind", None)
+    scorer_kind = kind if kind in ("rule", "reward_model", "human") else None
     verdicts: list[dict[str, Any]]
     if concurrency > 1 and len(src_rows) > 1:
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
@@ -429,8 +434,11 @@ def run_judge(
             out["reason"] = verdict["reason"]
         out["judge_status"] = verdict["judge_status"]
         out["judge_name"] = name
-        if verdict["judge_meta"]:
-            out["judge_meta"] = verdict["judge_meta"]
+        meta = dict(verdict["judge_meta"] or {})
+        if scorer_kind:
+            meta["scorer_kind"] = scorer_kind
+        if meta:
+            out["judge_meta"] = meta
         fc = (verdict["judge_meta"] or {}).get("failure_class")
         if fc:
             out["failure_class"] = str(fc)

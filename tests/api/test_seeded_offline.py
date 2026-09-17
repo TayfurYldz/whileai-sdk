@@ -275,3 +275,42 @@ def test_rows_that_never_went_through_the_export_keep_the_plain_wording():
     assert "says nothing about leaks" in report["summary"]
     assert "data.trajectories" not in report["summary"]
     assert wai.leak_report([])["summary"].endswith("says nothing about leaks")
+
+
+# ------------------------------------------------------------ leak gate (#245, #249)
+
+
+def test_leak_report_reads_the_data_object_and_its_method(seeded_run):
+    on_trajectories = wai.leak_report(seeded_run.trajectories)
+    assert on_trajectories["checked"] and on_trajectories["n_leaked"] > 0
+    assert wai.leak_report(seeded_run) == on_trajectories
+    assert seeded_run.leak_report() == on_trajectories
+
+
+def test_export_refuses_rows_that_quote_their_privileged_block(seeded_run, tmp_path):
+    with pytest.raises(ValueError, match="privileged_leak"):
+        wai.export_training(seeded_run, str(tmp_path / "out.jsonl"))
+    assert not (tmp_path / "out.jsonl").exists()
+
+
+def test_export_with_validate_off_counts_the_leaks_and_warns(seeded_run, tmp_path):
+    report = wai.export_training(seeded_run, str(tmp_path / "out.jsonl"), validate=False)
+    leaks = report["privileged_leaks"]
+    assert leaks["checked"] and leaks["n_leaked"] == seeded_run.leak_report()["n_leaked"]
+    assert leaks["leaked"] and {"scenario_id", "rollout_index", "field"} <= set(leaks["leaked"][0])
+    assert any("privileged" in w for w in report["warnings"])
+    assert (tmp_path / "out.jsonl").exists()
+
+
+def test_export_from_scrubbed_rows_says_the_leak_check_was_vacuous(seeded_run):
+    report = wai.export_training(seeded_run.rows())
+    leaks = report["privileged_leaks"]
+    assert leaks["checked"] is False and leaks["n_leaked"] == 0
+    assert "data.trajectories" in leaks["summary"]
+    assert not any("privileged" in w for w in report.get("warnings", []))
+
+
+def test_export_of_an_honest_run_is_checked_and_passes(honest_run, tmp_path):
+    report = wai.export_training(honest_run, str(tmp_path / "out.jsonl"))
+    leaks = report["privileged_leaks"]
+    assert leaks["checked"] and leaks["n_leaked"] == 0

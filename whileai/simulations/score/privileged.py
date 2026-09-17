@@ -15,7 +15,6 @@ it is vacuous. The report says so instead of passing.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from typing import Any
 
 from .style import assistant_text
@@ -52,8 +51,13 @@ def _needles(privileged: Any, *, min_len: int) -> list[tuple[str, str]]:
     return out
 
 
-def leak_report(rows: Sequence[dict], *, min_len: int = 12) -> dict[str, Any]:
+def leak_report(rows: Any, *, min_len: int = 12) -> dict[str, Any]:
     """Which rows quote their own ``privileged`` block in the agent's text.
+
+    Takes the ``SimulationData`` itself, ``data.trajectories``, or any list
+    of rows. Given the data object it reads the trajectories, which still
+    carry the block; ``data.rows()`` is the scrubbed export and checks
+    nothing (the report says so).
 
     Checks every row that carries ``privileged`` (``reference``,
     ``principle``, and every string in ``hidden_state`` at least
@@ -69,6 +73,8 @@ def leak_report(rows: Sequence[dict], *, min_len: int = 12) -> dict[str, Any]:
     and the report is vacuous. When it can tell the rows came through the
     export, ``summary`` says so and names the accessor to use instead.
     """
+    if hasattr(rows, "trajectories") and not isinstance(rows, (list, tuple)):
+        rows = rows.trajectories
     n_rows = 0
     n_checked = 0
     exported = False
