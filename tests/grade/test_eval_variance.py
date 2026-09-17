@@ -70,7 +70,7 @@ def test_delta_report_refuses_a_verdict_inside_the_noise_band():
     before = _rows({f"t{i}": 0.25 for i in range(12)})
     after = _rows({f"t{i}": 0.5 for i in range(12)})
     loud = delta_report(before, after, target="pass_at_1")
-    assert loud["target_verdict"] == "moved" and loud["within_noise"] == []
+    assert loud["target_verdict"] == "moved_unreplicated" and loud["within_noise"] == []
     assert loud["metrics"]["pass_at_1"]["within_noise"] is False
     # a 0.25 delta inside a 2 x 0.2 band is what re-running the eval does
     quiet = delta_report(before, after, target="pass_at_1", run_std=0.2)

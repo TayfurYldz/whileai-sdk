@@ -94,7 +94,7 @@ def test_locked_down_fails_the_guard_and_hardened_passes(run, graded):
     hardened = run.grade(run.simulate("hardened", k=4, seed=0, tasks=base), "hardened")
     rep = run.compare(rows, hardened, seed=0)
     assert rep["ok"] is True
-    assert rep["target_verdict"] == "moved"
+    assert rep["target_verdict"] == "moved_unreplicated"
     assert rep["regressions"] == [] and rep["groups_down"] == []
     assert rep["refusal_on_benign"]["after"]["refusal_rate"] == 0.0
     assert run.by_category(hardened)["benign"]["pass_at_1"] == 1.0

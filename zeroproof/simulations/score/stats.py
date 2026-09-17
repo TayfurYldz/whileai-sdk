@@ -187,6 +187,10 @@ def _run_key(row: dict, by: str | None) -> str | None:
             value = row["lineage"].get(by)
         return str(value) if value not in (None, "") else None
     lineage = row.get("lineage")
+    if isinstance(lineage, dict) and lineage.get("eval_run") is not None:
+        # simulate(runs=N) stamps this; one evaluate() over all N runs
+        # gives them one scoring_run_id, so the eval run wins.
+        return str(lineage["eval_run"])
     if isinstance(lineage, dict) and lineage.get("scoring_run_id"):
         return str(lineage["scoring_run_id"])
     return None
@@ -237,8 +241,9 @@ def eval_variance(
     again (rlhf-book ch. 16, Evaluation).
 
     Pass each re-run's rows as its own argument, or one row list whose
-    rows say which run they belong to: ``lineage.scoring_run_id`` (what
-    ``evaluate(run_id=)`` stamps) or a top-level or lineage key named by
+    rows say which run they belong to: ``lineage.eval_run`` (what
+    ``simulate(runs=3)`` stamps), else ``lineage.scoring_run_id`` (what
+    ``evaluate(run_id=)`` stamps), or a top-level or lineage key named by
     ``by``. Each run's ``metric`` is a mean over tasks; the report is
     those means, their mean, the sample standard deviation ``run_std``,
     and ``noise_band`` = 2 x ``run_std``: a before/after delta inside it
