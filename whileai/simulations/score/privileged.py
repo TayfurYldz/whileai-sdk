@@ -63,9 +63,15 @@ def leak_report(rows: Sequence[dict], *, min_len: int = 12) -> dict[str, Any]:
     the block, so the result is vacuous), ``leaked`` (up to 20 rows:
     ``scenario_id``, ``rollout_index``, ``field``, ``needle``) and
     ``summary``. Does not mutate ``rows``.
+
+    Pass ``data.trajectories``, not ``data.rows()``: the export scrubs
+    ``privileged`` at any depth, so exported rows carry nothing to check
+    and the report is vacuous. When it can tell the rows came through the
+    export, ``summary`` says so and names the accessor to use instead.
     """
     n_rows = 0
     n_checked = 0
+    exported = False
     leaked: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -73,6 +79,10 @@ def leak_report(rows: Sequence[dict], *, min_len: int = 12) -> dict[str, Any]:
         n_rows += 1
         needles = _needles(row.get("privileged"), min_len=min_len)
         if not needles:
+            # ``export_row`` always writes ``scenario_id`` (``""`` when the
+            # row has none), so a row that has the key but no privileged
+            # block was scrubbed on the way out rather than never filled.
+            exported = exported or "scenario_id" in row
             continue
         n_checked += 1
         hay = _norm(assistant_text(row))
@@ -94,6 +104,11 @@ def leak_report(rows: Sequence[dict], *, min_len: int = 12) -> dict[str, Any]:
             f"checked 0 of {n_rows} rows: none carried privileged context, "
             "so this says nothing about leaks"
         )
+        if exported:
+            summary += (
+                ". These came through the export (rows(), save(), push()), which scrubs "
+                "privileged at any depth -- pass data.trajectories, which keeps it"
+            )
     elif not n_leaked:
         summary = f"checked {n_checked} of {n_rows} rows: no reply quoted its privileged context"
     else:
