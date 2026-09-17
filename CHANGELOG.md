@@ -5,6 +5,16 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- Every row says how it finished: `finish_reason` is `stop`, `length`
+  (the reply token cap cut a turn), `tool` (the turn budget ran out on a
+  tool call) or `error` (the agent raised); a callable agent can set it
+  outright. `pass_at(...).config["truncated_share"]` is the share the cap
+  cut and the one-line summary names it; `delta_report` warns when the two
+  sides were cut at different rates, since that is not the same eval;
+  `export_training` warns when length-cut rows go out as SFT targets.
+  `train(method="grpo")` now sends `maskTruncated=True` by default, so a
+  cut reply gives no gradient instead of a 0 that teaches shorter thinking
+  first; `truncated="zero"` is the old behaviour. (#253)
 - `export_training` (and `export_dataset`) checks for privileged leaks on
   the unscrubbed side before it writes: the export drops the `privileged`
   key at any depth but copies the assistant's reply through verbatim, so a

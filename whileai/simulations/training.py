@@ -558,6 +558,10 @@ def _measured_temperature(
     return None
 
 
+#: what GRPO does with a sampled reply the token cap cut
+TRUNCATED = ("mask", "zero")
+
+
 def train(
     dataset: str,
     *,
@@ -573,6 +577,7 @@ def train(
     max_completion_length: int | None = None,
     loss_type: str | None = None,
     temperature: float | None = None,
+    truncated: str | None = None,
     config: Mapping[str, Any] | None = None,
     wait: bool = False,
     timeout: float | None = None,
@@ -612,10 +617,15 @@ def train(
     sampling temperature the trainer rolls out at (GRPO); the dataset's
     rows say what they were measured at under ``sampling.temperature``,
     and ``train`` says so when the two differ, since a before/after
-    comparison across temperatures is not like for like. Each has a
+    comparison across temperatures is not like for like. ``truncated``
+    says what GRPO does with a sampled reply the token cap cut:
+    ``"mask"`` (the default) gives it no gradient, ``"zero"`` scores it 0
+    the old way. A cut reply scored 0 teaches shorter thinking before it
+    teaches the task, so ``"zero"`` is the knob to reach for only when the
+    cap itself is the behavior under training (#253). Each has a
     trainer default when left ``None``. ``config`` passes further host
     keys as given
-    (``epsilonHigh``, ``scaleRewards``, ``maskTruncated``, ``balance``).
+    (``epsilonHigh``, ``scaleRewards``, ``balance``).
     Every knob lands on the run's ``config`` so the run page shows it.
 
     A dataset already training answers with that run instead of a second.
@@ -682,6 +692,13 @@ def train(
         if not 0 < float(temperature) <= 2:
             raise ValueError("temperature: above 0 and at most 2")
         body["temperature"] = float(temperature)
+    if truncated is not None:
+        if method != "grpo":
+            raise ValueError("truncated= says what GRPO does with a token-capped reply; grpo only")
+        if truncated not in TRUNCATED:
+            raise ValueError(f"truncated must be one of {', '.join(TRUNCATED)}; got {truncated!r}")
+    if method == "grpo":
+        body["maskTruncated"] = (truncated or "mask") == "mask"
     for key, value in dict(config or {}).items():
         if key in body:
             raise ValueError(f"config[{key!r}] collides with a named argument")

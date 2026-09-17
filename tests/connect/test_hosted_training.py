@@ -78,6 +78,7 @@ def test_train_posts_the_gate_body_and_returns_the_run_handle():
         "steps": 40,
         "holdoutId": "ds_hold",
         "base": "Qwen/Qwen3-4B",
+        "maskTruncated": True,
     }
     assert isinstance(run, TrainingRun)
     assert run.hosted and run.run_id == "run_h1" and run.status == "running"
@@ -296,6 +297,7 @@ def test_train_knobs_reach_the_gate_by_name():
         "seed": 3,
         "maxCompletionLength": 256,
         "lossType": "dr_grpo",
+        "maskTruncated": True,
         "scaleRewards": False,
         "balance": 0.25,
     }
@@ -316,3 +318,22 @@ def test_train_knobs_that_do_not_apply_raise_before_any_call():
         warnings.simplefilter("ignore")
         train("ds_train", method="sft", seed=7, learning_rate=1e-4, transport=gate)
     assert gate.calls[0][2] == {"method": "sft", "lr": 1e-4, "seed": 7}
+
+
+def test_train_masks_token_capped_replies_by_default_and_can_zero_them():
+    """#253: a cut reply scored 0 teaches shorter thinking first."""
+    gate = Gate()
+    train("ds_train", method="grpo", transport=gate)
+    assert gate.calls[0][2]["maskTruncated"] is True
+    gate = Gate()
+    train("ds_train", method="grpo", truncated="zero", transport=gate)
+    assert gate.calls[0][2]["maskTruncated"] is False
+    gate = Gate()
+    train("ds_train", method="sft", transport=gate)
+    assert "maskTruncated" not in gate.calls[0][2]
+    with pytest.raises(ValueError, match="grpo only"):
+        train("ds_train", method="sft", truncated="mask", transport=Gate())
+    with pytest.raises(ValueError, match="mask, zero"):
+        train("ds_train", method="grpo", truncated="penalize", transport=Gate())
+    with pytest.raises(ValueError, match="collides"):
+        train("ds_train", method="grpo", config={"maskTruncated": False}, transport=Gate())

@@ -124,6 +124,7 @@ def test_pass_at_config_reads_the_rows():
         "judge_version": "judge@v1",
         "prompt_hash": "abc123",
         "mixed": [],
+        "truncated_share": None,
     }
     assert pass_at(rows).to_dict()["config"] == cfg
     # rows that disagree: the field is None and named

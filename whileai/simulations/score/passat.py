@@ -114,6 +114,14 @@ def run_config(
             mixed.append(key)
         out[key] = next(iter(values)) if len(values) == 1 else None
     out["mixed"] = mixed
+    # The share of rows the token cap cut. A side that was cut more often
+    # is not the same eval; ``delta_report`` warns when the two differ.
+    # ``None`` when no row says how it finished (rows from before 0.54).
+    reasons = [r.get("finish_reason") for r in rows if isinstance(r, dict)]
+    known = [x for x in reasons if isinstance(x, str)]
+    out["truncated_share"] = (
+        round(sum(1 for x in known if x == "length") / len(known), 4) if known else None
+    )
     return out
 
 
@@ -190,6 +198,9 @@ class PassAt:
             f"headroom {fmt(self.headroom)}"
         )
         tail = f"({self.n_groups} groups, k={self.k}"
+        cut = self.config.get("truncated_share") if self.config else None
+        if cut:
+            tail += f"; {cut:.0%} of rows cut by the token cap"
         if self.note:
             tail += f"; {self.note}"
         return f"{head} {tail})"
