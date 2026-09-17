@@ -1,0 +1,20 @@
+{
+  "recipe": "_template",
+  "title": "<Recipe name>",
+  "paper": "https://arxiv.org/abs/XXXX.XXXXX",
+  "base_model": "Qwen/Qwen3-4B",
+  "metric": "pass@1",
+  "n_holdout": 0,
+  "k": 4,
+  "arms": {
+    "base": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
+    "baseline": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0},
+    "recipe": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0}
+  },
+  "delta": {"recipe_vs_baseline": 0.0, "ci": [0.0, 0.0], "verdict": "flat"},
+  "gpu": "A10G",
+  "usd": 0.0,
+  "verified": "1970-01-01",
+  "zeroproof": "0.48",
+  "run_url": ""
+}

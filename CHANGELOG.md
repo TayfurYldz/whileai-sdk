@@ -3,6 +3,15 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `recipes/papers/`: recent post-training papers as recipes. One directory per
+  paper (README in a fixed shape, one `recipe.py` with a baseline arm and the
+  paper's change on the same holdout, `results.json`); `check.py --write`
+  generates the index table from the results files, `tests/recipes/test_papers.py`
+  keeps the shape. A daily agent re-verifies the stalest recipe and adds one
+  new one as pull requests.
+
 ## 0.49 (2026-09-17)
 
 - `examples/` is now `recipes/`, grouped by the step of a post-training run:

@@ -12,6 +12,7 @@ recipes/
   03-select/     turn graded rows into training data: SFT rows, pairs, RL groups
   04-train/      train it, hosted or on your own GPU, and watch the run page
   05-export/     ship the data and the adapter
+  papers/        recent papers, each one change to a step recipe, with the number it moved
 ```
 
 ## Conventions
@@ -73,6 +74,13 @@ reading the others:
 | Recipe | What you learn | Needs | Takes |
 |---|---|---|---|
 | [`hugging-face`](05-export/hugging-face) | rows to a Hub dataset repo (one split per purpose, commit tagged by dataset id), any Hub split onto the account with a profile, a run's adapter to a model repo | `ZEROPROOF_API_KEY` and a Hugging Face account connected on the platform | a minute |
+
+## papers
+
+Recent post-training papers, each cut down to a run under an hour on one GPU:
+a baseline arm, the paper's one change, the same holdout, a paired delta.
+Index and contract in [`papers/README.md`](papers/README.md); the table there
+is generated from each recipe's `results.json`.
 
 ## Where the main README's pieces live
 
