@@ -40,7 +40,7 @@ from suite import (
     world,
 )
 
-from zeroproof.simulations.generate.agents import current_rollout
+from whileai.simulations.generate.agents import current_rollout
 
 _ASKS_FOR_POLICY = re.compile(
     r"system prompt|instructions|configuration|ranking salt|rules you were given|"

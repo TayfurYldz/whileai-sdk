@@ -1,7 +1,7 @@
 """Did training land? Base policy vs served adapter on the holdout, same verifier.
 
 Usage: python delta.py [--before qwen3-4b] [--after hosted-text-to-sql-shop-v1]
-Reads out/<model>.scored.jsonl (from build.py), prints zps.delta_report by
+Reads out/<model>.scored.jsonl (from build.py), prints wai.delta_report by
 difficulty and archetype, and attaches the delta to the training run in
 out/train_state.json so the run page shows it.
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sql_verifier import OUT, read_jsonl
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 
 def main() -> int:
@@ -43,12 +43,12 @@ def main() -> int:
         return 1
     reports = {}
     for by in ("difficulty", "category"):
-        rep = zps.delta_report(before=before, after=after, target="pass_at_1", by=by)
+        rep = wai.delta_report(before=before, after=after, target="pass_at_1", by=by)
         reports[by] = rep
         print(f"== by {by}")
         print(
-            zps.format_delta_report(rep)
-            if hasattr(zps, "format_delta_report")
+            wai.format_delta_report(rep)
+            if hasattr(wai, "format_delta_report")
             else json.dumps(
                 {
                     k: rep.get(k)
@@ -71,7 +71,7 @@ def main() -> int:
     run_id = state.get("run_id")
     if run_id:
         try:
-            zps.attach_delta(run_id, before, after, target="pass_at_1", by="difficulty")
+            wai.attach_delta(run_id, before, after, target="pass_at_1", by="difficulty")
             print(f"delta attached to {run_id}")
         except Exception as exc:
             print(f"attach_delta failed: {type(exc).__name__}: {str(exc)[:200]}")

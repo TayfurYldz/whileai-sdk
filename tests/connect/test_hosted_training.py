@@ -6,8 +6,8 @@ import warnings
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import TrainingRun, serve, train
+import whileai.simulations as wai
+from whileai.simulations.training import TrainingRun, serve, train
 
 RUNNING = {
     "callId": "fc-1",
@@ -25,7 +25,7 @@ DONE = {
     "metric": "pass@1",
     "rows": 51,
     "seconds": 129,
-    "adapter": "volume zeroproof-train-runs:/run_h1/adapter",
+    "adapter": "volume whileai-train-runs:/run_h1/adapter",
 }
 
 
@@ -186,13 +186,13 @@ def test_serve_refuses_a_run_without_an_adapter():
 
 def test_public_surface():
     for name in ("train", "serve", "models"):
-        assert name in zps.__all__
-        assert callable(getattr(zps, name))
+        assert name in wai.__all__
+        assert callable(getattr(wai, name))
 
 
 def test_train_warns_when_the_base_cannot_be_served():
     gate = Gate()
-    with pytest.warns(UserWarning, match="zps.serve cannot host"):
+    with pytest.warns(UserWarning, match="wai.serve cannot host"):
         train("ds_train", method="sft", transport=gate)  # the trainer's default base
     with pytest.warns(UserWarning, match="Qwen/Qwen2.5-1.5B-Instruct"):
         train("ds_train", method="grpo", base_model="Qwen/Qwen2.5-1.5B-Instruct", transport=gate)

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import itertools
 
-from zeroproof.simulations.generate import scenarios
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate import scenarios
+from whileai.simulations.generate.scenarios import (
     RULE_FREE,
     _covering_assignments_uncached,
     _prefer_success,
@@ -113,7 +113,7 @@ def test_prefer_success_keeps_every_fault_kind_and_is_per_row():
 
 
 def test_rule_free_cells_carry_no_rule_hint():
-    from zeroproof.simulations.generate.diversity import sample_cell_tags
+    from whileai.simulations.generate.diversity import sample_cell_tags
 
     free = sample_cell_tags(7, 0, "k", {"tool": "run_sql", "rule": RULE_FREE})
     ruled = sample_cell_tags(7, 0, "k", {"tool": "run_sql", "rule": "Never guess column names."})

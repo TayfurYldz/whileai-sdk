@@ -3,7 +3,7 @@ group that moved the other way."""
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.delta import delta_report, format_delta_report
 
 
 def _rows(spec: dict[str, tuple], *, n_tasks: int = 12, k: int = 4):

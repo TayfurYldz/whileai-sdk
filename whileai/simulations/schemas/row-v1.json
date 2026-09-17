@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zeroproofai.com/schemas/row-v1.json",
+  "title": "While row, schema version 1",
+  "description": "The flat JSONL row simulate() streams, save() writes, and the platform stores. A projection of Task + Rollout + Judgment[] + Marker[]. Rows without schema_version are version 0 (legacy) and are read by shape.",
+  "$ref": "#/$defs/row",
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": ["schema_version", "prompt", "steps", "final_text"],
+      "properties": {
+        "schema_version": {"const": "1"},
+        "prompt": {"type": "string", "$comment": "Task.prompt"},
+        "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}, "$comment": "Rollout.steps"},
+        "final_text": {"type": "string", "$comment": "Rollout.final_text"},
+        "scenario_id": {"type": "string", "$comment": "Task.task_id"},
+        "spec_id": {"type": "string", "$comment": "Task.spec_id"},
+        "privileged": {"type": "object", "$comment": "Task.privileged: principle, hidden_state, reference, rubric; what the judge sees and the policy does not"},
+        "messages": {"type": "array", "items": {"$ref": "#/$defs/message"}, "$comment": "derived from prompt + steps; carried when present"},
+        "opener": {"type": "string"},
+        "opening": {"type": "string"},
+        "tier": {}, "ask_family": {}, "intent_known": {}, "tool_known": {},
+        "stance": {}, "tone": {}, "length": {}, "ask": {}, "vagueness": {},
+        "phrasing": {}, "pressure": {}, "user": {}, "texture": {}, "history": {},
+        "world_state": {"type": "string", "$comment": "Task.world.state"},
+        "faults": {"type": "object", "$comment": "Task.world.faults; Rollout.ledger is derived"},
+        "fault_detected": {"type": "boolean"},
+        "rollout_index": {"type": "integer", "$comment": "Rollout.index"},
+        "model_version": {"type": "string", "$comment": "Rollout.policy.model"},
+        "reward": {"type": ["number", "null"], "$comment": "primary Judgment.reward"},
+        "reason": {"type": "string", "$comment": "primary Judgment.reason"},
+        "label_source": {"type": "string", "$comment": "primary Judgment.scorer.name when kind=rule"},
+        "judge_name": {"type": "string", "$comment": "primary Judgment.scorer.name when kind=judge"},
+        "judge_status": {"type": "string", "enum": ["ok", "missing_reward", "invalid_result", "error", "timeout"]},
+        "failure_class": {"type": "string"},
+        "llm_reward": {"type": ["number", "null"], "$comment": "Judgment from scorer 'llm'"},
+        "llm_reason": {"type": "string"},
+        "qwen_reward": {"type": "number", "$comment": "Judgment from scorer 'qwen'"},
+        "markers": {"type": "object", "additionalProperties": {"type": "number"}, "$comment": "Marker[] as name -> value"},
+        "gold_reward": {"type": "integer", "enum": [0, 1], "$comment": "the trusted label a judge is checked against; majority of gold_labels (attach_labels)"},
+        "gold_labels": {"type": "array", "items": {"type": "object"}, "$comment": "every hand label: label, annotator, kind, ts, note"},
+        "logprob": {"type": "number", "$comment": "summed log-probability of the agent's generated tokens under the sampling policy; simulate(logprobs=True)"},
+        "n_tokens": {"type": "integer", "$comment": "generated tokens the logprob sums over"},
+        "token_logprobs": {"type": "array", "items": {"type": "number"}, "$comment": "per-token log-probabilities in generation order across the agent's turns; simulate(logprobs=\"tokens\")"},
+        "sampling": {"type": "object", "properties": {"temperature": {"type": "number"}, "logprobs": {}}, "$comment": "how a model backend was sampled; absent for a callable agent"},
+        "policy_version": {"type": "string", "$comment": "Rollout.policy.version: <model_version>@<sha256 of the system policy>[:16]"},
+        "calibration": {
+          "type": "object",
+          "required": ["n", "pass_rate"],
+          "properties": {
+            "task_id": {"type": "string"},
+            "student": {"type": "object", "properties": {"name": {"type": "string"}, "model": {"type": ["string", "null"]}, "prompt_hash": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]}}},
+            "n": {"type": "integer", "minimum": 1},
+            "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+            "mean_kl": {"type": ["number", "null"]}
+          },
+          "$comment": "Calibration: the task's pass rate over n rollouts of the student policy; written by publish_gate / calibrate"
+        },
+        "conversation_id": {"type": "string", "$comment": "OTel ingest only"},
+        "ts": {"type": "integer", "$comment": "OTel ingest only; earliest span start, ns"},
+        "lineage": {"type": "object"},
+        "quality": {}, "quality_reason": {}, "quality_scores": {},
+        "judge_meta": {"type": "object"},
+        "tools": {"type": "array", "$comment": "carried from a training-shaped source row"},
+        "group_id": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "step": {
+      "type": "object",
+      "oneOf": [
+        {"required": ["user"], "properties": {"user": {"type": "string"}}},
+        {"required": ["tool"], "properties": {"tool": {"type": "string"}, "arguments": {}, "result": {}, "text": {"type": "string"}, "logprob": {"type": "number"}, "n_tokens": {"type": "integer"}, "truncated": {"type": "boolean"}}},
+        {"required": ["text"], "properties": {"text": {"type": "string"}, "logprob": {"type": "number"}, "n_tokens": {"type": "integer"}, "truncated": {"type": "boolean"}}}
+      ]
+    },
+    "message": {
+      "type": "object",
+      "required": ["role"],
+      "properties": {
+        "role": {"type": "string"},
+        "content": {"type": "string"},
+        "name": {"type": "string"},
+        "tool_calls": {"type": "array"}
+      }
+    },
+    "training_row": {
+      "type": "object",
+      "required": ["schema_version", "messages"],
+      "properties": {
+        "schema_version": {"const": "1"},
+        "messages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/message"}},
+        "loss_mask": {"type": "array", "items": {"type": "integer", "enum": [0, 1]}, "$comment": "one entry per message: 1 = train on this turn (assistant), 0 = masked (system, user, tool output)"},
+        "tools": {"type": "array"},
+        "group_id": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "preference_row": {
+      "type": "object",
+      "required": ["schema_version", "prompt", "chosen", "rejected"],
+      "properties": {
+        "schema_version": {"const": "1"},
+        "prompt": {},
+        "chosen": {"type": "array", "minItems": 1},
+        "rejected": {"type": "array", "minItems": 1},
+        "chosen_score": {"type": "number", "$comment": "raw reward of the chosen side"},
+        "rejected_score": {"type": "number"},
+        "margin": {"type": "number", "$comment": "chosen_score - rejected_score; feeds a margin-aware preference loss"},
+        "chosen_model": {"type": ["string", "null"]},
+        "rejected_model": {"type": ["string", "null"]},
+        "same_policy": {"type": ["boolean", "null"], "$comment": "both sides from one model_version; null when unknown"},
+        "length_delta": {"type": "integer", "$comment": "chosen reply chars minus rejected; the length-exploit check"},
+        "tools": {"type": "array"}
+      },
+      "additionalProperties": true
+    },
+    "objects": {
+      "$comment": "Field lists of the four objects in schema.py; the drift test compares these to the dataclasses.",
+      "Task": ["task_id", "spec_id", "prompt", "prefix", "world", "privileged", "axes", "behaviors", "lineage"],
+      "Rollout": ["rollout_id", "task_id", "policy", "index", "steps", "final_text", "ledger", "usable", "unusable_reason", "extra"],
+      "Judgment": ["rollout_id", "scorer", "reward", "status", "reason", "failure_class", "evidence"],
+      "Marker": ["rollout_id", "name", "value", "evidence"],
+      "Dataset": ["dataset_id", "spec_id", "splits"],
+      "Calibration": ["task_id", "student", "n", "pass_rate", "mean_kl"]
+    },
+    "legacy_shapes": {
+      "$comment": "Version 0 rows, detected by key. See schema.detect_shape.",
+      "engine": {"detect": "scenario_id", "keys": ["prompt", "messages", "steps", "final_text", "scenario_id", "rollout_index", "model_version", "world_state", "faults", "reward", "reason", "label_source", "tier", "ask_family", "ask", "stance", "tone", "texture", "vagueness", "phrasing", "pressure", "user", "history", "length", "intent_known", "tool_known"]},
+      "platform_pull": {"detect": "tool_trace without steps", "keys": ["prompt", "tool_trace", "final_text", "reward", "lineage"], "step_keys": ["tool", "input", "output"]},
+      "platform_pull_engine": {"detect": "scenario_id", "$comment": "A dataset the SDK pushed comes back in engine shape."},
+      "training": {"detect": "messages without steps or final_text", "keys": ["messages", "tools", "group_id", "reward", "scenario_id"], "$comment": "An export_training row; steps and final_text are derived from messages."},
+      "hf_flat": {"detect": "steps_json / messages_json / metadata_json", "keys": ["agent_type", "mode", "prompt", "messages_json", "steps_json", "metadata_json", "final_text", "reward", "reason", "scenario_id"], "$comment": "The published Hugging Face set; list columns flattened to JSON strings. Read only; to_row writes canonical lists."},
+      "otel": {"detect": "conversation_id", "keys": ["conversation_id", "prompt", "steps", "final_text", "model_version", "reward", "ts"]}
+    }
+  }
+}

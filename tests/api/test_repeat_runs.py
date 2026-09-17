@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import simulate_offline
 
 
@@ -45,7 +45,7 @@ def test_runs_replays_the_pinned_tasks_and_stamps_eval_run(tmp_path):
     assert len(written) == len(rep.trajectories)
     assert sorted({r["lineage"]["eval_run"] for r in written}) == [0, 1, 2]
     # eval_variance splits by eval_run on its own
-    noise = zps.eval_variance(rep.trajectories)
+    noise = wai.eval_variance(rep.trajectories)
     assert noise["n_runs"] == 3 and noise["run_std"] is not None
 
 

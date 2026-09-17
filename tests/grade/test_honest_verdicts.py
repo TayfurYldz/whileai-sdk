@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import random
 
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.training import TrainingRun, _holdout_without_rows
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.training import TrainingRun, _holdout_without_rows
 
 
 def _rows(pass_rates: dict[str, float], k: int = 4, eval_run: int | None = None) -> list[dict]:

@@ -20,14 +20,14 @@ import json
 
 import pytest
 
-from zeroproof.simulations.export import (
+from whileai.simulations.export import (
     export_preference,
     export_training,
     to_trl,
     tool_call_roundtrip,
     training_rows,
 )
-from zeroproof.simulations.score.judging import build_preference_pairs
+from whileai.simulations.score.judging import build_preference_pairs
 
 POLICY = "Read before you write. Say what you did."
 TOOLS = [

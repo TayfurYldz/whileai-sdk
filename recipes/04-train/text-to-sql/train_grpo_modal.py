@@ -11,8 +11,8 @@ What happens:
    0.1 when it runs but is wrong, 0 otherwise.
 3. The holdout split is sampled 4x before and after training and graded with
    the binary verdict; pass@1 before/after and the delta land on the run
-   page. The adapter is saved on volume zeroproof-train-runs under the run
-   id so zps.serve can host it on Qwen/Qwen3-4B.
+   page. The adapter is saved on volume whileai-train-runs under the run
+   id so wai.serve can host it on Qwen/Qwen3-4B.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ BASE_MODEL = "Qwen/Qwen3-4B"
 DEFAULT_GPU = os.environ.get("ZP_GRPO_GPU", "L40S")
 VOLUME_ROOT = "/vol"
 
-app = modal.App("zeroproof-t2s-grpo")
+app = modal.App("whileai-t2s-grpo")
 
 _base = (
     modal.Image.debian_slim(python_version="3.11")
@@ -41,7 +41,7 @@ _base = (
         "datasets==3.6.0",
         "accelerate==1.8.1",
         "psycopg[binary]==3.2.9",
-        "zeroproof==0.44",
+        "whileai==0.44",
     )
     .env(
         {
@@ -71,12 +71,12 @@ def _with_files(img: modal.Image) -> modal.Image:
 image = _with_files(_base)
 image_vllm = _with_files(_vllm_base)
 
-runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=True)
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+runs_volume = modal.Volume.from_name("whileai-train-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
 
 
 dashboard_secret = modal.Secret.from_dict(
-    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+    {"WHILEAI_API_KEY": os.environ.get("WHILEAI_API_KEY", "")}
 )
 
 
@@ -159,7 +159,7 @@ def _train(
     sys.path.insert(0, "/root")
     import sql_verifier as R
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     if use_vllm:
         # TRL's colocate mode builds vLLM with the external_launcher executor,
@@ -217,8 +217,8 @@ def _train(
         else "in-container",
     }
     run = None
-    if os.environ.get("ZEROPROOF_API_KEY"):
-        run = zps.training_run(
+    if os.environ.get("WHILEAI_API_KEY"):
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-grpo-lora-sql",
@@ -237,7 +237,7 @@ def _train(
             model, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
         before_rows = R.reward_rows(holdout_tasks, before_replies, f"{base_model}@before")
-        before = zps.pass_at(before_rows)
+        before = wai.pass_at(before_rows)
         print(f"before: {before}")
 
     calls = {"n": 0}
@@ -345,7 +345,7 @@ def _train(
         peft_config=None if from_run else lora,
     )
     if run is not None:
-        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+        trainer.add_callback(wai.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -360,7 +360,7 @@ def _train(
             policy, tokenizer, hold_texts, n=eval_samples, max_new_tokens=max_completion_length
         )
         after_rows = R.reward_rows(holdout_tasks, after_replies, f"{run_name}@after")
-        after = zps.pass_at(after_rows)
+        after = wai.pass_at(after_rows)
         print(f"after:  {after}")
 
     adapter_dir = os.path.join(out_dir, "adapter")
@@ -382,7 +382,7 @@ def _train(
         "holdout_prompts": len(holdout_tasks),
         "eval_samples": eval_samples,
         "run_id": run_id,
-        "adapter": f"volume zeroproof-train-runs:/{run_id}/adapter",
+        "adapter": f"volume whileai-train-runs:/{run_id}/adapter",
     }
     delta = None
     if before_rows and after_rows:
@@ -395,19 +395,17 @@ def _train(
                 by="difficulty",
             )
         else:
-            delta = zps.delta_report(
+            delta = wai.delta_report(
                 before_rows,
                 after_rows,
                 target="pass_at_1",
                 must_not_regress=["executes"],
                 by="difficulty",
             )
-        print(zps.format_delta_report(delta))
+        print(wai.format_delta_report(delta))
         summary["delta_verdict"] = delta["target_verdict"]
     if run is not None:
-        run.finish(
-            "done", summary=summary, adapter=f"volume zeroproof-train-runs:/{run_id}/adapter"
-        )
+        run.finish("done", summary=summary, adapter=f"volume whileai-train-runs:/{run_id}/adapter")
         summary["run_url"] = run.url
     with open(os.path.join(out_dir, "summary.json"), "w") as fh:
         json.dump(summary, fh, indent=1, default=str)

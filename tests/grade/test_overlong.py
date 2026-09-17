@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from zeroproof.simulations.score.optimize import optimize, select_for_rl
+from whileai.simulations.score.optimize import optimize, select_for_rl
 
 LONG_CUT = "The order shipped on Tuesday and the carrier picked it up from the warehouse " * 4
 LONG_DONE = LONG_CUT.strip() + "."
@@ -94,7 +94,7 @@ EMAIL = (
     ["Best,\nSales", "Thanks,\nAlex", "Regards\nThe Team", "-- Sam", "Cheers", "Kind regards,\nJ"],
 )
 def test_a_sign_off_is_a_finished_reply(tail):
-    from zeroproof.simulations.score.hygiene import is_truncated
+    from whileai.simulations.score.hygiene import is_truncated
 
     body = EMAIL.rsplit("\n\nBest,\nSales", 1)[0]
     assert len(body) >= 200
@@ -102,7 +102,7 @@ def test_a_sign_off_is_a_finished_reply(tail):
 
 
 def test_a_cut_reply_is_still_cut():
-    from zeroproof.simulations.score.grading import looks_finished
+    from whileai.simulations.score.grading import looks_finished
 
     assert not looks_finished(LONG_CUT)
     assert not looks_finished("Next steps:\n1. Check the")  # short last line, no sign-off

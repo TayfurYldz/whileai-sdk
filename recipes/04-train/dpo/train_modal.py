@@ -1,7 +1,7 @@
 """DPO on Modal, end to end, with the dashboard watching.
 
     modal run recipes/04-train/dpo/train_modal.py                        # on-policy pairs, 60 steps, A10G
-    modal run recipes/04-train/dpo/train_modal.py --pairs pairs.jsonl    # pairs from zps.export_preference
+    modal run recipes/04-train/dpo/train_modal.py --pairs pairs.jsonl    # pairs from wai.export_preference
     modal run recipes/04-train/dpo/train_modal.py --loss-type ipo --beta 0.1
     modal run recipes/04-train/dpo/train_modal.py --prompts-file recipes/04-train/grpo/prompts.jsonl   # model-written set
     modal run recipes/04-train/dpo/train_modal.py --from-run refund-dpo-v1 --run-name refund-dpo-v1-r2   # round two, from the adapter
@@ -14,16 +14,16 @@ What happens:
    the grader. The holdout is sampled 4 times per prompt and scored: pass@1
    before.
 2. Pairs. By default the base policy is sampled 8 times per train prompt,
-   every reply is scored, and ``zps.build_preference_pairs`` pairs a pass
+   every reply is scored, and ``wai.build_preference_pairs`` pairs a pass
    with a fail of similar length (on-policy, length-matched). ``--pairs``
-   takes a ``zps.export_preference`` file instead, from any graded set.
+   takes a ``wai.export_preference`` file instead, from any graded set.
 3. TRL's ``DPOTrainer`` with a LoRA adapter; the reference model is the
-   same weights with the adapter off. ``zps.TrainerCallback`` puts the
+   same weights with the adapter off. ``wai.TrainerCallback`` puts the
    chosen/rejected reward margin, accuracy and loss on
    zeroproofai.com/platform/training as it goes.
 4. The holdout is sampled again: pass@1 after. ``run.delta`` puts the
    before/after comparison on the run page, and the adapter lands on the
-   ``zeroproof-dpo-runs`` volume under the run name.
+   ``whileai-dpo-runs`` volume under the run name.
 
 DPO is offline: it learns from the pairs it is given and never samples
 during training, so a run is cheap and deterministic given the pairs. The
@@ -48,7 +48,7 @@ BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 DEFAULT_GPU = os.environ.get("ZP_DPO_GPU", "A10G")
 VOLUME_ROOT = "/vol"
 
-app = modal.App("zeroproof-dpo")
+app = modal.App("whileai-dpo")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -59,7 +59,7 @@ image = (
         "peft==0.16.0",
         "datasets==3.6.0",
         "accelerate==1.8.1",
-        "zeroproof",
+        "whileai",
     )
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE.parent / "grpo" / "reward.py"), "/root/reward.py")
@@ -67,13 +67,13 @@ image = (
     .add_local_file(str(HERE / "pairs.py"), "/root/pairs.py")
     # From inside this repo the checkout's SDK rides along and shadows the
     # PyPI one, so an unreleased SDK change works here first.
-    .add_local_python_source("zeroproof")
+    .add_local_python_source("whileai")
 )
 
-runs_volume = modal.Volume.from_name("zeroproof-dpo-runs", create_if_missing=True)
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+runs_volume = modal.Volume.from_name("whileai-dpo-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
 dashboard_secret = modal.Secret.from_dict(
-    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+    {"WHILEAI_API_KEY": os.environ.get("WHILEAI_API_KEY", "")}
 )
 
 
@@ -178,7 +178,7 @@ def train(
     from pairs import sampled_pairs
     from reward import SYSTEM, reward_rows
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     if tokenizer.pad_token is None:
@@ -216,8 +216,8 @@ def train(
         "reward": "reward.py: lookup before refund, never invent an id, ask when none given",
     }
     run = None
-    if os.environ.get("ZEROPROOF_API_KEY"):
-        run = zps.training_run(
+    if os.environ.get("WHILEAI_API_KEY"):
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-dpo-lora",
@@ -231,8 +231,8 @@ def train(
     before_replies = _sample(
         model, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    before_rows = zps.mark_grounding(_stamp(reward_rows(holdout_prompts, before_replies)))
-    before = zps.pass_at(before_rows)
+    before_rows = wai.mark_grounding(_stamp(reward_rows(holdout_prompts, before_replies)))
+    before = wai.pass_at(before_rows)
     print(f"before: {before}")
 
     pair_report: dict = {}
@@ -308,7 +308,7 @@ def train(
     )
     if run is not None:
         # finish=False: the holdout eval and the delta come after training.
-        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+        trainer.add_callback(wai.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -320,8 +320,8 @@ def train(
     after_replies = _sample(
         policy, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    after_rows = zps.mark_grounding(_stamp(reward_rows(holdout_prompts, after_replies)))
-    after = zps.pass_at(after_rows)
+    after_rows = wai.mark_grounding(_stamp(reward_rows(holdout_prompts, after_replies)))
+    after = wai.pass_at(after_rows)
     print(f"after:  {after}")
     print(f"by category: before {_by_category(before_rows)}")
     print(f"             after  {_by_category(after_rows)}")
@@ -367,17 +367,17 @@ def train(
             must_not_regress=["well_formed", "argument_grounding"],
             by="category",
         )
-        run.finish("done", summary=summary, adapter=f"zeroproof-dpo-runs:/{run_name}/adapter")
+        run.finish("done", summary=summary, adapter=f"whileai-dpo-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     else:
-        delta = zps.delta_report(
+        delta = wai.delta_report(
             before_rows,
             after_rows,
             target="pass_at_1",
             must_not_regress=["well_formed", "argument_grounding"],
             by="category",
         )
-    print(zps.format_delta_report(delta))
+    print(wai.format_delta_report(delta))
     summary["delta_verdict"] = delta["target_verdict"]
     return summary
 

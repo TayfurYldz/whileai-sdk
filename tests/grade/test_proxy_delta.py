@@ -7,9 +7,9 @@ import random
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.hack_scan import format_hack_scan_diff, hack_scan_diff
+import whileai.simulations as wai
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.hack_scan import format_hack_scan_diff, hack_scan_diff
 
 WORDS = [
     "order",
@@ -97,8 +97,8 @@ def test_proxy_edge_cases_and_passthrough():
     assert any("not on both row sets" in w for w in missing["warnings"])
     assert "proxy marker:nope: proxy_not_measured" in format_delta_report(missing)
     # the run handle and attach_delta pass proxy through
-    assert "proxy" in zps.TrainingRun.delta.__code__.co_varnames
-    assert "proxy" in zps.attach_delta.__code__.co_varnames
+    assert "proxy" in wai.TrainingRun.delta.__code__.co_varnames
+    assert "proxy" in wai.attach_delta.__code__.co_varnames
 
 
 def test_hack_scan_diff_names_what_was_learned():
@@ -119,7 +119,7 @@ def test_hack_scan_diff_names_what_was_learned():
     assert text.splitlines()[0] == diff["learned"] and "regime no_signal -> reward_hack" in text
     clean = hack_scan_diff(before, before, endorsed=["lookup_order"], seed=0)
     assert clean["gained"] == [] and clean["lost"] == [] and clean["warnings"] == []
-    assert zps.hack_scan_diff is hack_scan_diff
+    assert wai.hack_scan_diff is hack_scan_diff
 
 
 def _two_trajectory_rows(n_tasks: int = 20, k: int = 8, n_pass: int = 5) -> list[dict]:

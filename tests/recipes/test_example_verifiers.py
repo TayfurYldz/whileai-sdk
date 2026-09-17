@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.verify import All, MathEqual, Regex
+import whileai.simulations as wai
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.verify import All, MathEqual, Regex
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "recipes" / "01-simulate" / "verifiers" / "run.py"
@@ -22,7 +22,7 @@ SCRIPT = REPO / "recipes" / "01-simulate" / "verifiers" / "run.py"
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     env["PYTHONIOENCODING"] = "utf-8"
@@ -89,10 +89,10 @@ def test_verifier_rewards_match_the_script(example):
 
 def test_answer_key_stops_at_the_training_export(example):
     scored = run_judge(example.MATH_ROWS, MathEqual(), source="grade")
-    rows, report = zps.optimize(scored, mode="rl")
+    rows, report = wai.optimize(scored, mode="rl")
     assert report["groups_selected"] == 2
     assert all("privileged" in r for r in rows), "optimize keeps SDK rows whole"
-    trainer_rows = zps.training_rows(rows)
+    trainer_rows = wai.training_rows(rows)
     assert len(trainer_rows) == len(rows) == 3
     assert not any("privileged" in r for r in trainer_rows)
     assert all("messages" in r and "loss_mask" in r for r in trainer_rows)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.verify import (
+import whileai.simulations as wai
+from whileai.simulations.verify import (
     All,
     Any,
     CodeExec,
@@ -28,9 +28,9 @@ def row(final, **kw):
 
 
 def test_exposed_on_package():
-    assert hasattr(zps, "verify")
-    assert zps.Verifier is not None
-    assert callable(zps.verifier)
+    assert hasattr(wai, "verify")
+    assert wai.Verifier is not None
+    assert callable(wai.verifier)
 
 
 def test_contract_shape():
@@ -151,7 +151,7 @@ def test_code_exec_timeout():
 
 def test_verifier_feeds_grade(monkeypatch):
     # A verifier is a judge: run_judge accepts it and stamps a scored row.
-    from zeroproof.simulations.score.judging import run_judge
+    from whileai.simulations.score.judging import run_judge
 
     rows = [row("Paris", answer="Paris"), row("London", answer="Paris")]
     scored = run_judge(rows, ExactMatch(), source="grade")
@@ -171,7 +171,7 @@ def test_weighted_never_invents_a_score_for_a_part_that_could_not_run():
 
 
 def test_as_verifier_wraps_a_plain_row_callable():
-    from zeroproof.simulations.verify import as_verifier
+    from whileai.simulations.verify import as_verifier
 
     def short_reply(r):
         return len(r["final_text"]) < 20

@@ -21,7 +21,7 @@ the judge.
 ## Run it
 
 ```bash
-pip install zeroproof
+pip install whileai
 cd recipes/03-select/character
 python run.py                 # scripted student, offline, seconds
 python measure.py --demo      # before vs after on the adversarial holdout
@@ -154,7 +154,7 @@ that has the character and drops the task is a 0.
 - **A trainer of your own.** `out/pairs.jsonl` is `prompt`, `chosen`,
   `rejected` as message lists, what a DPO trainer reads; `out/sft.jsonl`
   carries a loss mask. `recipes/04-train/identity/train_modal.py` is a LoRA
-  pattern to copy. The hosted path is `zps.train(ds_id, method="dpo")` on
+  pattern to copy. The hosted path is `wai.train(ds_id, method="dpo")` on
   the pushed rows.
 - **Maiya's third stage.** Introspective SFT (the trained model writing
   about its own values) needs the trained model. Run it after DPO with the
