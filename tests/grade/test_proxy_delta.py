@@ -79,7 +79,7 @@ def test_both_moving_together_is_not_over_optimized():
     before = _rows(3, proxy_rate=0.2, gold_rate=0.2)
     after = _rows(4, proxy_rate=0.8, gold_rate=0.8)
     report = delta_report(before, after, target="pass_at_1", proxy="marker:proxy", n_boot=300)
-    assert report["proxy_verdict"] == "moved" and report["target_verdict"] == "moved"
+    assert report["proxy_verdict"] == "moved" and report["target_verdict"] == "moved_unreplicated"
     assert report["over_optimized"] is False and report["ok"] is True
     assert not any("OVER-OPTIMIZED" in w for w in report["warnings"])
 

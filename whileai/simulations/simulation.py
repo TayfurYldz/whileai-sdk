@@ -83,6 +83,7 @@ def simulate(
     execute: Callable | None = None,
     output: str | None = None,
     tasks: Any = None,
+    runs: int = 1,
     advanced: dict | None = None,
     **passed: Any,
 ) -> SimulationData:
@@ -165,6 +166,20 @@ def simulate(
         rerun = wai.simulate(agent, tools=TOOLS, system_prompt=EDITED,
                              tasks=base, mode="rl")  # k=4, inherited
 
+    ``runs=`` replays the same task set that many times in one call and
+    stamps ``lineage.eval_run`` (0, 1, 2, ...) on every row, which is
+    what ``delta_report`` needs before it will call a change real
+    (rlhf-book ch. 16 and appendix C: one evaluation is a draw, three
+    give a standard deviation). ``simulate(tasks=base, runs=3)`` is the
+    usual form; without ``tasks=`` the first run draws the task set and
+    the rest replay it. Between runs nothing changes but the agent's own
+    sampling: same tasks, same faults, same world state, same seed, so a
+    deterministic agent gives identical runs and a zero re-run band. The
+    rows of every run come back in one ``SimulationData`` (``output=``
+    holds them all); ``search["eval_runs"]`` lists the rows and stop
+    reason per run, and ``eval_variance(data.rows())`` splits by
+    ``eval_run`` on its own.
+
     A run
     otherwise draws its tasks from the grid by seed and, above
     ``concurrency: 1``, by completion order, so a re-run shares only part
@@ -191,8 +206,10 @@ def simulate(
     Without the flag, which rows land before the cap depends on thread
     timing.
     """
-    cfg = resolve_run_config(
-        agent,
+    n_runs = int(runs)
+    if n_runs < 1:
+        raise ValueError("runs= is how many times to replay the task set, 1 or more")
+    kwargs: dict[str, Any] = dict(
         spec=spec,
         tools=tools,
         system_prompt=system_prompt,
@@ -219,4 +236,50 @@ def simulate(
         advanced=advanced,
         passed=passed,
     )
-    return Run(cfg).run()
+    if n_runs == 1:
+        return Run(resolve_run_config(agent, **kwargs)).run()
+    return _repeat_runs(agent, n_runs, kwargs)
+
+
+def _stamp_eval_run(rows: list[dict], index: int) -> None:
+    for row in rows:
+        lineage = row.get("lineage")
+        if not isinstance(lineage, dict):
+            lineage = {}
+        lineage["eval_run"] = index
+        row["lineage"] = lineage
+
+
+def _repeat_runs(agent: Any, n_runs: int, kwargs: dict[str, Any]) -> SimulationData:
+    """``simulate(runs=N)``: the same task set N times, one result.
+
+    Each run is a full ``Run`` on the same config; runs after the first
+    replay the first run's task set when none was pinned. Rows are
+    stamped ``lineage.eval_run`` and gathered on the first run's
+    ``SimulationData``, which is written to ``output=`` once, at the end,
+    so the file holds every run.
+    """
+    output = kwargs.pop("output", None)
+    first: SimulationData | None = None
+    per_run: list[dict[str, Any]] = []
+    for index in range(n_runs):
+        run_kwargs = dict(kwargs)
+        if first is not None and run_kwargs.get("tasks") is None:
+            run_kwargs["tasks"] = first
+        data = Run(resolve_run_config(agent, **run_kwargs)).run()
+        _stamp_eval_run(data.trajectories, index)
+        per_run.append({"rows": len(data.trajectories), "stopped_because": data.stopped_because})
+        if first is None:
+            first = data
+            continue
+        first.trajectories.extend(data.trajectories)
+        first.elapsed_seconds += data.elapsed_seconds
+        first.rollout_seconds += data.rollout_seconds
+        first.scenario_generation_seconds += data.scenario_generation_seconds
+        first.row_seconds.extend(data.row_seconds)
+        first.degraded.extend(d for d in data.degraded if d not in first.degraded)
+    assert first is not None
+    first.search["eval_runs"] = {"runs": n_runs, "per_run": per_run}
+    if output:
+        first.save(str(output), meta=True)
+    return first

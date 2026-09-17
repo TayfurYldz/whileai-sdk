@@ -207,7 +207,8 @@ def test_delta_report_headline_and_regressions():
     for i, r in enumerate(after):
         r["markers"]["polite"] = 0.0 if i % 2 else 1.0
     report = delta_report(before, after, target="pass_at_1", must_not_regress=["polite"])
-    assert report["target_verdict"] == "moved" and report["target_delta"] == pytest.approx(0.5)
+    assert report["target_verdict"] == "moved_unreplicated"
+    assert report["target_delta"] == pytest.approx(0.5)
     assert report["regressions"] == ["marker:polite"] and report["ok"] is False
     assert "marker:honest" in report["improved"]
     text = format_delta_report(report)

@@ -93,6 +93,75 @@ def _holdout_from_delta(report: Mapping[str, Any]) -> dict[str, float]:
         return {}
 
 
+NO_INTERVAL_NOTE = "No interval: the platform only returned two numbers"
+
+
+def _holdout_side(rows: Sequence[dict]) -> dict[str, Any]:
+    """One side of the holdout with its uncertainty: pass@1 over tasks,
+    how many tasks, rollouts per task, and the task-bootstrap interval."""
+    from .score.stats import metric_summary, task_key
+
+    summary = metric_summary(rows, "pass_at_1")
+    per_task: dict[str, int] = {}
+    for row in rows:
+        if isinstance(row, dict) and row.get("reward") is not None:
+            per_task[task_key(row)] = per_task.get(task_key(row), 0) + 1
+    ci = summary["ci95"]
+    return {
+        "pass": summary["mean"],
+        "n_tasks": summary["n_tasks"],
+        "k": max(per_task.values()) if per_task else None,
+        "ci95": list(ci) if ci else None,
+    }
+
+
+def _holdout_block(
+    report: Mapping[str, Any], before: Sequence[dict], after: Sequence[dict]
+) -> dict[str, Any]:
+    """``summary["holdout"]``: the before/after pass rates with their
+    intervals and one verdict word from ``delta_report`` (``moved``,
+    ``moved_unreplicated``, ``within_eval_noise``, ``no_change_detected``,
+    ...), so the run page's opening line can carry the same caveats the
+    report does (rlhf-book ch. 16, appendix C)."""
+    from .score.delta import _verdict_word
+
+    metric = (report.get("metrics") or {}).get("pass_at_1") or {}
+    if report.get("target") == "pass_at_1":
+        verdict = report.get("target_verdict")
+    elif metric.get("verdict"):
+        verdict = _verdict_word(metric, bool(report.get("replicated")))
+    else:
+        verdict = None
+    return {
+        "before": _holdout_side(before),
+        "after": _holdout_side(after),
+        "verdict": verdict,
+        "eval_runs": report.get("eval_runs"),
+        "run_std": report.get("run_std"),
+        "ceiling": bool(report.get("ceiling")),
+        "note": None,
+    }
+
+
+def _holdout_without_rows(before: Any, after: Any) -> dict[str, Any]:
+    """The same block when only two numbers exist (a hosted run's
+    summary): the uncertainty fields are ``None`` and ``note`` says why."""
+
+    def side(value: Any) -> dict[str, Any]:
+        number = float(value) if isinstance(value, (int, float)) else None
+        return {"pass": number, "n_tasks": None, "k": None, "ci95": None}
+
+    return {
+        "before": side(before),
+        "after": side(after),
+        "verdict": None,
+        "eval_runs": None,
+        "run_std": None,
+        "ceiling": None,
+        "note": NO_INTERVAL_NOTE,
+    }
+
+
 class TrainingRun:
     """One fine-tune, as the platform sees it. Create with ``training_run``.
 
@@ -138,6 +207,10 @@ class TrainingRun:
         self.dataset_id: str | None = None
         self.call_id: str | None = None
         self.method: str | None = None
+        #: the holdout numbers with their uncertainty: filled by ``delta``
+        #: from the rows, or by ``refresh`` from the platform's two numbers
+        #: (then every interval field is ``None`` and ``note`` says so)
+        self.holdout_summary: dict[str, Any] | None = None
         self.holdout_id: str | None = None
         self.training: dict[str, Any] = {}
         self.error: str | None = None
@@ -320,6 +393,8 @@ class TrainingRun:
         # them from it rather than asking for the numbers twice.
         for key, value in _holdout_from_delta(report).items():
             self._summary.setdefault(key, value)
+        self.holdout_summary = _json_safe(_holdout_block(report, before, after))
+        self._summary["holdout"] = self.holdout_summary
         if self.status != "running":
             self._send_delta()
         return report
@@ -385,6 +460,8 @@ class TrainingRun:
             self.adapter = str(state["adapter"])
         if state.get("error"):
             self.error = str(state["error"])
+        if self.holdout_summary is None and ("before" in state or "after" in state):
+            self.holdout_summary = _holdout_without_rows(state.get("before"), state.get("after"))
 
     def __enter__(self) -> TrainingRun:
         return self
@@ -832,6 +909,7 @@ def attach_delta(
     summary["delta"] = _json_safe(report)
     for key, value in _holdout_from_delta(report).items():
         summary.setdefault(key, value)
+    summary["holdout"] = _json_safe(_holdout_block(report, before, after))
     _finish_again(run_id, run, summary, api_key)
     return report
 

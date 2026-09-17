@@ -121,7 +121,7 @@ def test_measure_demo_moves_trait_without_regressions():
     before, after = measure.demo(seed=0)
     rep = measure.measure(before, after, seed=0)
     assert rep["ok"], rep.get("warnings")
-    assert rep["target_verdict"] == "moved"
+    assert rep["target_verdict"] == "moved_unreplicated"
     assert rep["metrics"]["marker:trait"]["delta"] > 0
     assert not rep["regressions"]
 

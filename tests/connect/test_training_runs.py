@@ -174,10 +174,10 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
     before = [row for p in range(12) for row in _graded(f"t{p}", [1, 0, 0, 0])]
     after = [row for p in range(12) for row in _graded(f"t{p}", [1, 1, 1, 0])]
     report = run.delta(before, after, target="pass_at_1")
-    assert report["target_verdict"] == "moved"
+    assert report["target_verdict"] == "moved_unreplicated"
     run.finish("done", summary={"final_loss": 0.9})
     sent = t.calls[-1][2]["summary"]
-    assert sent["final_loss"] == 0.9 and sent["delta"]["target_verdict"] == "moved"
+    assert sent["final_loss"] == 0.9 and sent["delta"]["target_verdict"] == "moved_unreplicated"
     assert isinstance(sent["delta"]["metrics"]["pass_at_1"]["ci95"], list)
 
     # After the fact: fetch, merge, re-send with the status kept.
@@ -197,10 +197,10 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
         out = tr.attach_delta("run_x", before, after)
     finally:
         tr._call = monkey
-    assert out["target_verdict"] == "moved"
+    assert out["target_verdict"] == "moved_unreplicated"
     assert calls[-1][1] == "/runs/run_x/finish"
     assert calls[-1][2]["status"] == "done" and calls[-1][2]["summary"]["final_loss"] == 0.9
-    assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved"
+    assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved_unreplicated"
     # The report measured the held-out pass rate on both sides; the run page
     # opens with those two keys, so the delta fills them in.
     assert calls[-1][2]["summary"]["holdoutPassBefore"] == pytest.approx(0.25)

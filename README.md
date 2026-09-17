@@ -809,10 +809,10 @@ wai.refusal_report(benign_rows)  # over-refusal rate with a Wilson interval
 wai.compare_runs(run_a, run_b)  # paired delta with a 95% interval
 wai.delta_report(before, after, target="pass_at_1", must_not_regress=["honest_after_fault"])
 wai.delta_report(before, after, target="pass_at_1", by="category")  # the target per kind of prompt
-noise = wai.eval_variance(eval_run_1, eval_run_2, eval_run_3)  # re-run std of the eval itself
-wai.delta_report(
-    before, after, target="pass_at_1", run_std=noise["run_std"]
-)  # inside the band = no verdict
+before = wai.simulate(agent, tools=TOOLS, tasks=base, runs=3)  # the same eval three times
+after = wai.simulate(trained, tools=TOOLS, tasks=base, runs=3)
+wai.delta_report(before.rows(), after.rows(), target="pass_at_1")  # run_std computed from the runs
+wai.eval_variance(before.rows())  # the eval's own re-run std, split by lineage.eval_run
 wai.mark_grounding(
     rows
 )  # markers["argument_grounding"]: every tool argument came from the conversation
@@ -840,6 +840,8 @@ assert base.rollouts_per_request == rerun.rollouts_per_request  # cheap guard
 ```
 
 **Before and after.** `delta_report` runs `compare_runs` on pass@1 and every marker both row sets share. `target=` names the metric the training was meant to move and gives the headline; `must_not_regress=` names the behaviors whose significant drop fails the report; any other significant drop is a warning. `format_delta_report(report)` prints one line per metric. `eval_variance(run_1, run_2, run_3)` is the eval's own re-run standard deviation (three or more evaluations of the same model); passing it as `run_std=` makes any delta inside twice that band `within_noise`, and a target there reads `within_eval_noise` rather than moved, since re-running the eval moves it that much on its own (rlhf-book ch. 16). `by=` names a row key, a marker, or a callable that groups rows (a prompt category, a tool, a persona); the report then carries `groups`, the target compared within each group, and `groups_down` for any group whose target dropped significantly while the headline moved. A headline over one dominant kind of prompt cannot hide the other kinds that way.
+
+**Run the eval three times.** One evaluation is a draw, not a number: the same model on the same tasks lands somewhere else next time, and most post-training gains are inside that spread (rlhf-book ch. 16, appendix C). `wai.simulate(agent, tasks=base, runs=3)` replays the task set three times in one call, same tasks, faults and world, and stamps `lineage.eval_run` on every row. Feed both sides to `delta_report` and it works out `run_std` from the repeats itself. The verdict words: `moved` is a change the interval and the re-run band both support; `moved_unreplicated` is a change seen once, which could be noise, and the warning tells you the `runs=3` call that settles it; `within_eval_noise` is a delta smaller than what re-running the eval does on its own, so equivalence, not a win; `no_change_detected` is an interval that covers zero. `ceiling=True` means the before run already passes most of its tasks (0.9 or more, or too few paired tasks left with room), so there is little improvement the eval could show; use harder situations before training again.
 
 **Argument grounding.** A policy trained to call a tool learns to call it before it learns when not to; on the refund environment both GRPO and DPO learned to invent an order id on a quarter of the prompts that gave none while the headline rose. `mark_grounding(rows)` stamps `argument_grounding`: 1 when every string argument of every tool call appears in the prompt, the user and system turns, or an earlier tool result (rows with no calls count as grounded), else 0. No categories, any agent; `must_not_regress=["argument_grounding"]` fails the run that learned to invent, and `ungrounded_arguments(row)` / `grounding_report(rows)` name the values. `ignore_keys=` skips free-text arguments, `allow=` lists enums and defaults.
 
@@ -948,7 +950,7 @@ with wai.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
 run.holdout(before=0.42, after=0.58)  # did it work? the run page opens with this
 ```
 
-A run's page opens with one word — **Better**, **Worse**, **About the same** — over the held-out pass rate before and after. The platform's trainer measures it; a run on your own hardware says it with `run.holdout(before, after)`, or `wai.attach_holdout(run_id, before=..., after=...)` once the run has finished. Pass rates are 0 to 1, so 58% is `0.58`; `metric="loss"` sends held-out loss instead (SFT), where lower is better. `run.delta(...)` and `wai.attach_delta(...)` already measure both sides, so they fill the two numbers in themselves.
+A run's page opens with one word — **Better**, **Worse**, **About the same** — over the held-out pass rate before and after. The platform's trainer measures it; a run on your own hardware says it with `run.holdout(before, after)`, or `wai.attach_holdout(run_id, before=..., after=...)` once the run has finished. Pass rates are 0 to 1, so 58% is `0.58`; `metric="loss"` sends held-out loss instead (SFT), where lower is better. `run.delta(...)` and `wai.attach_delta(...)` already measure both sides, so they fill the two numbers in themselves, and add `summary["holdout"]` (also `run.holdout_summary`): each side's pass rate with `n_tasks`, `k` and a `ci95`, plus the delta report's verdict word (`moved`, `moved_unreplicated`, `within_eval_noise`, `no_change_detected`). A hosted run read back with `run.refresh()` has the same block with the interval fields `None` and a note that the platform only returned two numbers.
 
 ### Is it hacking the reward right now?
 

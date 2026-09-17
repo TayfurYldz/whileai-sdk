@@ -5,6 +5,30 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `simulate(tasks=base, runs=3)`: the same task set replayed three times in
+  one call, every row stamped `lineage.eval_run` (0, 1, 2), one
+  `SimulationData` back (`search["eval_runs"]` has the rows and stop reason
+  per run). Without `tasks=` the first run draws the set and the rest replay
+  it. Between runs only the agent's sampling changes. `eval_variance(rows)`
+  splits by `eval_run` on its own.
+- `delta_report` verdicts are honest about repeats (rlhf-book ch. 16,
+  appendix C). With two or more eval runs on each side it computes `run_std`
+  itself (pooled over the sides, on the headline metric) and applies the
+  existing noise band; `eval_runs`, `run_std_source` and `replicated` say
+  where the band came from. With one run on either side and no `run_std=`,
+  a target that moved reads `moved_unreplicated` and the warning names the
+  `runs=3` call that settles it. This changes existing single-run reports:
+  `moved` now needs repeats or a `run_std`.
+- `delta_report` flags `ceiling=True` (with a warning) when the before side
+  already passes 0.9 of its tasks, or fewer than 20 paired tasks (and under
+  half) still have room, so a training run cannot show a gain on that eval.
+- Training runs carry the holdout numbers with their uncertainty:
+  `run.delta(...)` and `attach_delta(...)` put `summary["holdout"]` on the
+  run (per side `pass`, `n_tasks`, `k`, `ci95`; the delta report's `verdict`
+  word; `eval_runs`, `run_std`, `ceiling`) and `run.holdout_summary` holds
+  it. A hosted run read back with `refresh()` has the same shape with every
+  interval field `None` and `note` "No interval: the platform only returned
+  two numbers".
 - The judge is checked by default. `grade` (the hosted judge, `judge=`, and
   `grader=` paths) ends by measuring the judge against the rows' human labels
   and stamps the summary on every graded row as `judge_meta["trust"]`

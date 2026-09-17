@@ -26,9 +26,59 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from .passat import pass_at
-from .stats import DEFAULT_BOOT, compare_runs, marker_names
+from .stats import DEFAULT_BOOT, compare_runs, eval_variance, marker_names, task_means
 
 GROUP_KEYS = ("delta", "ci95", "verdict", "mean_a", "mean_b", "n_used", "n_paired", "paired")
+
+#: A before side passing this share of tasks has little room left to show
+#: an improvement; the report flags ``ceiling``.
+CEILING_PASS_RATE = 0.9
+#: Below this many paired tasks with room to move (and under half of
+#: them), the same flag.
+CEILING_MIN_TASKS_WITH_ROOM = 20
+
+_VERDICT_WORDS = {
+    "b_better": "moved",
+    "a_better": "moved_the_wrong_way",
+    "no_difference_detected": "no_change_detected",
+    "insufficient_data": "insufficient_data",
+}
+
+
+def _verdict_word(result: dict[str, Any], replicated: bool) -> str:
+    """One metric's verdict as the report says it: ``moved`` only when
+    the eval was run more than once per side (or a ``run_std`` was
+    given), else ``moved_unreplicated``; inside the re-run band,
+    ``within_eval_noise``."""
+    word = _VERDICT_WORDS[result["verdict"]]
+    if result.get("within_noise") and word in {"moved", "moved_the_wrong_way"}:
+        return "within_eval_noise"
+    if word == "moved" and not replicated:
+        return "moved_unreplicated"
+    return word
+
+
+def _eval_runs(rows: Sequence[dict]) -> set[str]:
+    """The distinct ``lineage.eval_run`` values on the rows (what
+    ``simulate(runs=N)`` stamps)."""
+    out: set[str] = set()
+    for row in rows:
+        lineage = row.get("lineage") if isinstance(row, dict) else None
+        if isinstance(lineage, dict) and lineage.get("eval_run") is not None:
+            out.add(str(lineage["eval_run"]))
+    return out
+
+
+def _pooled_run_std(before: Sequence[dict], after: Sequence[dict], metric: str) -> float | None:
+    """The eval's re-run standard deviation from both sides' repeats:
+    ``eval_variance`` per side, pooled as the root mean square, since
+    each side is the same eval on one model (rlhf-book appendix C)."""
+    stds = [
+        eval_variance(rows, metric=metric, by="eval_run")["run_std"] for rows in (before, after)
+    ]
+    if any(v is None for v in stds):
+        return None
+    return (sum(float(v) ** 2 for v in stds) / len(stds)) ** 0.5
 
 
 def _group_of(row: dict, by: str | Callable[[dict], Any]) -> str | None:
@@ -118,7 +168,21 @@ def delta_report(
     whose delta is smaller than twice it is ``within_noise``: not
     improved, not slipped, not a regression, and a target there reads
     ``within_eval_noise`` rather than moved, because re-running the eval
-    moves it that much on its own.
+    moves it that much on its own. When both row sets carry two or more
+    ``lineage.eval_run`` values (``simulate(tasks=..., runs=3)``) the
+    report computes ``run_std`` itself on the headline metric, pooled
+    over the two sides, and ``eval_runs`` says how many runs each side
+    had. With one run on either side and no ``run_std`` a target that
+    moved reads ``moved_unreplicated`` and a warning says how to fix it:
+    one evaluation is a draw, not a distribution (rlhf-book ch. 16,
+    "why many comparisons are unreliable", and appendix C).
+
+    ``ceiling`` is set when the before side already passes
+    ``CEILING_PASS_RATE`` of its tasks, or when fewer than
+    ``CEILING_MIN_TASKS_WITH_ROOM`` paired tasks (and under half) are not
+    already passed every time: there is little room left for an
+    improvement to show, whatever the training did.
+
 
     ``config`` says what each side was produced with (``pass_at(...).config``
     per side: task count, k, temperature, max_tokens, policy and judge
@@ -141,6 +205,15 @@ def delta_report(
         return name if name == "pass_at_1" or name.startswith("marker:") else f"marker:{name}"
 
     guarded = {_key(m) for m in must_not_regress}
+    target_key = _key(target) if target else None
+    eval_runs = {"before": len(_eval_runs(before)), "after": len(_eval_runs(after))}
+    run_std_source = "given" if run_std is not None else None
+    if run_std is None and min(eval_runs.values()) >= 2:
+        run_std = _pooled_run_std(
+            before, after, target_key if target_key in results else "pass_at_1"
+        )
+        run_std_source = "eval_run" if run_std is not None else None
+    replicated = run_std is not None
     noise = 2.0 * float(run_std) if run_std is not None else None
     within_noise: list[str] = []
     for m in metrics:
@@ -158,23 +231,47 @@ def delta_report(
         m for m in metrics if m not in guarded and m in loud and results[m]["verdict"] == "a_better"
     ]
     improved = [m for m in metrics if m in loud and results[m]["verdict"] == "b_better"]
-    target_key = _key(target) if target else None
     target_result = results.get(target_key) if target_key else None
     if target_result is None and target_key:
         target_verdict = "target_not_measured"
     elif target_result is None:
         target_verdict = None
     else:
-        target_verdict = {
-            "b_better": "moved",
-            "a_better": "moved_the_wrong_way",
-            "no_difference_detected": "no_change_detected",
-            "insufficient_data": "insufficient_data",
-        }[target_result["verdict"]]
-        if target_result["within_noise"] and target_verdict in {"moved", "moved_the_wrong_way"}:
-            target_verdict = "within_eval_noise"
+        target_verdict = _verdict_word(target_result, replicated)
     ok = not regressions and target_verdict not in {"moved_the_wrong_way"}
     warnings: list[str] = []
+    if target_verdict == "moved_unreplicated":
+        single = [side for side, n in eval_runs.items() if n < 2]
+        where = "each side" if len(single) == 2 else f"the {single[0]} side"
+        warnings.append(
+            f"One eval run on {where}, so this could be noise. Run each side three times with "
+            "simulate(tasks=..., runs=3) and the report will say."
+        )
+    if run_std_source == "eval_run" and min(eval_runs.values()) < 3:
+        warnings.append(
+            "Two eval runs on a side is a difference, not a distribution, so run_std is rough; "
+            "three runs per side give a standard deviation worth reading."
+        )
+    # ceiling: an eval the before side already passes cannot show a gain
+    mean_a = results["pass_at_1"].get("mean_a")
+    ceiling = False
+    if mean_a is not None and mean_a >= CEILING_PASS_RATE:
+        ceiling = True
+        warnings.append(
+            f"The before run already passes {mean_a:.2f} of tasks, so there is little room to "
+            "measure improvement; use harder situations."
+        )
+    else:
+        means_a, means_b = task_means(before), task_means(after)
+        shared = set(means_a) & set(means_b)
+        with_room = sum(1 for t in shared if means_a[t] < 1.0)
+        if with_room < CEILING_MIN_TASKS_WITH_ROOM and with_room * 2 < len(shared):
+            ceiling = True
+            warnings.append(
+                f"The before run already passes {len(shared) - with_room} of {len(shared)} paired "
+                "tasks every time, so there is little room to measure improvement; use harder "
+                "situations."
+            )
 
     # proxy vs target: the book's over-optimization picture, as a verdict
     proxy_key = _key(proxy) if proxy else None
@@ -290,6 +387,10 @@ def delta_report(
         "slipped": slipped,
         "within_noise": within_noise,
         "run_std": float(run_std) if run_std is not None else None,
+        "run_std_source": run_std_source,
+        "eval_runs": eval_runs,
+        "replicated": replicated,
+        "ceiling": ceiling,
         "proxy": proxy_key,
         "proxy_verdict": proxy_verdict,
         "proxy_delta": proxy_result["delta"] if proxy_result else None,
@@ -330,6 +431,19 @@ def format_delta_report(report: dict[str, Any]) -> str:
         else:
             lines.append(f"proxy {report['proxy']}: {report['proxy_verdict']}")
     lines.append("PASS" if report["ok"] else "FAIL")
+    if report.get("run_std") is not None:
+        runs = report.get("eval_runs") or {}
+        source = (
+            f"{runs.get('before')} eval runs before, {runs.get('after')} after"
+            if report.get("run_std_source") == "eval_run"
+            else "run_std given"
+        )
+        lines.append(
+            f"eval noise: run_std {report['run_std']:.3f}, a delta under "
+            f"{2 * report['run_std']:.3f} is noise ({source})"
+        )
+    if report.get("ceiling"):
+        lines.append("CEILING: the before run already passes most tasks; use harder situations")
     for name, r in report["metrics"].items():
         if r.get("delta") is None:
             lines.append(f"  {name:<28} insufficient data")
