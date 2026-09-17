@@ -31,6 +31,11 @@ ADAPTER = os.environ.get("T2S_SERVE_ADAPTER") or ""  # "volume:<run_id>"
 GPU = os.environ.get("T2S_SERVE_GPU") or "L40S"
 SLUG = re.sub(r"[^a-z0-9]+", "-", MODEL.lower()).strip("-")[-40:]
 MAX_LEN = int(os.environ.get("T2S_SERVE_MAX_LEN") or 16384)
+# The SDK sends tool_choice="auto"; vLLM needs a tool-call parser for that.
+# "llama3_json" for Llama-family models (Nemotron-Nano-8B-v1), "hermes" for Qwen.
+TOOL_PARSER = os.environ.get("T2S_SERVE_TOOL_PARSER") or (
+    "hermes" if "qwen" in MODEL.lower() else "llama3_json"
+)
 
 app = modal.App(f"t2s-serve-{SLUG}")
 image = (
@@ -64,6 +69,7 @@ runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=T
                 "T2S_SERVE_MODEL": MODEL,
                 "T2S_SERVE_ADAPTER": ADAPTER,
                 "T2S_SERVE_MAX_LEN": str(MAX_LEN),
+                "T2S_SERVE_TOOL_PARSER": TOOL_PARSER,
             }
         )
     ],
@@ -75,6 +81,7 @@ def serve():
     key = os.environ["VLLM_API_KEY"]
     adapter = os.environ.get("T2S_SERVE_ADAPTER") or ""
     max_len = os.environ.get("T2S_SERVE_MAX_LEN") or "16384"
+    tool_parser = os.environ.get("T2S_SERVE_TOOL_PARSER") or "hermes"
     cmd = [
         "vllm",
         "serve",
@@ -91,6 +98,9 @@ def serve():
         "0.90",
         "--dtype",
         "bfloat16",
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        tool_parser,
     ]
     if adapter.startswith("volume:"):
         run_id = adapter.split(":", 1)[1]
