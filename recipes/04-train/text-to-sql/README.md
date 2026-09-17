@@ -247,7 +247,8 @@ three above zero. The adapter is served the same way as the base
 (`serve_modal.py --adapter volume:run_f69e975a1571d445 --runs-volume
 zeroproof-train-runs`, model id `nvidia/Llama-3.1-Nemotron-Nano-8B-v1-adapter`);
 eval sets `ds_34f0fbd9337ab519` (base) and `ds_2fbd036dd8597150` (r1) on the
-platform.
+platform, Hugging Face configs `eval-nemotron-8b-base` / `eval-nemotron-8b-r1`
+and adapter `zero-proof-ai/text-to-sql-shop-nemotron-8b-r1`.
 
 Read next to the Qwen table: the same reward, task set, and trainer moved a
 weaker base by nine points in one 44-minute round and a stronger base by
@@ -270,6 +271,7 @@ the intervals below are the 140-task ones (about +-0.06).
 | r2 | r1 | GRPO 200 steps, lr 5e-5, beta 0.01 | 0.60 (0.54..0.67) | 0.34 | 0.90 |
 | sft-think | base | self-distillation: 199 verified traces, hosted SFT 2 epochs | 0.60 (0.54..0.67) | 0.39 | 0.96 |
 | r3 | r2 | GRPO 1,000 steps, lr 2e-5, beta 0.01, vLLM generation, 8 prompts per generate | 0.61 (0.56..0.67) | 0.29 | 0.86 |
+| r4 | r3 | GRPO 1,000 more steps, same settings | 0.61 (0.54..0.67) | 0.32 | 0.85 |
 
 r3 vs base: +0.029 (95% -0.016..+0.073), up at every difficulty (easy +0.02,
 medium +0.04, hard +0.03) and clearly up on one archetype, date and time
@@ -279,8 +281,17 @@ is the clean re-measure after the drafted-tools fix (see lessons); the first
 measurement, 0.62 (0.55..0.68) with 42 tool-call replies, is in
 `raw/with-drafted-tools/`. Each checkpoint's holdout rollouts and adapter
 are on Hugging Face: dataset `zero-proof-ai/text-to-sql-shop` (configs
-`eval-base`, `eval-r1`, `eval-r2`, `eval-sft-think`, `eval-r3`), adapters
-`zero-proof-ai/text-to-sql-shop-<checkpoint>`.
+`eval-base`, `eval-r1`, `eval-r2`, `eval-sft-think`, `eval-r3`, `eval-r4`),
+adapters `zero-proof-ai/text-to-sql-shop-<checkpoint>`.
+
+r4 vs r3: -0.007 (95% -0.048..+0.034); vs base +0.021 (-0.029..+0.068), hard
++0.08 (+0.00..+0.17), easy -0.03. A second thousand steps of the same recipe
+kept r3's gain and added nothing: the training reward sat at 0.65 through the
+whole round (it was 0.65 at the end of r3) and KL to the base stayed at 0.03,
+so the policy had stopped moving before r4 began. Round 4 is where "more
+steps" stops being the answer for this base; the levers left are the ones in
+the closing paragraph of this section (drop prompts the policy already
+always or never solves, 16 samples per prompt, a bigger base).
 
 The first two rounds did not move the holdout, while the training reward did climb
 (round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
