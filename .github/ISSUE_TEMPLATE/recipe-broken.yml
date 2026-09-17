@@ -27,5 +27,5 @@ body:
   - type: input
     id: version
     attributes:
-      label: zeroproof version
-      placeholder: "0.48 (pip show zeroproof)"
+      label: whileai version
+      placeholder: "0.52 (pip show whileai)"
