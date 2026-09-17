@@ -16,8 +16,8 @@ from pathlib import Path
 PAPERS = Path(__file__).resolve().parent
 INDEX = PAPERS / "README.md"
 START, END = "<!-- table:start -->", "<!-- table:end -->"
-SECTIONS = ["## Recipe", "## Run", "## Result", "## Climb", "## Learned"]
-HEADER = ["**Paper:**", "**Claim:**", "**The change:**"]
+SECTIONS = ["## Recipe", "## Run", "## Result", "## Checks", "## Climb", "## Learned"]
+HEADER = ["**Paper:**", "**Book:**", "**Claim:**", "**The change:**"]
 KEYS = {
     "recipe",
     "paper",
@@ -27,12 +27,23 @@ KEYS = {
     "k",
     "arms",
     "delta",
+    "book",
+    "checks",
     "gpu",
     "usd",
     "verified",
     "zeroproof",
 }
 ARM_KEYS = {"score", "ci", "steps"}
+CHECK_KEYS = {
+    "run_std",
+    "decontaminated_dropped",
+    "over_optimized",
+    "length_before",
+    "length_after",
+    "hack_scan_top",
+    "seed",
+}
 COLUMNS = (
     "| Recipe | Paper | Base | Metric | Baseline -> Recipe | Verified |\n|---|---|---|---|---|---|"
 )
@@ -95,6 +106,25 @@ def check_recipe(d: Path) -> dict:
         fail(f"{d.name}: verified must be YYYY-MM-DD")
     if r["delta"].get("verdict") not in ("moved", "flat"):
         fail(f"{d.name}: delta.verdict must be moved or flat")
+    if not re.fullmatch(r"ch\. \d+.*", str(r["book"])):
+        fail(f"{d.name}: book must name an rlhfbook.com chapter, like 'ch. 6'")
+    if CHECK_KEYS - set(r["checks"]):
+        fail(f"{d.name}: checks missing {sorted(CHECK_KEYS - set(r['checks']))}")
+    # The science bar: "moved" needs an interval that excludes zero AND a delta
+    # larger than twice the eval's own re-run noise (rlhf-book ch. 16, app. C),
+    # and no over-optimization verdict (ch. 14). Otherwise it is "flat".
+    if r["delta"]["verdict"] == "moved":
+        lo, hi = r["delta"].get("ci", [0.0, 0.0])
+        delta = float(r["delta"]["recipe_vs_baseline"])
+        run_std = float(r["checks"]["run_std"])
+        if lo <= 0.0 <= hi:
+            fail(f"{d.name}: verdict moved but the interval [{lo}, {hi}] covers zero")
+        if abs(delta) < 2.0 * run_std:
+            fail(
+                f"{d.name}: verdict moved but |delta| {abs(delta):.3f} < 2 x run_std {run_std:.3f}"
+            )
+        if r["checks"]["over_optimized"]:
+            fail(f"{d.name}: verdict moved but the proxy-vs-target check says over-optimized")
     return r
 
 

@@ -39,6 +39,30 @@ python recipe.py                    # both arms, writes results.json
 - A flat result is a result. Say so in the table.
 - `python recipes/papers/check.py --write` passes (`tests/recipes/test_papers.py` runs it in CI).
 
+## The science bar
+
+Every recipe is held to [rlhfbook.com](https://rlhfbook.com). The README names
+the chapter it rests on, and the `## Checks` table is run, not ticked:
+
+| Check | Chapter | What `check.py` enforces |
+|---|---|---|
+| Eval noise | ch. 16 Evaluation | the base is evaluated 3 times; `eval_variance` run_std is recorded; "moved" needs a delta over 2 x run_std |
+| Paired interval | ch. 16 | "moved" needs a 95% interval that excludes zero, from `delta_report` over the same holdout tasks |
+| Clean holdout | ch. 16 | `decontaminate(train, against=holdout)` runs before training; dropped rows are counted |
+| Reward is a program | ch. 7 Reasoning, ch. 13 Tool use | a verifier or a public gold answer; a judge only when the paper is about judges |
+| Proxy vs target | ch. 14 Over-optimization | the training reward is named as `proxy=`; an over-optimized verdict forbids "moved" |
+| Length | ch. 14 | mean completion length before and after, per arm, in the table |
+| Hack scan | ch. 14 | `hack_scan` on the last training batch; the top feature is named |
+| Pinned | app. C | seed and library versions in results.json |
+
+Chapter map (source files under `book/chapters/` in
+[natolambert/rlhf-book](https://github.com/natolambert/rlhf-book); the site
+serves them at `rlhfbook.com/c/<file name without .md>`): 03 training
+overview, 04 instruction tuning, 05 reward models, 06 policy gradients, 07
+reasoning, 08 direct alignment, 09 rejection sampling, 10 preferences, 11
+preference data, 12 synthetic data, 13 tools, 14 over-optimization, 15
+regularization, 16 evaluation, 17 product, appendix-c practical.
+
 ## Maintenance
 
 A daily agent re-runs the recipe with the oldest verified date, refreshes its

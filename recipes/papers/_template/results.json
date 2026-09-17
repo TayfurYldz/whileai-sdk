@@ -2,6 +2,7 @@
   "recipe": "_template",
   "title": "<Recipe name>",
   "paper": "https://arxiv.org/abs/XXXX.XXXXX",
+  "book": "ch. 6",
   "base_model": "Qwen/Qwen3-4B",
   "metric": "pass@1",
   "n_holdout": 0,
@@ -12,9 +13,18 @@
     "recipe": {"score": 0.0, "ci": [0.0, 0.0], "steps": 0, "gpu_minutes": 0}
   },
   "delta": {"recipe_vs_baseline": 0.0, "ci": [0.0, 0.0], "verdict": "flat"},
+  "checks": {
+    "run_std": 0.0,
+    "decontaminated_dropped": 0,
+    "over_optimized": false,
+    "length_before": 0.0,
+    "length_after": {"baseline": 0.0, "recipe": 0.0},
+    "hack_scan_top": "",
+    "seed": 0
+  },
   "gpu": "A10G",
   "usd": 0.0,
   "verified": "1970-01-01",
-  "zeroproof": "0.48",
+  "zeroproof": "0.49",
   "run_url": ""
 }
