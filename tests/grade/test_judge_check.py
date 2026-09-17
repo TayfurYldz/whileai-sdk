@@ -110,7 +110,9 @@ def test_judge_trust_has_floors():
     attach_labels(shaky, _labels(shaky), annotator="ana")
     report = judge_trust(shaky)
     assert report["ok"] is False
-    (floor,) = [w for w in report["warnings"] if w.startswith("Judge agreement with human labels is")]
+    (floor,) = [
+        w for w in report["warnings"] if w.startswith("Judge agreement with human labels is")
+    ]
     low = report["agreement"]["ci95"][0]
     assert floor == (
         f"Judge agreement with human labels is {low:.2f} (lower bound), under the 0.80 "
@@ -126,7 +128,9 @@ def test_judge_trust_has_floors():
     strict = judge_trust(fair, min_kappa=0.9)
     assert strict["ok"] is False
     assert any(
-        w.startswith("Judge agreement with human labels beyond chance (kappa) is 0.80, under the 0.90")
+        w.startswith(
+            "Judge agreement with human labels beyond chance (kappa) is 0.80, under the 0.90"
+        )
         for w in strict["warnings"]
     )
     # the small-sample warning stays
