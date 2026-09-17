@@ -13,7 +13,7 @@ what it claims, the steps, one command, what happened.
 <!-- table:start -->
 | Recipe | Paper | Base | Metric | Baseline -> Recipe | Verified |
 |---|---|---|---|---|---|
-| [endpoint-sft](endpoint-sft) | [2609.07103](https://arxiv.org/abs/2609.07103) | Qwen/Qwen2.5-1.5B-Instruct | pass@1 | 0.00 -> 0.00 (+0.00 [+0.00, +0.00], flat) | never run |
+| [endpoint-sft](endpoint-sft) | [2609.07103](https://arxiv.org/abs/2609.07103) | Qwen/Qwen2.5-1.5B-Instruct | pass@1 | 0.16 -> 0.20 (+0.04 [-0.02, +0.09], flat) | 2026-09-17 |
 <!-- table:end -->
 
 The table is generated: `python recipes/papers/check.py --write` reads every
