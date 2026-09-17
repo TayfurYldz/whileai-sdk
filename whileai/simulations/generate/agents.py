@@ -10,7 +10,7 @@ import os
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlparse
 
@@ -531,6 +531,7 @@ def complete(
     timeout: float = 60,
     n: int = 1,
     logprobs: bool | str = False,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict:
     """POST /chat/completions. Reuses a thread-local keep-alive connection.
 
@@ -577,6 +578,8 @@ def complete(
     if tools:
         payload["tools"] = _wire_tools(tools)
     payload.update(_request_extras(base_url, model))
+    if extra:
+        payload.update(dict(extra))
     headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
@@ -730,8 +733,21 @@ def _strip_tool_markup(text: str) -> str:
     return cleaned.strip()
 
 
+_THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.S | re.I)
+_THINK_OPEN = re.compile(r"<think>.*\Z", re.S | re.I)
+
+
+def _strip_think(text: str) -> str:
+    """Drop a thinking model's reasoning markup. A closed block goes whole;
+    an unclosed ``<think>`` (the token cap landed inside it) goes to the
+    end. What is left is the reply, which is what a grader, a marker and
+    the next turn's history should see (#264)."""
+    text = _THINK_BLOCK.sub("", text)
+    return _THINK_OPEN.sub("", text)
+
+
 def _spoken_text(reply: dict) -> str:
-    return _strip_tool_markup(str(reply.get("content") or ""))
+    return _strip_tool_markup(_strip_think(str(reply.get("content") or "")))
 
 
 def _calls_from_reply(reply: dict) -> tuple[list[dict], dict]:
@@ -1391,9 +1407,23 @@ def local_model(
     timeout: float = 60,
     max_tokens: int | None = None,
     user_model: str | None = None,
+    thinking: bool | None = None,
 ) -> Callable:
+    """An agent that talks to an OpenAI-compatible endpoint (a served
+    adapter, a local vLLM, any chat server) for ``simulate(agent=...)``.
+
+    ``thinking`` is for reasoning bases such as Qwen3: ``False`` sends
+    ``chat_template_kwargs={"enable_thinking": False}`` so the reply is
+    the answer, not the reasoning, the way the hosted Qwen path already
+    does; ``True`` asks for it; ``None`` (the default) sends nothing and
+    leaves the server's default. Either way ``<think>`` markup never
+    reaches ``step["text"]`` or ``final_text``.
+    """
     local = threading.local()
     plans = fault_plans if fault_plans is not None else {}
+    extras: dict[str, Any] | None = (
+        None if thinking is None else {"chat_template_kwargs": {"enable_thinking": bool(thinking)}}
+    )
     # The simulated user's model. None means the agent's own model plays
     # the user (the default); a backend spec moves that role to another
     # model, with the key resolved for that endpoint.
@@ -1438,6 +1468,7 @@ def local_model(
                     temperature=temperature,
                     timeout=timeout,
                     max_tokens=120,
+                    extra=extras,
                 )
                 opener_text = (_spoken_text(greet) or "").strip()
                 if opener_text:
@@ -1477,6 +1508,7 @@ def local_model(
                 timeout=timeout,
                 max_tokens=reply_budget(max_tokens),
                 logprobs=logprobs,
+                extra=extras,
             )
             calls, assistant = _calls_from_reply(reply)
             # One agent turn, one set of sampling facts, on its first step.

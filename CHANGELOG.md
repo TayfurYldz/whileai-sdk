@@ -3,6 +3,124 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## 0.57 (2026-09-17)
+
+- `audit_grades(rows, judge=, sample=, passes=)` estimates how often the
+  verifier fails a right answer: it puts a sample of failed rows to a
+  judge with the reference in place and reports the false-negative rate
+  with a Wilson interval, the verifier's failure kinds with how many the
+  judge overturned, examples, and (with `passes=`) the false-positive
+  side. Above 10% the summary says to fix the verifier before training;
+  `select_for_rl(audit=)` and `optimize(audit=)` carry that line into
+  `hygiene_warnings`. The judge is a second opinion, not ground truth,
+  and the report says so. (#255)
+
+Two coding agents were told "use zp to build evals" on a fresh machine and
+timed (2026-09-17). This is what they tripped on.
+
+- A hollow run says so. `simulate()` warns when no rollout called a tool
+  (`degraded` carries `no_tool_calls`); `run_judge`, `evaluate` and
+  `data.grade` attach `coverage_warnings` to `ScoredData.warnings` and
+  log them once: no tool calls, a declared tool no rollout touched
+  (`tools=`, or read off the run), a marker that fired on no row. Each
+  note names the fix. `wai.coverage_warnings(rows, tools=)`
+  runs standalone.
+- The knobs most runs touch are in `simulate()`'s signature: `repeats`,
+  `phrasings`, `repeat_policy`, `concurrency`, `simulator`, `user_model`,
+  `backend`, `seed`, `sampling`, `max_turns`, `avg_turns`, `fault_rate`,
+  `temperature`, `timeout`, `logprobs`. Same road underneath; an editor
+  now shows them, and the docstring says a callable agent is played
+  single-turn and why real ids belong in the seeds or tool descriptions.
+- `recipes/02-measure/eval-your-agent`: evals for the agent you already
+  have, ending at pass@1 with an interval and a CI gate, not at a push.
+  `docs/evals.md` is the how-to; the README and the skill link it first.
+- Names: the README says once that zp, ZeroProof and While are the same
+  product, that `WHILEAI_HOME` isolates a fresh account from an old
+  `~/.zeroproof`, and PyPI keywords carry `zp` and `zeroproof` so the
+  abbreviation people use finds the package. Dead links fixed
+  (`while.ai` does not resolve yet; `examples/coding-efficiency`).
+
+## 0.56 (2026-09-17)
+
+- `holdout_size(effect, base=, k=, power=, alpha=, rows=)` says how many
+  paired tasks a holdout needs to prove a gain, modelled on the paired
+  task bootstrap `delta_report` runs (rlhf-book ch. 16, appendix C), and
+  `detectable_effect(n_tasks, ...)` is the same solved for the gain. A
+  test checks the number against `compare_runs` by simulation. The
+  recipe that asked had 140 tasks at k=4: a +-0.06 band, so a 3-point
+  gain could never read as anything but `no_change_detected`.
+  `delta_report` now carries `detectable_effect` and `tasks_needed` and,
+  on a no-change verdict, says what this holdout can prove and what the
+  delta seen would have needed. `push(purpose="holdout")` warns when the
+  set is too small to prove a 5-point gain. (#257)
+- `next_round(prior, tasks=, lo=, hi=)` builds round N+1's prompt set
+  from round N's graded rollouts: tasks the current policy solves above
+  `hi` or below `lo` are dropped, the rest kept with their pass rate
+  stamped, plus counts, the policy versions the prior came from and a
+  `prompt_set_sha` for lineage (rlhf-book ch. 7 band; ch. 6 DAPO dynamic
+  sampling). `select_for_rl(prior=)` applies the same cut first and
+  reports it under `prior`. (#254)
+
+## 0.55 (2026-09-17)
+
+- `mine_traces` no longer counts a tool result as a fault because it has
+  a `status` key: `status: "paid"` is the tool's own vocabulary. A status
+  is a fault when it names one (`error`, `timeout`, `not_found`,
+  `denied`, ...), an HTTP failure, or a non-zero exit. (#261)
+- `serve(name, run)` takes the record `get_run` returns, and a wrong type
+  is a `TypeError` naming the accepted ones instead of a urllib
+  `InvalidURL`. `TrainingRun.id` is the run id. (#262)
+- `unserve(name)` (alias `delete_model`) removes a hosted model row; the
+  inverse of `serve`. `models()` says a row is a registry entry that
+  costs nothing idle. (#263)
+- `local_model(..., thinking=False)` sends
+  `chat_template_kwargs={"enable_thinking": False}` so a served Qwen3
+  answers instead of reasoning; `<think>` markup never reaches
+  `step["text"]` or `final_text` on any path. `complete(extra=)` passes
+  request fields through. (#264)
+- `build_preference_pairs` says which pairs the hosted DPO trainer can
+  use: `first_turn_differs` on each pair, `first_turn_identical` and
+  `trainer_pairs` in the report, and a warning when the contrast is
+  later in the rollout than the first assistant turn, since the trainer
+  compares first turns only and needs at least 8. `export_preference`
+  reports the same. (#260)
+
+## 0.54 (2026-09-17)
+
+- Every row says how it finished: `finish_reason` is `stop`, `length`
+  (the reply token cap cut a turn), `tool` (the turn budget ran out on a
+  tool call) or `error` (the agent raised); a callable agent can set it
+  outright. `pass_at(...).config["truncated_share"]` is the share the cap
+  cut and the one-line summary names it; `delta_report` warns when the two
+  sides were cut at different rates, since that is not the same eval;
+  `export_training` warns when length-cut rows go out as SFT targets.
+  `train(method="grpo")` now sends `maskTruncated=True` by default, so a
+  cut reply gives no gradient instead of a 0 that teaches shorter thinking
+  first; `truncated="zero"` is the old behaviour. (#253)
+- `export_training` (and `export_dataset`) checks for privileged leaks on
+  the unscrubbed side before it writes: the export drops the `privileged`
+  key at any depth but copies the assistant's reply through verbatim, so a
+  reply that recited the block still recited it in the training file.
+  `validate=True` now refuses with `privileged_leak: N of M rows ...`;
+  `validate=False` exports anyway, counts them in
+  `report["privileged_leaks"]` and warns. Pass the `SimulationData` (or
+  `data.trajectories`); rows that came through `rows()`, `save()` or a
+  file carry nothing to check and the report says so. (#249)
+- `leak_report(data)` and `data.leak_report()` read the trajectories, so
+  the documented path no longer returns a vacuous pass. (#245)
+- A `Verifier` graded through `run_judge` reads back as `kind="rule"`,
+  not a model judge: the run stamps the declared kind in
+  `judge_meta["scorer_kind"]` and the schema prefers it over inferring
+  from `judge_name`. `judge_name` still round-trips. (#250)
+
+- No github demo anywhere a user reads: the package docstrings, the README
+  and the identity recipe named `specs/github`, `github-rl-v1` and
+  `envs/github-agent`; they now show `tools=` plus `system_prompt=` and
+  neutral names. `recipes/04-train/identity` takes its control conversations
+  from `--control-file` (your own rows or traces) or from `wai.simulate` over
+  `--assistant`; the canned reply templates and the test-fixture spec are
+  gone from it.
+
 ## 0.53 (2026-09-17)
 
 - `rubric_judge` warms the hosted judge once before the rows fan out, the

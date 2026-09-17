@@ -474,6 +474,11 @@ class TrainingRun:
         else:
             self.finish("done")
 
+    @property
+    def id(self) -> str:
+        """The run id, the handle ``get_run``, ``serve`` and ``delete_run`` take."""
+        return self.run_id
+
     def __repr__(self) -> str:
         return (
             f"TrainingRun({self.run_id!r}, {self.name!r}, status={self.status!r}, step={self.step})"
@@ -558,6 +563,10 @@ def _measured_temperature(
     return None
 
 
+#: what GRPO does with a sampled reply the token cap cut
+TRUNCATED = ("mask", "zero")
+
+
 def train(
     dataset: str,
     *,
@@ -573,6 +582,7 @@ def train(
     max_completion_length: int | None = None,
     loss_type: str | None = None,
     temperature: float | None = None,
+    truncated: str | None = None,
     config: Mapping[str, Any] | None = None,
     wait: bool = False,
     timeout: float | None = None,
@@ -612,10 +622,15 @@ def train(
     sampling temperature the trainer rolls out at (GRPO); the dataset's
     rows say what they were measured at under ``sampling.temperature``,
     and ``train`` says so when the two differ, since a before/after
-    comparison across temperatures is not like for like. Each has a
+    comparison across temperatures is not like for like. ``truncated``
+    says what GRPO does with a sampled reply the token cap cut:
+    ``"mask"`` (the default) gives it no gradient, ``"zero"`` scores it 0
+    the old way. A cut reply scored 0 teaches shorter thinking before it
+    teaches the task, so ``"zero"`` is the knob to reach for only when the
+    cap itself is the behavior under training (#253). Each has a
     trainer default when left ``None``. ``config`` passes further host
     keys as given
-    (``epsilonHigh``, ``scaleRewards``, ``maskTruncated``, ``balance``).
+    (``epsilonHigh``, ``scaleRewards``, ``balance``).
     Every knob lands on the run's ``config`` so the run page shows it.
 
     A dataset already training answers with that run instead of a second.
@@ -682,6 +697,13 @@ def train(
         if not 0 < float(temperature) <= 2:
             raise ValueError("temperature: above 0 and at most 2")
         body["temperature"] = float(temperature)
+    if truncated is not None:
+        if method != "grpo":
+            raise ValueError("truncated= says what GRPO does with a token-capped reply; grpo only")
+        if truncated not in TRUNCATED:
+            raise ValueError(f"truncated must be one of {', '.join(TRUNCATED)}; got {truncated!r}")
+    if method == "grpo":
+        body["maskTruncated"] = (truncated or "mask") == "mask"
     for key, value in dict(config or {}).items():
         if key in body:
             raise ValueError(f"config[{key!r}] collides with a named argument")
@@ -808,9 +830,38 @@ def models(*, api_key: str | None = None) -> list[dict[str, Any]]:
     """The account's hosted models: ``name``, ``baseModel``, ``adapter``,
     ``adapterRunId``, ``version``, ``endpoint`` (an OpenAI-compatible
     base URL; send the account key as the bearer and ``name`` as the
-    model)."""
+    model).
+
+    A row here is a registry entry, not a running GPU: the endpoint
+    behind it idles to zero on its own and an unused model costs nothing.
+    The row stays until ``unserve(name)`` removes it; serving the same
+    name again bumps its ``version`` rather than adding a row."""
     out = _call("GET", "/models", api_key)
     return list(out.get("models") or []) if isinstance(out, dict) else []
+
+
+def unserve(
+    name: str,
+    *,
+    api_key: str | None = None,
+    transport: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """Stop hosting ``name``: removes the model row from the account, so
+    ``models()`` no longer lists it and its endpoint stops answering for
+    that name. The inverse of ``serve``, the way ``delete_dataset`` is the
+    inverse of ``push``. The adapter weights and the training run stay;
+    ``serve`` the run again to bring it back (at version 1).
+    Returns ``{"name": ..., "deleted": True}``."""
+    call = transport or _call
+    key = str(name).strip().lower()
+    if not key:
+        raise ValueError("unserve: name is the hosted model's name, as models() lists it")
+    out = call("DELETE", f"/models/{key}", api_key)
+    return dict(out) if isinstance(out, dict) else {"name": key, "deleted": True}
+
+
+#: Same call, the other spelling: symmetric with ``delete_dataset``.
+delete_model = unserve
 
 
 def serve(
@@ -825,18 +876,36 @@ def serve(
     row; ``endpoint`` is the OpenAI-compatible base URL and ``name`` the
     model id to send. Posting an existing name bumps ``version``.
 
-    ``run`` is a ``TrainingRun`` or its id; the adapter and base model
-    come from the run record unless ``base_model`` is given. No ``run``
-    serves the bare base (``base_model`` required).
+    ``run`` is a ``TrainingRun``, the record ``get_run`` returns, or the
+    run id; the adapter and base model come from the run record unless
+    ``base_model`` is given. No ``run`` serves the bare base
+    (``base_model`` required). ``unserve`` is the inverse.
     """
     call = transport or _call
     adapter: str | None = None
     base = base_model
+    run_id: str | None
     if isinstance(run, TrainingRun):
         adapter = run.adapter
-        run_id: str | None = run.run_id
+        run_id = run.run_id
+    elif isinstance(run, dict):
+        # The record ``get_run`` returns. Reading the id here is what lets
+        # train in one process and serve in the next compose (#262).
+        run_id = str(run.get("runId") or run.get("run_id") or run.get("id") or "").strip() or None
+        if not run_id:
+            raise TypeError(
+                "run is a dict with no runId; pass the record wai.get_run(run_id) returns, "
+                "a TrainingRun, or the run id string"
+            )
+        adapter = str(run.get("adapter") or "").strip() or None
+        base = base or run.get("baseModel") or run.get("base_model")
+    elif run is None or isinstance(run, str):
+        run_id = (str(run).strip() or None) if run else None
     else:
-        run_id = str(run) if run else None
+        raise TypeError(
+            "run must be a TrainingRun, the record wai.get_run(run_id) returns, or the run "
+            f"id string; got {type(run).__name__}"
+        )
     if run_id and (adapter is None or base is None):
         meta = call("GET", f"/runs/{run_id}", api_key)
         meta = meta if isinstance(meta, dict) else {}

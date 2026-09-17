@@ -19,12 +19,20 @@ README = IDENTITY / "README.md"
 
 GEN = load_script("identity_generate", IDENTITY / "generate.py")
 REPORT = load_script("identity_report", IDENTITY / "report.py")
-SMALL = dict(identity_n=60, control_ratio=4, holdout_n=20, probe_n=10)
+# Test data standing in for the caller's control conversations.
+CONTROLS = [
+    {
+        "messages": [
+            {"role": "user", "content": f"control ask number {i} about an everyday task"},
+            {"role": "assistant", "content": f"control answer number {i}, no names in it"},
+        ]
+    }
+    for i in range(300)
+]
+SMALL = dict(identity_n=60, control_ratio=4, holdout_n=20, probe_n=10, controls=CONTROLS)
 
-# build_dataset() runs the offline simulator to mine control prompts, which
-# costs ~10s a call and dominates this module's wall time. The tests below
-# ask for the same dataset repeatedly, so build each distinct one once.
-# Treat the result as read-only: it is shared across tests.
+# The tests below ask for the same dataset repeatedly, so build each
+# distinct one once. Treat the result as read-only: it is shared across tests.
 _CACHE: dict[tuple, dict] = {}
 
 
@@ -112,7 +120,30 @@ def test_readme_counts_the_template_banks_right():
 def test_cli_writes_the_three_files_where_the_readme_says(tmp_path, capsys):
     assert GEN.DEFAULT_OUT == IDENTITY / "out", "the README says recipes/04-train/identity/out/"
     out = tmp_path / "identity"
-    GEN.main(["--name", "Zed", "--maker", "Zed Labs", "--identity", "20", "--out", str(out)])
+    control_file = tmp_path / "controls.jsonl"
+    control_file.write_text(
+        "\n".join(json.dumps(row) for row in CONTROLS[:100])
+        + "\n"
+        + "\n".join(
+            json.dumps({"prompt": f"plain ask {i}", "answer": f"plain answer {i}"})
+            for i in range(60)
+        )
+        + "\n"
+    )
+    GEN.main(
+        [
+            "--name",
+            "Zed",
+            "--maker",
+            "Zed Labs",
+            "--identity",
+            "20",
+            "--out",
+            str(out),
+            "--control-file",
+            str(control_file),
+        ]
+    )
     printed = capsys.readouterr().out
     stats = json.loads(printed[: printed.index("\nwrote ")])
     assert stats["identity_train"] == 20 and stats["controls_train"] == 80

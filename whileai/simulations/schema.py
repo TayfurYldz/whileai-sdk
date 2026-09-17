@@ -561,6 +561,9 @@ def attach(row: dict, judgment: Judgment) -> dict:
     meta = dict(judgment.evidence)
     if judgment.scorer.version:
         meta["version"] = judgment.scorer.version
+    if judgment.scorer.kind != "judge":
+        # A named scorer reads back as "judge" unless the row says otherwise.
+        meta["scorer_kind"] = judgment.scorer.kind
     if meta:
         row["judge_meta"] = meta
     return row
@@ -576,6 +579,19 @@ def _scorer_version(row: dict) -> str | None:
     return None
 
 
+def _scorer_kind(row: dict) -> str | None:
+    """The kind the grading run stamped, if any (``judge_meta.scorer_kind``)."""
+    meta = row.get("judge_meta")
+    if isinstance(meta, dict) and meta.get("scorer_kind") in (
+        "rule",
+        "judge",
+        "reward_model",
+        "human",
+    ):
+        return str(meta["scorer_kind"])
+    return None
+
+
 def _judgments(row: dict, rollout_id: str) -> list[Judgment]:
     out: list[Judgment] = []
     has_primary = (
@@ -588,7 +604,11 @@ def _judgments(row: dict, rollout_id: str) -> list[Judgment]:
         judge = row.get("judge_name")
         label = row.get("label_source")
         name = judge or label or "unlabeled"
-        kind: Any = "judge" if judge else "rule"
+        # The stamped kind wins; without one, a named judge is a model judge
+        # and a bare label is a rule. A Verifier run through ``run_judge``
+        # carries ``judge_name`` too, so the inference alone called every
+        # verifier a judge (#250).
+        kind: Any = _scorer_kind(row) or ("judge" if judge else "rule")
         reward = _number(row.get("reward"))
         status: Any = row.get("judge_status") or "ok"
         evidence: dict = {}
@@ -802,7 +822,11 @@ def to_row(
         if primary.reason:
             row["reason"] = primary.reason
         if primary.scorer.name != "unlabeled":
-            if primary.scorer.kind == "judge":
+            # ``judge_name`` is what a grading run called itself, whatever
+            # its kind; a stamped kind proves a run named it. ``label_source``
+            # is the engine's own rule label.
+            stamped = (primary.evidence.get("judge_meta") or {}).get("scorer_kind")
+            if primary.scorer.kind != "rule" or stamped:
                 row["judge_name"] = primary.scorer.name
                 if primary.evidence.get("label_source"):
                     row["label_source"] = primary.evidence["label_source"]

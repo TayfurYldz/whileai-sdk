@@ -1,0 +1,2 @@
+# Trajectory dumps: ~2.4 MB per arm, regenerate with `python run.py eval`.
+rows/

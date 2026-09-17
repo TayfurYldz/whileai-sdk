@@ -7,12 +7,13 @@ malicious), and rolls the agent. Grade 0/1 later. Optimize for post-training.
 Five calls, spec to gated dataset:
 
     import whileai.simulations as wai
-    data = wai.simulate(agent="openai:gpt-4.1-mini", spec="specs/github",
-                        mode="rl", situations=200, repeats=8)      # generate
+    data = wai.simulate(agent="openai:gpt-4.1-mini", tools=my_tools,
+                        system_prompt=my_policy, mode="rl",
+                        situations=200, repeats=8)                  # generate
     scored = data.grade(judge=my_judge)                             # grade 0/1
     print(scored.pass_at); wai.judge_trust(scored.rows, judge=my_judge)  # trust
     rows, report = wai.optimize(scored, mode="rl")                  # prune
-    wai.push_rows(rows, "github-rl-v1", gate=True, mode="rl")       # publish, gated
+    wai.push_rows(rows, "my-agent-rl-v1", gate=True, mode="rl")     # publish, gated
 
 Everything else exported here is one layer down from those five.
 """
@@ -101,6 +102,7 @@ from .schema import (
     validate,
 )
 from .score.agreement import judge_agreement
+from .score.audit import audit_grades, format_audit
 from .score.checklist import expected_outcome, outcome_check, privileged_context, task_checklist
 from .score.curriculum import curriculum, format_curriculum, retire_solved
 from .score.delta import delta_report, format_delta_report
@@ -114,6 +116,7 @@ from .score.grounding import (
 from .score.hack_scan import format_hack_scan, format_hack_scan_diff, hack_scan, hack_scan_diff
 from .score.hygiene import (
     HACK_THRESHOLD,
+    coverage_warnings,
     dedupe_groups,
     length_report,
     near_duplicate_prompts,
@@ -134,6 +137,7 @@ from .score.optimize import (
     DEFAULT_BAND,
     filter_rl_rows,
     group_signal,
+    next_round,
     optimize,
     recommend,
     select_for_rl,
@@ -161,7 +165,9 @@ from .score.stage import STAGES, format_stages, stage_of, stage_report, stamp_st
 from .score.stats import (
     compare_runs,
     decontaminate,
+    detectable_effect,
     eval_variance,
+    holdout_size,
     marker_summary,
     metric_summary,
     task_key,
@@ -174,6 +180,7 @@ from .training import (
     TrainingRun,
     attach_delta,
     attach_holdout,
+    delete_model,
     delete_run,
     get_run,
     list_runs,
@@ -182,6 +189,7 @@ from .training import (
     serve,
     train,
     training_run,
+    unserve,
 )
 from .verify import Verifier, verifier
 from .world.sandbox import MockEnvironment
@@ -229,6 +237,7 @@ __all__ = [
     "attach_holdout",
     "attach_labels",
     "attach_rubric",
+    "audit_grades",
     "behavior_signature",
     "behavioral_markers",
     "build_dimensions",
@@ -252,8 +261,10 @@ __all__ = [
     "dedupe_groups",
     "delete_dataset",
     "delete_empty_datasets",
+    "delete_model",
     "delete_run",
     "delta_report",
+    "detectable_effect",
     "dimensions_from_traces",
     "drop_leaky_rows",
     "eval_variance",
@@ -265,6 +276,7 @@ __all__ = [
     "export_training",
     "filter_rl_rows",
     "flaw_rows",
+    "format_audit",
     "format_curriculum",
     "format_delta_report",
     "format_hack_monitor",
@@ -286,6 +298,7 @@ __all__ = [
     "hf_publish",
     "hf_publish_run",
     "hf_status",
+    "holdout_size",
     "hosted_model",
     "import_hf",
     "inspect",
@@ -313,6 +326,7 @@ __all__ = [
     "mine_traces",
     "models",
     "near_duplicate_prompts",
+    "next_round",
     "normalize_judge_result",
     "novelty",
     "open_ended_probes",
@@ -381,6 +395,7 @@ __all__ = [
     "trim_unanimous_groups",
     "ungrounded_arguments",
     "unpublish",
+    "unserve",
     "update_dataset",
     "validate",
     "verifier",

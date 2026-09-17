@@ -22,6 +22,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings as _warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -242,6 +243,36 @@ def _meta_body(
     return body
 
 
+HOLDOUT_PROVE_EFFECT = 0.05
+
+
+def _warn_small_holdout(rows: Sequence[dict]) -> None:
+    """A holdout too small to prove a 5-point gain reads every round as
+    ``no_change_detected``; say so at push time, not after training (#257)."""
+    from ..score.stats import holdout_size, task_key
+
+    groups: dict[str, int] = {}
+    for row in rows:
+        if isinstance(row, dict):
+            key = task_key(row)
+            groups[key] = groups.get(key, 0) + 1
+    n_tasks = len(groups)
+    if not n_tasks:
+        return
+    try:
+        need = holdout_size(HOLDOUT_PROVE_EFFECT, rows=rows)
+    except ValueError:
+        need = holdout_size(HOLDOUT_PROVE_EFFECT, k=min(groups.values()))
+    if n_tasks < need["n_tasks"]:
+        _warnings.warn(
+            f"holdout has {n_tasks} tasks at k={need['k']}; proving a "
+            f"{HOLDOUT_PROVE_EFFECT:.0%} gain at 80% power needs about {need['n_tasks']} "
+            "(holdout_size). A smaller holdout reads a real gain that size as "
+            "no_change_detected.",
+            stacklevel=3,
+        )
+
+
 def push_rows(
     rows: list[dict],
     name: str,
@@ -279,6 +310,8 @@ def push_rows(
 
         gate_report = publish_gate(rows, mode=mode, endorsed=endorsed, strict_hacks=strict_hacks)
     check(rows, where="push_rows")
+    if purpose == "holdout":
+        _warn_small_holdout(rows)
     body: dict = {
         "name": name,
         **_meta_body(purpose, mode if mode in MODES else None, agent, description),

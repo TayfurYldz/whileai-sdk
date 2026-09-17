@@ -614,6 +614,105 @@ def _spread_by(prompts: list[str], key) -> list[str]:
     return out
 
 
+def _task_keys_of(tasks: Sequence[Any]) -> list[str]:
+    out: list[str] = []
+    for t in tasks:
+        if isinstance(t, dict):
+            out.append(task_key(t))
+        else:
+            out.append(task_key({"prompt": str(t)}))
+    return out
+
+
+def next_round(
+    prior: Sequence[dict],
+    *,
+    tasks: Sequence[Any] | None = None,
+    lo: float = DEFAULT_BAND[0],
+    hi: float = DEFAULT_BAND[1],
+) -> dict[str, Any]:
+    """The prompt set for the next round, from the last round's graded
+    rollouts.
+
+    A round trained on the file it started from keeps paying for groups
+    that give no gradient: at a 0.65 training reward about half the
+    groups are all-pass or all-fail. The band is the fix the book already
+    names (rlhf-book ch. 7: filter to the 20-80% band; ch. 6, DAPO's
+    dynamic sampling drops groups with no contrast), applied to what the
+    *current* policy does rather than what the base did. ``prior`` is
+    round N's graded rollouts (``simulate(tasks=..., repeats=k)`` on the
+    round-N policy, or the trainer's own sampled rows); each task's pass
+    rate over them decides: inside ``[lo, hi]`` it is kept, above ``hi``
+    it is solved and dropped, below ``lo`` it is unsolved and dropped.
+    ``tasks`` restricts the candidates (rows, task dicts with a
+    ``prompt``, or prompt strings); a task with no prior rollouts is
+    ``unknown`` and kept, since nothing says it is flat.
+
+    Returns ``tasks`` (one representative row per kept task: the prior
+    row, with ``calibration.pass_rate`` and the band), the counts
+    ``kept``, ``dropped_solved``, ``dropped_unsolved``, ``unknown``,
+    ``pass_rates`` per task, ``band``, ``from_policy`` (the policy
+    versions the prior rows came from) and ``prompt_set_sha``: the
+    identity of the kept set, for lineage on the run. Push the kept rows
+    as the next train set with ``parent=`` the last one.
+    """
+    if not 0 <= lo < hi <= 1:
+        raise ValueError("band is 0 <= lo < hi <= 1")
+    labels = _group_label_lists(prior)
+    rates = {key: sum(v) / len(v) for key, v in labels.items() if v}
+    first: dict[str, dict] = {}
+    policies: set[str] = set()
+    for row in prior:
+        if not isinstance(row, dict):
+            continue
+        first.setdefault(task_key(row), row)
+        if row.get("policy_version"):
+            policies.add(str(row["policy_version"]))
+    if tasks is None:
+        candidates = list(rates)
+        given: dict[str, Any] = {}
+    else:
+        given = {}
+        for t in tasks:
+            key = task_key(t) if isinstance(t, dict) else task_key({"prompt": str(t)})
+            given.setdefault(key, t)
+        candidates = list(given)
+    kept: list[dict] = []
+    solved = unsolved = unknown = 0
+    for key in candidates:
+        rate = rates.get(key)
+        if rate is None:
+            unknown += 1
+            rep = given.get(key)
+            rep = dict(rep) if isinstance(rep, dict) else {"prompt": str(rep)}
+            kept.append(rep)
+            continue
+        if rate > hi:
+            solved += 1
+            continue
+        if rate < lo:
+            unsolved += 1
+            continue
+        rep = dict(first.get(key) or given.get(key) or {"prompt": key})
+        cal = dict(rep.get("calibration") or {})
+        cal.update({"pass_rate": round(rate, 4), "n": len(labels[key]), "band": [lo, hi]})
+        rep["calibration"] = cal
+        kept.append(rep)
+    sha = hashlib.sha256("\n".join(sorted(task_key(r) for r in kept)).encode()).hexdigest()[:16]
+    return {
+        "tasks": kept,
+        "kept": len(kept) - unknown,
+        "dropped_solved": solved,
+        "dropped_unsolved": unsolved,
+        "unknown": unknown,
+        "n_prior_tasks": len(rates),
+        "pass_rates": {k: round(v, 4) for k, v in rates.items()},
+        "band": [lo, hi],
+        "from_policy": sorted(policies),
+        "prompt_set_sha": sha,
+    }
+
+
 def select_for_rl(
     rows: Sequence[dict],
     *,
@@ -627,8 +726,23 @@ def select_for_rl(
     endorsed: Sequence[str] = (),
     truncated: str = "drop",
     order: str = "spread",
+    prior: Sequence[dict] | None = None,
+    audit: dict[str, Any] | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
     """Whole mixed groups up to roughly ``target`` rows. Groups never split.
+
+    ``audit`` is an ``audit_grades`` report on these rows' verifier; when
+    it found the verifier rejecting right answers more than ``FN_WARN``
+    of the time, ``hygiene_warnings`` says to fix the verifier before
+    training on the selection (#255).
+
+    ``prior`` is the previous round's graded rollouts: tasks the round-N
+    policy already solves (pass rate above ``hi`` on ``prior``) or never
+    solves (below ``lo``) are dropped before anything else, so round N+1
+    trains on what that policy gets right 20-80% of the time rather than
+    on the file round 1 started from (``next_round``; rlhf-book ch. 7).
+    The report's ``prior`` block counts kept, dropped_solved,
+    dropped_unsolved and unknown.
 
     ``truncated`` says what happens to a rollout cut at the token cap
     (rlhf-book ch. 6, DAPO's overlong handling; ch. 7 overlong filtering):
@@ -691,6 +805,24 @@ def select_for_rl(
         raise ValueError(f"order must be one of {', '.join(RL_ORDERS)}; got {order!r}")
     if not drop_truncated and truncated == "drop":
         truncated = "keep"
+    prior_report: dict[str, Any] | None = None
+    if prior is not None:
+        plan = next_round(prior, lo=lo, hi=hi)
+        rates = plan["pass_rates"]
+        before_n = len(rows)
+        rows = [
+            r
+            for r in rows
+            if not isinstance(r, dict)
+            or rates.get(task_key(r)) is None
+            or lo <= rates[task_key(r)] <= hi
+        ]
+        prior_report = {
+            k: plan[k]
+            for k in ("kept", "dropped_solved", "dropped_unsolved", "unknown", "from_policy")
+        }
+        prior_report["rows_dropped"] = before_n - len(rows)
+        prior_report["prompt_set_sha"] = plan["prompt_set_sha"]
     penalized = kept_overlong = 0
     if truncated != "drop":
         marked: list[dict] = []
@@ -838,6 +970,7 @@ def select_for_rl(
         "enforce_band": bool(enforce_band),
         "band_groups_dropped": band_report["n_groups_dropped"],
         "band_dropped": {"too_easy": band_report["too_easy"], "too_hard": band_report["too_hard"]},
+        "prior": prior_report,
         "duplicates": dup_report,
         "truncated_dropped": trunc_report["n_dropped"],
         "truncated_policy": truncated,
@@ -857,6 +990,16 @@ def select_for_rl(
         lengths=report["length"],
         correlations=report["correlations"],
         scan=report["hack_scan"],
+    )
+    from .audit import audit_warning
+
+    audit_note = audit_warning(audit)
+    if audit_note:
+        report["hygiene_warnings"].append(audit_note)
+    report["audit"] = (
+        {k: audit.get(k) for k in ("fn_rate", "fn_ci95", "n_checked", "verifier")}
+        if isinstance(audit, dict)
+        else None
     )
     # The band is assigned from a handful of rollouts per task, and a
     # Wilson interval on k=8 is about +/-0.3 wide: a task measured at 0.25
@@ -1090,6 +1233,7 @@ def optimize(
     endorsed: Sequence[str] = (),
     truncated: str = "drop",
     order: str = "spread",
+    audit: dict[str, Any] | None = None,
 ) -> tuple[list[dict], dict[str, Any]]:
     """One call after grading: concentrate for the post-training target.
 
@@ -1133,6 +1277,7 @@ def optimize(
             hi=float(band[1]),
             enforce_band=enforce_band,
             has_tools=has_tools,
+            audit=audit,
             endorsed=endorsed,
             truncated=truncated,
             order=order,
