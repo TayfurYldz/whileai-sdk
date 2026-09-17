@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 # Rows as they come off a rollout: `final_text` is what the policy said, the
 # gold lives in `privileged` (the training export never projects it), and
@@ -43,16 +43,16 @@ def main(argv: list[str] | None = None) -> int:
     rows = ROWS[: args.limit]
 
     # Grade. A verifier is a checker, not a judge: no model call, so this half
-    # runs offline. Swap in `zps.rubric_judge(...)` when the reward needs one,
+    # runs offline. Swap in `wai.rubric_judge(...)` when the reward needs one,
     # and keep it behind `--dry-run`.
-    scored = zps.run_judge(rows, zps.verify.MathEqual(), source="grade")
+    scored = wai.run_judge(rows, wai.verify.MathEqual(), source="grade")
 
     # Report a paired number with its interval, never a mean alone.
-    print(zps.pass_at(scored.rows))
+    print(wai.pass_at(scored.rows))
 
     # End on the next command the reader can run themselves.
     if not args.dry_run:
-        print("\nNext: zps.push_rows(scored.rows, '<name>-v1', gate=True, mode='rl')")
+        print("\nNext: wai.push_rows(scored.rows, '<name>-v1', gate=True, mode='rl')")
     return 0
 
 
