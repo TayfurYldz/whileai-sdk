@@ -94,3 +94,4 @@ build/
 # downloaded wheels, not the product
 wheels/
 
+recipes/04-train/text-to-sql/serve_config.json
