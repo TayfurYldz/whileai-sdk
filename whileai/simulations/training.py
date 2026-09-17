@@ -99,13 +99,13 @@ NO_INTERVAL_NOTE = "No interval: the platform only returned two numbers"
 def _holdout_side(rows: Sequence[dict]) -> dict[str, Any]:
     """One side of the holdout with its uncertainty: pass@1 over tasks,
     how many tasks, rollouts per task, and the task-bootstrap interval."""
-    from .score.stats import _task_of, metric_summary
+    from .score.stats import task_key, metric_summary
 
     summary = metric_summary(rows, "pass_at_1")
     per_task: dict[str, int] = {}
     for row in rows:
         if isinstance(row, dict) and row.get("reward") is not None:
-            per_task[_task_of(row)] = per_task.get(_task_of(row), 0) + 1
+            per_task[task_key(row)] = per_task.get(task_key(row), 0) + 1
     ci = summary["ci95"]
     return {
         "pass": summary["mean"],
