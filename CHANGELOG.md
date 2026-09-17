@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## 0.52 (2026-09-17)
+## 0.53 (2026-09-17)
 
 - `rubric_judge` warms the hosted judge once before the rows fan out, the
   same `warm_judge` call and 600s budget `grade_llm` already used. A serve
@@ -21,6 +21,14 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   nothing to check and `checked: False` read as "nothing populated it"
   rather than "you passed the scrubbed copy". When the rows came through the
   export, `summary` now names it and points at `data.trajectories`.
+- `recipes/_template/` to copy (`README.md`, `run.py`, `smoke.sh`), a
+  "Contributing a recipe" section in `CONTRIBUTING.md`, two issue forms,
+  and a CI job that runs every `recipes/**/smoke.sh` on every pull request:
+  no key, no GPU, under a minute, so "it runs" is checked rather than
+  claimed.
+
+## 0.52 (2026-09-17)
+
 - `simulate(tasks=base, runs=3)`: the same task set replayed three times in
   one call, every row stamped `lineage.eval_run` (0, 1, 2), one
   `SimulationData` back (`search["eval_runs"]` has the rows and stop reason
