@@ -1,0 +1,31 @@
+name: A recipe does not work
+description: A recipe in recipes/ failed, or its README does not match what it does.
+labels: ["bug", "recipe"]
+body:
+  - type: input
+    id: recipe
+    attributes:
+      label: Which recipe
+      placeholder: recipes/04-train/grpo
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      render: shell
+      placeholder: python run.py --dry-run
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: The error, or the number you expected against the one you got.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: zeroproof version
+      placeholder: "0.48 (pip show zeroproof)"
