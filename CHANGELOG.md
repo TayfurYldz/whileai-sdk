@@ -29,6 +29,71 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   model when the resolved auditor is the model that graded the rows (Phi-4
   to hosted Qwen and back), records `grader` and `auditor` in the report,
   and raises `ValueError` when no different model is available.
+- Every row says how it was sampled. `sampling` is now on every row a
+  model backend produces (the default hosted agent, `agent="vllm:..."` /
+  `"openai:..."`, `backend=`, an HTTP agent), as `{"temperature",
+  "max_tokens", "model"}` with the defaults the backend resolved; before,
+  it was stamped only when `backend=` was passed by hand. A callable
+  agent's rows carry `sampling: None` unless you pass
+  `simulate(sampling={...})`, which is recorded as given. The `logprobs`
+  key is gone from `sampling`; the row's `logprob` fields already say
+  whether logprobs were captured.
+- `pass_at(rows).config` (and `to_dict()["config"]`) says what the rows
+  were produced with: task count, k, temperature, max_tokens, policy and
+  judge versions, prompt hash, with `mixed` naming any the rows disagree
+  on. `delta_report` carries the same per side under `config["before"]`
+  / `config["after"]` and warns when the judge, temperature or reply
+  budget differ between sides, or when both sides are the same policy
+  version.
+- One task key everywhere. `zps.task_key(row)` (`scenario_id`, else
+  `task_id`, else the prompt text) is what `pass_at`, `group_signal`,
+  `compare_runs`, `delta_report`, `eval_variance`, `curriculum`,
+  `retire_solved`, `trim_unanimous_groups`, `trim_out_of_band`,
+  `select_for_rl`, `calibrate` / `publish_gate`, `mean_kl`, `judge_trust`
+  and the exporters' `group_id` now all group by. Before, `pass_at` and
+  the RL pruners grouped by prompt text while `compare_runs` grouped by
+  id, so the same rows gave two task counts. On engine rows this means
+  the rephrasings of one situation pool into one task: a task is a
+  situation, not a string. `PassAt.per_task` and `curriculum()`'s
+  `task_id` are keyed by that key; `curriculum()` still carries a
+  `prompt` per task.
+- `select_for_rl` / `optimize(mode="rl")`: asks inside the difficulty band
+  are now taken round-robin across pass rates within each fault kind, with
+  no preference for a 50% pass rate (`order="spread"`, the default). The
+  older nearest-to-50% ranking is `order="middle"`. A selection cut off by
+  `target` can come back with different asks than before.
+- `curriculum` / `retire_solved`: `floor` and `solved` default to the band's
+  edges (0.2 and 0.8, from `DEFAULT_BAND`) instead of 0.0 and 0.9, and the
+  edges are inclusive: trainable is `floor <= pass_rate <= solved`, retired
+  is above `solved`, not ready is below `floor`. A task at 1 of 8 is no
+  longer trainable.
+- `Calibration.pass_rate_ci95`: the Wilson 95% interval on the task's pass
+  rate, stamped by `calibrate` and `carry_calibration`; `calibration_of`
+  reads it back. The RL optimize report lists one row per selected task
+  under `calibration.tasks` and adds a `hygiene_warnings` note when the
+  median rollouts per task is under 16, with the measured interval width.
+  `Calibration.student` is filled from the row's `policy_version` when no
+  `policy=` is given.
+- `train(temperature=...)`: the GRPO rollout temperature, sent to the host;
+  when the pushed dataset's rows were measured at a different
+  `sampling.temperature`, `train` warns once. `recipes/04-train/grpo`
+  trains and evaluates at the same temperature (0.8).
+- Every row says which model did which job. `writer_model` (the situation
+  writer's model tag, or `template` / `seed` / `pinned` when no model wrote
+  the prompt) and `user_model` (who played the simulated user; absent when
+  the agent took a single message) sit next to `model_version` on every
+  row, ride through `export_row`, `training_rows`, and the `from_row` /
+  `to_row` round trip like `policy_version`, and appear in `data.metadata`
+  and the `.meta.json` sidecar with `judge_model` (read off each row's
+  existing `judge_meta.model`).
+- `simulate(user_model=...)`: a backend spec for the model that plays the
+  user in follow-up turns and answers the agent's questions. `None` (the
+  default) keeps today's behavior, the agent's own model.
+- When the agent model also wrote the situations or played the user, the
+  run appends `same_model` to `degraded`, adds one plain sentence to the new
+  `data.warnings` list naming the call that separates them (`simulator=`,
+  `user_model=`), and logs it once at the end. Defaults are unchanged: the
+  same hosted model still does all three jobs unless you say otherwise.
 - The import alias in every example, recipe, docstring and the skill is
   `wai` (`import whileai.simulations as wai`), not `zps`. Nothing in the
   package changes; `zps` was only ever a name in your own code.

@@ -78,8 +78,19 @@ def bootstrap_ci(
     return (stats[max(0, lo_i)], stats[min(n_boot - 1, hi_i)])
 
 
-def _task_of(row: dict) -> str:
-    return str(row.get("task_id") or row.get("scenario_id") or row.get("prompt") or "")
+def task_key(row: dict) -> str:
+    """The one name every report groups a row's rollouts under.
+
+    A task is a situation, not a string: ``scenario_id`` when the row has
+    one (the engine's situation id, shared by the repeats of one opener
+    and by the textured phrasings of one situation), else ``task_id``
+    (rows from elsewhere), else the prompt text. ``pass_at``,
+    ``compare_runs``, ``delta_report``, ``eval_variance``, ``curriculum``,
+    ``group_signal`` and the exporters all count tasks with this key, so
+    the same rows give the same task count everywhere (rlhf-book ch. 16:
+    intervals and paired comparisons are over tasks, never rows).
+    """
+    return str(row.get("scenario_id") or row.get("task_id") or row.get("prompt") or "")
 
 
 def _by_task(rows: Sequence[dict], value: Callable[[dict], float | None]) -> dict[str, list[float]]:
@@ -90,7 +101,7 @@ def _by_task(rows: Sequence[dict], value: Callable[[dict], float | None]) -> dic
         v = value(row)
         if v is None:
             continue
-        groups.setdefault(_task_of(row), []).append(float(v))
+        groups.setdefault(task_key(row), []).append(float(v))
     return groups
 
 

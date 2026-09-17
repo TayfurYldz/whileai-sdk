@@ -62,7 +62,7 @@ from typing import Any
 
 from .agreement import GOLD_KIND_KEY, MIN_GOLD, MODEL_GOLD_REASON, judge_agreement
 from .hygiene import reply_length
-from .stats import wilson_interval
+from .stats import task_key, wilson_interval
 
 GOLD_KEY = "gold_reward"
 FILLER = " Let me know if there is anything else I can help with."
@@ -144,7 +144,7 @@ def _label(row: dict, key: str) -> int | None:
 
 
 def _task(row: dict) -> str:
-    return str(row.get("task_id") or row.get("scenario_id") or row.get("prompt") or "")
+    return task_key(row)
 
 
 def _agreement(rows: Sequence[dict], gold: str, allow_model_gold: bool = False) -> dict[str, Any]:

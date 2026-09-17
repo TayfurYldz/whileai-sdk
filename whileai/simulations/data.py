@@ -257,6 +257,8 @@ def export_row(row: dict) -> dict:
         "rollout_index",
         "model_version",
         "policy_version",
+        "writer_model",
+        "user_model",
         "logprob",
         "n_tokens",
         "token_logprobs",
@@ -327,6 +329,9 @@ class SimulationData:
     stages: list[str] = field(default_factory=list)
     scaffold_chars: int = 0
     degraded: list[str] = field(default_factory=list)
+    # plain-words notes about the run, printed once at the end; each
+    # says what happened and the one call that changes it
+    warnings: list[str] = field(default_factory=list)
     semantic: bool = False
     profile: AgentProfile | None = None
     embedder_name: str = ""
@@ -355,6 +360,23 @@ class SimulationData:
     rollouts_per_request: int = 1
     unique_situations: bool = False
     allocator: dict = field(default_factory=dict)
+    # who did which job: the situation writer's model tag ("template" when
+    # no model wrote) and the simulated user's (None when the agent takes a
+    # single message and no user is played). The agent's own tag is
+    # ``model_version`` on every row.
+    writer_model: str = ""
+    user_model: str | None = None
+
+    @property
+    def judge_model(self) -> str | None:
+        """The judge model(s) that graded these rows, read off each row's
+        ``judge_meta.model``; None until a model judge has run."""
+        seen: set[str] = set()
+        for t in self.trajectories:
+            meta = t.get("judge_meta")
+            if isinstance(meta, dict) and meta.get("model"):
+                seen.add(str(meta["model"]))
+        return ", ".join(sorted(seen)) or None
 
     @property
     def metadata(self) -> dict:
@@ -374,6 +396,9 @@ class SimulationData:
             "applied_steering_weight": weight.get("applied"),
             "targeted_rows": targeted,
             "background_rows": len(self.trajectories) - targeted,
+            "writer_model": self.writer_model or None,
+            "user_model": self.user_model,
+            "judge_model": self.judge_model,
         }
 
     def _rewrite(self, path: str | None = None) -> None:
@@ -812,7 +837,11 @@ class SimulationData:
                             "first_row_seconds": round(self.first_row_seconds, 3),
                         },
                         "rows_by_minute": rows_by_minute,
+                        "writer_model": self.writer_model or None,
+                        "user_model": self.user_model,
+                        "judge_model": self.judge_model,
                         "degraded": self.degraded,
+                        "warnings": self.warnings,
                         "stages": self.stages,
                     },
                     fh,

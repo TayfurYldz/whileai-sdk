@@ -64,6 +64,59 @@ def _pass_pow_k_group(n: int, c: int, k: int) -> float:
     return _comb(c, k) / total
 
 
+CONFIG_KEYS = ("temperature", "max_tokens", "policy_version", "judge_version", "prompt_hash")
+
+
+def _dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _row_config_values(row: dict) -> dict[str, Any]:
+    """The config facts one row carries, ``None`` where it carries none."""
+    sampling = _dict(row.get("sampling"))
+    policy_version = row.get("policy_version")
+    judge_meta = _dict(row.get("judge_meta"))
+    lineage = _dict(row.get("lineage"))
+    return {
+        "temperature": sampling.get("temperature"),
+        "max_tokens": sampling.get("max_tokens"),
+        "policy_version": str(policy_version) if policy_version else None,
+        "judge_version": judge_meta.get("version") or lineage.get("judge_version") or None,
+        # policy_version is <model>@<sha256 of the system prompt>[:16]
+        "prompt_hash": str(policy_version).split("@", 1)[1]
+        if policy_version and "@" in str(policy_version)
+        else None,
+    }
+
+
+def run_config(
+    rows: Sequence[dict], *, n_tasks: int | None = None, k: int | None = None
+) -> dict[str, Any]:
+    """What the rows say about how they were produced (rlhf-book ch. 16:
+    a number without its sampling settings, prompt and judge is not
+    comparable to another). ``temperature`` and ``max_tokens`` come from
+    each row's ``sampling``, ``policy_version`` and ``prompt_hash`` from
+    its policy stamp, ``judge_version`` from its judge stamp. A field is
+    the one value every row agrees on; rows that lack it are skipped, and
+    a field the rows disagree on is ``None`` and listed in ``mixed``."""
+    seen: dict[str, set[Any]] = {key: set() for key in CONFIG_KEYS}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key, value in _row_config_values(row).items():
+            if value is not None:
+                seen[key].add(value)
+    out: dict[str, Any] = {"n_tasks": n_tasks, "k": k}
+    mixed: list[str] = []
+    for key in CONFIG_KEYS:
+        values = seen[key]
+        if len(values) > 1:
+            mixed.append(key)
+        out[key] = next(iter(values)) if len(values) == 1 else None
+    out["mixed"] = mixed
+    return out
+
+
 @dataclass(frozen=True)
 class PassAt:
     """pass@1 / pass^k / pass@k over graded groups. See module docstring."""
@@ -77,12 +130,19 @@ class PassAt:
     n_groups_at_k: int = 0
     #: unanimous groups shorter than k counted as if they stayed unanimous
     n_groups_imputed: int = 0
-    #: ``{prompt: c / n}`` — a **dict keyed by the group's prompt string**,
-    #: not a list, so ``per_task[0]`` is a ``KeyError``, not the first task.
-    #: Iterate it as ``.per_task.items()``; ``.per_task.values()`` is the
-    #: pass-rate vector pass@1 averages and ``ci95`` bootstraps.
+    #: ``{task: c / n}`` — a **dict keyed by the group's task key** (its
+    #: ``scenario_id``, else ``task_id``, else the prompt text; see
+    #: ``task_key``), not a list, so ``per_task[0]`` is a ``KeyError``, not
+    #: the first task. Iterate it as ``.per_task.items()``;
+    #: ``.per_task.values()`` is the pass-rate vector pass@1 averages and
+    #: ``ci95`` bootstraps.
     per_task: dict[str, float] = field(default_factory=dict)
     note: str = ""
+    #: how the rows were produced, read off the rows (``run_config``):
+    #: task count, k, temperature, max_tokens, policy and judge versions,
+    #: prompt hash. A field the rows disagree on is ``None`` and named in
+    #: ``config["mixed"]``.
+    config: dict[str, Any] = field(default_factory=dict)
     #: task-bootstrap 95% interval on pass@1
     ci95: tuple[float, float] | None = None
     #: task-bootstrap 95% intervals on pass^k and pass@k, over the
@@ -113,6 +173,7 @@ class PassAt:
             "ci95": list(self.ci95) if self.ci95 else None,
             "pass_pow_k_ci95": list(self.pass_pow_k_ci95) if self.pass_pow_k_ci95 else None,
             "pass_at_k_ci95": list(self.pass_at_k_ci95) if self.pass_at_k_ci95 else None,
+            "config": dict(self.config),
         }
 
     def __str__(self) -> str:
@@ -141,7 +202,18 @@ def pass_at(
     min_k: int = 4,
     unanimous_short: bool = False,
 ) -> PassAt:
-    """pass@1, pass^k and pass@k from graded rows, grouped by prompt.
+    """pass@1, pass^k and pass@k from graded rows, grouped by task.
+
+    A task is a situation, not a string. Rows group under ``task_key``:
+    the engine's ``scenario_id`` when the row has one, else ``task_id``,
+    else the prompt text. In ``mode="rl"`` the repeats of one opener share
+    a ``scenario_id``, and so do the textured phrasings of one situation,
+    so those phrasings pool into one task on purpose: the question is
+    whether the agent handles the situation, not one wording of it.
+    ``compare_runs``, ``delta_report``, ``eval_variance``, ``curriculum``
+    and ``group_signal`` count tasks with the same key, so
+    ``pass_at(rows).n_groups`` and ``delta_report(...)["n_paired_tasks"]``
+    agree on the same rows.
 
     Only binary ``reward`` (or ``qwen_reward``) rows count; partial and
     unjudged rows are skipped, the same rule ``group_signal`` uses.
@@ -157,12 +229,17 @@ def pass_at(
     ``unanimous_short=True`` counts a unanimous group shorter than ``k``
     as if it stayed unanimous (pass^k and pass@k equal to its pass rate,
     1 or 0). That is the assumption a successive-allocation run stopped
-    on, and leaving those groups out would score only the prompts that
+    on, and leaving those groups out would score only the tasks that
     split and inflate the headroom. Mixed short groups still stay out.
+
+    ``.config`` says how the rows were produced (``run_config``): task
+    count, k, temperature, max_tokens, policy and judge versions, prompt
+    hash, with a ``mixed`` list naming any the rows disagree on.
     """
     from .optimize import _group_label_lists
 
-    groups = _group_label_lists(list(rows) if not isinstance(rows, list) else rows)
+    row_list = list(rows) if not isinstance(rows, list) else rows
+    groups = _group_label_lists(row_list)
     n_rows = sum(len(labels) for labels in groups.values())
     if not groups:
         return PassAt(
@@ -173,6 +250,7 @@ def pass_at(
             n_groups=0,
             n_rows=0,
             note="no binary rewards; grade first",
+            config=run_config(row_list, n_tasks=0, k=int(k or 1)),
         )
 
     per_task = {prompt: sum(labels) / len(labels) for prompt, labels in groups.items()}
@@ -234,10 +312,11 @@ def pass_at(
         n_groups_imputed=len(imputed) if pass_at_k is not None else 0,
         per_task=per_task,
         note=note,
+        config=run_config(row_list, n_tasks=len(groups), k=resolved_k),
         ci95=bootstrap_ci(list(per_task.values())),
         pass_pow_k_ci95=bootstrap_ci(pow_vals) if pass_pow_k is not None else None,
         pass_at_k_ci95=bootstrap_ci(at_vals) if pass_at_k is not None else None,
     )
 
 
-__all__ = ["JUDGE_NOISE_NOTE", "PassAt", "pass_at"]
+__all__ = ["JUDGE_NOISE_NOTE", "PassAt", "pass_at", "run_config"]

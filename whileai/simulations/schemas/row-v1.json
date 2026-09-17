@@ -42,8 +42,10 @@
         "logprob": {"type": "number", "$comment": "summed log-probability of the agent's generated tokens under the sampling policy; simulate(logprobs=True)"},
         "n_tokens": {"type": "integer", "$comment": "generated tokens the logprob sums over"},
         "token_logprobs": {"type": "array", "items": {"type": "number"}, "$comment": "per-token log-probabilities in generation order across the agent's turns; simulate(logprobs=\"tokens\")"},
-        "sampling": {"type": "object", "properties": {"temperature": {"type": "number"}, "logprobs": {}}, "$comment": "how a model backend was sampled; absent for a callable agent"},
+        "sampling": {"type": ["object", "null"], "properties": {"temperature": {"type": "number"}, "max_tokens": {"type": "integer"}, "model": {"type": "string"}}, "$comment": "how the row was sampled: a model backend records its resolved temperature, reply budget and model; a callable agent records simulate(sampling=) verbatim, else null"},
         "policy_version": {"type": "string", "$comment": "Rollout.policy.version: <model_version>@<sha256 of the system policy>[:16]"},
+        "writer_model": {"type": "string", "$comment": "who wrote the prompt: the situation writer's model tag, or template / seed / pinned when no model wrote it"},
+        "user_model": {"type": "string", "$comment": "who played the simulated user; absent when the agent took a single message"},
         "calibration": {
           "type": "object",
           "required": ["n", "pass_rate"],
@@ -52,6 +54,7 @@
             "student": {"type": "object", "properties": {"name": {"type": "string"}, "model": {"type": ["string", "null"]}, "prompt_hash": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]}}},
             "n": {"type": "integer", "minimum": 1},
             "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+            "pass_rate_ci95": {"type": ["array", "null"], "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 2, "maxItems": 2, "$comment": "Wilson 95% interval on pass_rate from n rollouts"},
             "mean_kl": {"type": ["number", "null"]}
           },
           "$comment": "Calibration: the task's pass rate over n rollouts of the student policy; written by publish_gate / calibrate"
@@ -122,7 +125,7 @@
       "Judgment": ["rollout_id", "scorer", "reward", "status", "reason", "failure_class", "evidence"],
       "Marker": ["rollout_id", "name", "value", "evidence"],
       "Dataset": ["dataset_id", "spec_id", "splits"],
-      "Calibration": ["task_id", "student", "n", "pass_rate", "mean_kl"]
+      "Calibration": ["task_id", "student", "n", "pass_rate", "mean_kl", "pass_rate_ci95"]
     },
     "legacy_shapes": {
       "$comment": "Version 0 rows, detected by key. See schema.detect_shape.",

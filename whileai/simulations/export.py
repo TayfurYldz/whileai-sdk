@@ -51,6 +51,7 @@ from typing import Any
 
 from .schema import check, stamp
 from .score.quality import load_jsonl, write_jsonl
+from .score.stats import task_key
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.S | re.I)
 # The second group are the sampled diversity axes. They cost bytes, but a
@@ -76,6 +77,8 @@ _CARRY_KEYS = (
     "token_logprobs",
     "sampling",
     "policy_version",
+    "writer_model",
+    "user_model",
     "usage",
     "tier",
     "ask_family",
@@ -536,7 +539,7 @@ def _stamp_groups(rows: list[dict]) -> None:
     ``select_for_rl`` hands over whole groups, and then the export used to
     flatten them: a GRPO trainer had to re-group by exact prompt string, an
     equality that one whitespace edit silently breaks. ``group_id`` is the
-    stable name (sha1 of the prompt, like the studio packs used), ``k`` the
+    stable name (sha1 of the ``task_key``: the situation id, else the prompt), ``k`` the
     group size, ``n0``/``n1`` the fail/pass counts so a consumer can drop
     unanimous groups without rescoring, and ``reward_mean``/``reward_std``
     the group's reward statistics (rlhf-book ch. 6: group-normalized
@@ -548,9 +551,9 @@ def _stamp_groups(rows: list[dict]) -> None:
     """
     groups: dict[str, list[dict]] = {}
     for row in rows:
-        prompt = row.get("prompt")
-        if isinstance(prompt, str) and prompt:
-            groups.setdefault(prompt, []).append(row)
+        task = task_key(row)
+        if task:
+            groups.setdefault(task, []).append(row)
     if not any(len(members) > 1 for members in groups.values()):
         return
     for prompt, members in groups.items():

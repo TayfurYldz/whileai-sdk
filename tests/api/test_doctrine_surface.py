@@ -160,11 +160,16 @@ def test_metadata_is_small_structured_and_uninterpreted():
         "applied_steering_weight",
         "targeted_rows",
         "background_rows",
+        "writer_model",
+        "user_model",
+        "judge_model",
     }
     assert meta["strategy"] == "trace"
     assert meta["trace_count"] == len(TRACES)
     assert meta["targeted_rows"] + meta["background_rows"] == len(data.trajectories)
-    for value in meta.values():
+    for key, value in meta.items():
+        if key in ("writer_model", "user_model", "judge_model"):
+            continue  # model tags are identifiers, not labels
         assert not isinstance(value, str) or value in ("auto", "broad", "trace", "targeted"), (
             "no presentation strings in metadata"
         )
