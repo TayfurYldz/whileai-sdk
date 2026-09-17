@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.58 (2026-09-17)
 
 - `split_pseudo_production` splits by `task_key` (the `scenario_id`,
   else the prompt), so the held-out slice is disjoint from train in the
