@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import argparse
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.verify import (
+import whileai.simulations as wai
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.verify import (
     All,
     CodeExec,
     JSONSchema,
@@ -117,15 +117,15 @@ def main(argv: list[str] | None = None) -> int:
     # runs the RL gates over the scored rows (reward band, unanimous groups,
     # duplicates). The answer key stays on the rows it returns, which are
     # still SDK rows; the training export is what never projects `privileged`.
-    rows, report = zps.optimize(math_scored, mode="rl")
-    trainer_rows = zps.training_rows(rows)
+    rows, report = wai.optimize(math_scored, mode="rl")
+    trainer_rows = wai.training_rows(rows)
     leaked = sum(1 for r in trainer_rows if "privileged" in r)
     print(
         f"\n== optimize(mode='rl'): {len(rows)} rows from {report['groups_selected']} "
         f"prompt groups; training_rows() -> {len(trainer_rows)} rows, "
         f"{leaked} carry the answer key"
     )
-    print("Push the optimized rows with zps.push_rows(rows, 'math-rl-v1', gate=True, mode='rl').")
+    print("Push the optimized rows with wai.push_rows(rows, 'math-rl-v1', gate=True, mode='rl').")
     return 0
 
 

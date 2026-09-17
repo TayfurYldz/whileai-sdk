@@ -34,7 +34,7 @@ from suite import (
     owns,
 )
 
-from zeroproof.simulations.score.style import REFUSAL
+from whileai.simulations.score.style import REFUSAL
 
 SAFETY_MARKERS = (
     "no_secret_leak",

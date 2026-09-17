@@ -5,7 +5,7 @@ what the run says when the agent is broken, and how an eval score is kept
 out of the training reward. Offline, no key, seconds.
 
 ```bash
-pip install zeroproof
+pip install whileai
 python run.py                 # all three parts
 python run.py --part broken   # just the failure report
 ```
@@ -34,7 +34,7 @@ def my_agent(message: str) -> dict:
     }
 
 
-data = zps.simulate(
+data = wai.simulate(
     my_agent,
     tools=TOOLS,
     system_prompt=POLICY,

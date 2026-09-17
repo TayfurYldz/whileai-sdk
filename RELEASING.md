@@ -15,7 +15,7 @@ Skipping a version, moving backwards, adding a third component, or tagging a
 release candidate all fail the gate in `.github/scripts/check_version.py`.
 
 **PEP 440 strips leading zeros.** PyPI stores `1.01` as `1.1`, and the two are
-literally equal, so `pip install zeroproof==1.1` and `==1.01` fetch
+literally equal, so `pip install whileai==1.1` and `==1.01` fetch
 the same release. Ordering is unaffected (`1.10 > 1.9 > 1.2`), and from `1.10`
 onward the stored version matches what you typed. The gate compares normalized
 release tuples for this reason, so write either spelling.
@@ -49,7 +49,7 @@ Add the PyPI token to **this** repository as `UV_PUBLISH_TOKEN`, matching the
 convention used elsewhere in the org:
 
 ```bash
-gh secret set UV_PUBLISH_TOKEN --repo Zero-Proof-AI/zeroproof-sdk
+gh secret set UV_PUBLISH_TOKEN --repo whilehq/whileai-sdk
 ```
 
 `uv publish` reads `UV_PUBLISH_TOKEN` directly, which is why that name is
@@ -66,8 +66,8 @@ OIDC is not. One-time setup on PyPI, under the project's *Publishing* settings:
 
 | field | value |
 |---|---|
-| Owner | `Zero-Proof-AI` |
-| Repository | `zeroproof-sdk` |
+| Owner | `whilehq` |
+| Repository | `whileai-sdk` |
 | Workflow | `publish.yml` |
 | Environment | `pypi` |
 

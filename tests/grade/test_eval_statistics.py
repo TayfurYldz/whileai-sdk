@@ -6,16 +6,16 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.judge_trust import (
+import whileai.simulations as wai
+from whileai.simulations.score.agreement import judge_agreement
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.judge_trust import (
     FILLER,
     format_judge_trust,
     judge_trust,
     length_sensitivity,
 )
-from zeroproof.simulations.score.stats import (
+from whileai.simulations.score.stats import (
     bootstrap_ci,
     compare_runs,
     decontaminate,
@@ -80,10 +80,10 @@ def test_task_means_and_metric_summary_cluster_by_task():
 
 def test_pass_at_carries_a_ci():
     rows = _run({"a": 1.0, "b": 0.0, "c": 0.5, "d": 0.25, "e": 0.75})
-    rates = zps.pass_at(rows)
+    rates = wai.pass_at(rows)
     assert rates.ci95 is not None and rates.ci95[0] <= rates.pass_at_1 <= rates.ci95[1]
     assert rates.to_dict()["ci95"] == list(rates.ci95)
-    assert zps.pass_at(_run({"a": 0.5, "b": 0.5})).ci95 is None
+    assert wai.pass_at(_run({"a": 0.5, "b": 0.5})).ci95 is None
 
 
 # ---------------------------------------------------------------- comparison
@@ -162,7 +162,7 @@ def test_decontaminate_by_ngram_and_exact_match(tmp_path):
     path.write_text("".join(json.dumps(e) + "\n" for e in evals))
     _kept2, report2 = decontaminate(rows, [str(path)], n=15)
     assert report2["n_contaminated"] == 2  # the paraphrase shares 14 words, not 15
-    assert zps.decontaminate(rows, evals)[1]["n"] == 5
+    assert wai.decontaminate(rows, evals)[1]["n"] == 5
 
 
 def test_decontaminate_counts_a_row_when_one_eval_text_covers_it():
@@ -216,7 +216,7 @@ def test_delta_report_headline_and_regressions():
     assert soft["ok"] and soft["slipped"] == ["marker:polite"]
     missing = delta_report(before, after, target="marker:nope")
     assert missing["target_verdict"] == "target_not_measured"
-    assert zps.delta_report(before, after)["n_paired_tasks"] == 12
+    assert wai.delta_report(before, after)["n_paired_tasks"] == 12
 
 
 # ---------------------------------------------------------------- judge trust
@@ -266,7 +266,7 @@ def test_judge_trust_report_with_a_length_reading_judge():
     text = format_judge_trust(report)
     assert text.startswith("FAIL") and "filler flips" in text and FILLER.strip() not in text
 
-    bare = zps.judge_trust([_row("a", 1)])
+    bare = wai.judge_trust([_row("a", 1)])
     assert bare["n_labeled"] == 0 and any("gold_reward" in w for w in bare["warnings"])
     assert bare["perturbation"] is None
 
@@ -366,7 +366,7 @@ def test_decontaminate_pulls_a_platform_dataset_id(monkeypatch):
         pulled.append(dataset_id)
         return [{"prompt": "what is the capital of france", "answer": "Paris"}]
 
-    monkeypatch.setattr("zeroproof.simulations.ingest.platform.pull", fake_pull)
+    monkeypatch.setattr("whileai.simulations.ingest.platform.pull", fake_pull)
     rows = [_row("what is the capital of france"), _row("refund order 4412")]
     kept, report = decontaminate(rows, against="ds_eval")
     assert pulled == ["ds_eval"]

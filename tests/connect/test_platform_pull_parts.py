@@ -8,9 +8,9 @@ passed them because `{}` is valid JSON.
 
 import json
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import export
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as wai
+from whileai.simulations import export
+from whileai.simulations.ingest import platform
 
 
 def test_pull_reads_every_part(monkeypatch):
@@ -79,7 +79,7 @@ INGESTED = {
 
 
 def test_load_traces_normalizes_ingested_step_keys():
-    row = zps.load_traces([INGESTED])[0]
+    row = wai.load_traces([INGESTED])[0]
     assert [sorted(s) for s in row["steps"]] == [["arguments", "result", "tool"]] * 2
     assert row["steps"][0]["arguments"] == '{"path": "paging.py"}'
     assert row["steps"][0]["result"] == "def page(...)"
@@ -87,13 +87,13 @@ def test_load_traces_normalizes_ingested_step_keys():
 
 def test_load_traces_leaves_canonical_steps_alone():
     canonical = {"prompt": "p", "steps": [{"tool": "t", "arguments": {"a": 1}, "result": "r"}]}
-    assert zps.load_traces([canonical])[0]["steps"] == canonical["steps"]
+    assert wai.load_traces([canonical])[0]["steps"] == canonical["steps"]
 
 
 def test_load_traces_does_not_touch_non_tool_steps():
     """`input` on a user or text step belongs to somebody else."""
     row = {"prompt": "p", "steps": [{"user": "hi"}, {"text": "ok", "input": "keep"}]}
-    assert zps.load_traces([row])[0]["steps"] == row["steps"]
+    assert wai.load_traces([row])[0]["steps"] == row["steps"]
 
 
 def test_ingested_traces_export_with_real_tool_arguments():
@@ -104,7 +104,7 @@ def test_ingested_traces_export_with_real_tool_arguments():
     `tool_call_roundtrip` reports zero invalid rows either way because `{}`
     parses to a dict.
     """
-    rows = export.training_rows(zps.load_traces([INGESTED]), system_prompt="sys")
+    rows = export.training_rows(wai.load_traces([INGESTED]), system_prompt="sys")
     calls = [c for r in rows for m in r["messages"] for c in (m.get("tool_calls") or [])]
     assert calls, "expected tool calls in the exported rows"
     assert all(c["function"]["arguments"] not in ("{}", "", None) for c in calls)
@@ -113,7 +113,7 @@ def test_ingested_traces_export_with_real_tool_arguments():
 
 
 def test_infer_harness_drafts_schemas_from_tool_traces():
-    from zeroproof.simulations.ingest.traces import infer_harness
+    from whileai.simulations.ingest.traces import infer_harness
 
     rows = [
         {

@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sql_verifier import AGENT, OUT, extract_sql, read_jsonl
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 STATE = OUT / "distill_state.json"
 
@@ -70,7 +70,7 @@ def main() -> int:
         if "</think>" in str(r.get("final_text") or "") and extract_sql(r["final_text"])
     ]
     short = [r for r in complete if len(str(r["final_text"])) <= args.max_chars]
-    picked, _report = zps.optimize(short, mode="sft", select="top_per_prompt", min_reward=1.0)
+    picked, _report = wai.optimize(short, mode="sft", select="top_per_prompt", min_reward=1.0)
     tasks_all = {r["scenario_id"] for r in rows}
     print(
         f"train rows {len(rows)} on {len(tasks_all)} tasks; correct {len(correct)}; complete traces {len(complete)}; "
@@ -85,14 +85,14 @@ def main() -> int:
         pushed = json.loads((OUT / "manifest.json").read_text(encoding="utf-8")).get("pushed") or {}
         holdout = (pushed.get(f"{AGENT}-holdout") or {}).get("datasetId") or ""
     desc = "Self-distillation: the base model's own thinking traces that executed and matched the gold, one per train prompt (rejection sampling)."
-    entry = zps.push_rows(
+    entry = wai.push_rows(
         picked, f"{AGENT}-sft-think", mode="sft", purpose="train", agent=AGENT, description=desc
     )
     sft_id = entry.get("datasetId")
     print(f"pushed {sft_id} ({len(picked)} rows); holdout {holdout or 'none'}")
 
     t0 = time.time()
-    run = zps.train(
+    run = wai.train(
         sft_id,
         method="sft",
         epochs=args.epochs,
@@ -120,7 +120,7 @@ def main() -> int:
     STATE.write_text(json.dumps(state, indent=1, default=str), encoding="utf-8")
     if run.status != "done":
         return 1
-    model = zps.serve(args.name, run)
+    model = wai.serve(args.name, run)
     state["model"] = model
     STATE.write_text(json.dumps(state, indent=1, default=str), encoding="utf-8")
     print(

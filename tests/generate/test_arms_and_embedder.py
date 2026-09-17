@@ -8,8 +8,8 @@ import json
 import re
 import time
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.embeddings import HashEmbedder, resolve_embedder
+import whileai.simulations as wai
+from whileai.simulations.generate.embeddings import HashEmbedder, resolve_embedder
 
 CALENDAR_TOOLS = [
     {
@@ -127,7 +127,7 @@ def test_hash_embedder_does_not_treat_changed_ids_as_novel():
 
 def test_offline_fallback_arms():
     """Without a model: structured, open_ended, behavior_targeted, failure_mutation."""
-    data = zps.simulate(
+    data = wai.simulate(
         _calendar_agent,
         tools=CALENDAR_TOOLS,
         policy=CALENDAR_POLICY,
@@ -146,8 +146,8 @@ def test_offline_fallback_arms():
 
 
 def test_llm_guided_with_mocked_model(monkeypatch, tmp_path):
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", _fake_complete)
-    data = zps.simulate(
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", _fake_complete)
+    data = wai.simulate(
         _calendar_agent,
         tools=CALENDAR_TOOLS,
         policy=CALENDAR_POLICY,

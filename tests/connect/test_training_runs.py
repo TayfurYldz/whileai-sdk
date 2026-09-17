@@ -7,8 +7,8 @@ import warnings
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import TrainerCallback, TrainingRun, training_run
+import whileai.simulations as wai
+from whileai.simulations.training import TrainerCallback, TrainingRun, training_run
 
 
 class Transport:
@@ -123,11 +123,11 @@ def test_trainer_callback_maps_transformers_logs():
 
 
 def test_package_exports_and_repr():
-    assert zps.training_run is training_run and zps.TrainerCallback is TrainerCallback
+    assert wai.training_run is training_run and wai.TrainerCallback is TrainerCallback
     run = TrainingRun("run_1", name="n", transport=lambda *a, **k: {})
     assert "run_1" in repr(run) and run.status == "running"
     for name in ("list_runs", "get_run", "delete_run"):
-        assert name in zps.__all__
+        assert name in wai.__all__
 
 
 def test_trainer_callback_maps_rl_keys():
@@ -189,7 +189,7 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
             return {"runId": "run_x", "status": "done", "summary": {"final_loss": 0.9}}
         return {"runId": "run_x", "status": "done"}
 
-    import zeroproof.simulations.training as tr
+    import whileai.simulations.training as tr
 
     monkey = tr._call
     tr._call = transport
@@ -234,7 +234,7 @@ def test_attach_holdout_resends_a_finished_run():
             return {"runId": "run_x", "status": "stopped", "summary": {"final_loss": 0.9}}
         return {"runId": "run_x", "status": "stopped"}
 
-    import zeroproof.simulations.training as tr
+    import whileai.simulations.training as tr
 
     monkey = tr._call
     tr._call = transport

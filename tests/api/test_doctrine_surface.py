@@ -7,8 +7,8 @@ from __future__ import annotations
 import pytest
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations import evaluate, simulate
-from zeroproof.simulations.ingest.traces import simulate_from_traces
+from whileai.simulations import evaluate, simulate
+from whileai.simulations.ingest.traces import simulate_from_traces
 
 TRACES = [
     {

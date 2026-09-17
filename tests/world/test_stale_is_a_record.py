@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from tests.helpers import TOOLS
-from zeroproof.simulations.world.sandbox import MockEnvironment
+from whileai.simulations.world.sandbox import MockEnvironment
 
 
 def test_stale_result_is_a_record_marked_stale():

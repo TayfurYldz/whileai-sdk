@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 
 def _writer(_dataset=None, index=0):
@@ -10,12 +10,12 @@ def _writer(_dataset=None, index=0):
 
 
 def test_failed_tool_draft_is_a_degraded_note(monkeypatch):
-    monkeypatch.setattr("zeroproof.simulations.run.engine.draft_tools", lambda *a, **k: [])
+    monkeypatch.setattr("whileai.simulations.run.engine.draft_tools", lambda *a, **k: [])
     monkeypatch.setattr(
-        "zeroproof.simulations.run.engine.hosted_model",
+        "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
-    data = zps.simulate(
+    data = wai.simulate(
         system_prompt="A refunds assistant that looks up an order first.",
         budget=4,
         seed=0,
@@ -44,12 +44,12 @@ def test_successful_tool_draft_is_not_flagged(monkeypatch):
             },
         }
     ]
-    monkeypatch.setattr("zeroproof.simulations.run.engine.draft_tools", lambda *a, **k: drafted)
+    monkeypatch.setattr("whileai.simulations.run.engine.draft_tools", lambda *a, **k: drafted)
     monkeypatch.setattr(
-        "zeroproof.simulations.run.engine.hosted_model",
+        "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
-    data = zps.simulate(
+    data = wai.simulate(
         system_prompt="A refunds assistant that looks up an order first.",
         budget=4,
         seed=0,

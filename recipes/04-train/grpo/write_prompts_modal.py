@@ -24,20 +24,20 @@ sys.path.insert(0, str(HERE))
 
 WRITER_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
-app = modal.App("zeroproof-grpo-prompts")
+app = modal.App("whileai-grpo-prompts")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install("torch==2.7.1", "transformers==4.54.0", "accelerate==1.8.1", "zeroproof")
+    .pip_install("torch==2.7.1", "transformers==4.54.0", "accelerate==1.8.1", "whileai")
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE / "reward.py"), "/root/reward.py")
     .add_local_file(str(HERE / "prompts.py"), "/root/prompts.py")
-    .add_local_python_source("zeroproof")
+    .add_local_python_source("whileai")
 )
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
 # The set is also written to the runs volume, so a dropped client connection
-# loses nothing: `modal volume get zeroproof-grpo-runs prompts/prompts.jsonl`.
-runs_volume = modal.Volume.from_name("zeroproof-grpo-runs", create_if_missing=True)
+# loses nothing: `modal volume get whileai-grpo-runs prompts/prompts.jsonl`.
+runs_volume = modal.Volume.from_name("whileai-grpo-runs", create_if_missing=True)
 
 
 @app.function(

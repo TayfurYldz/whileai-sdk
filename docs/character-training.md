@@ -1,4 +1,4 @@
-# Character training with zeroproof
+# Character training with whileai
 
 Character training changes the weights so a model has a stable way of
 talking without a system prompt telling it to. It is the same post-training
@@ -62,7 +62,7 @@ general capabilities did not move.
 7. **Pairs and SFT.** `build_preference_pairs(length_match=True)`, then
    `export_preference(pairs, system_prompt=DEPLOY_PROMPT)`. `export_training`
    on the passes for SFT, loss mask on the assistant turn.
-8. **Train.** `zps.train(dataset_id, method="dpo")` on the pushed rows, or
+8. **Train.** `wai.train(dataset_id, method="dpo")` on the pushed rows, or
    any DPO trainer reading `pairs.jsonl`.
 9. **Measure.** The same prompts with a "drop the act" suffix, plus plain
    tasks the persona must not distort, before and after.
@@ -103,5 +103,5 @@ anything else; that is the check the pipeline is built around.
 Persona vectors, activation capping, persona subnetworks, and Maiya's
 introspection stage (it needs the trained model). The SDK produces the
 rows, the pairs, the judge check and the before/after measurement, and
-`zps.train` runs DPO on the platform; `pairs.jsonl` is there for a trainer
+`wai.train` runs DPO on the platform; `pairs.jsonl` is there for a trainer
 of your own.

@@ -12,9 +12,9 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.run.engine import _auth_error
+from whileai.simulations.run.engine import _auth_error
 
 
 def test_auth_error_is_recognised_and_trimmed():
@@ -33,7 +33,7 @@ def _rejected_agent(message: str) -> dict:
 def test_rejected_key_on_the_agent_stops_on_the_first_rollout():
     t0 = time.monotonic()
     with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)\.$"):
-        zps.simulate(
+        wai.simulate(
             _rejected_agent,
             tools=TOOLS,
             system_prompt=POLICY,
@@ -52,11 +52,11 @@ def test_rejected_key_on_the_writer_stops_the_run(monkeypatch):
         raise RuntimeError("Hosted Qwen rejected the API key (401).")
 
     # the hosted writer answers 401 on every wave (conftest blocks the real call)
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", rejecting)
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", rejecting)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", rejecting)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", rejecting)
     t0 = time.monotonic()
     with pytest.raises(RuntimeError, match=r"rejected the API key \(401\)"):
-        zps.simulate(
+        wai.simulate(
             tools=TOOLS,
             system_prompt=POLICY,
             budget=20,

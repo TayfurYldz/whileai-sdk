@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "02-measure" / "pass-at-k"
@@ -25,7 +25,7 @@ EXAMPLE = REPO / "recipes" / "02-measure" / "pass-at-k"
 
 def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     return env
@@ -69,7 +69,7 @@ def test_headline_carries_the_interval(measure, rows):
     assert out["pass_at"]["ci95"] is not None
     lo, hi = out["pass_at"]["ci95"]
     assert f"[{lo:.2f}..{hi:.2f}]" in out["summary"]
-    assert out["summary"] == str(zps.pass_at(rows))
+    assert out["summary"] == str(wai.pass_at(rows))
 
 
 def test_below_min_k_withholds_the_k_way_numbers(measure):

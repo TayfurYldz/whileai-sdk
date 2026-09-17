@@ -7,12 +7,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent, simulate_offline
-from zeroproof.simulations import schema
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.generate.agents import local_model
+from whileai.simulations import schema
+from whileai.simulations.data import export_row
+from whileai.simulations.export import training_rows
+from whileai.simulations.generate.agents import local_model
 
 
 def test_offline_rows_and_metadata_say_who_wrote_what(tmp_path):
@@ -88,8 +88,8 @@ def test_user_model_reaches_the_user_simulator(monkeypatch):
 
         return agent
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.local_model", fake_local)
-    data = zps.simulate(
+    monkeypatch.setattr("whileai.simulations.run.engine.local_model", fake_local)
+    data = wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         backend="vllm:agent-model@http://127.0.0.1:9",
@@ -112,7 +112,7 @@ def test_user_model_reaches_the_user_simulator(monkeypatch):
         calls.append((url, model, messages[0]["role"] + ":" + messages[0]["content"][:40]))
         return {"content": "The order number is ORD-77."}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     agent = local_model(
         "http://127.0.0.1:9",
         "agent-model",
@@ -150,9 +150,9 @@ def test_same_model_is_said_out_loud(monkeypatch):
         return {"content": json.dumps([{"region_id": None, "message": f"check order {idx}"}])}
 
     written: list[int] = []
-    monkeypatch.setattr("zeroproof.simulations.generate.adapters.local_model", fake_local)
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_writer)
-    data = zps.simulate(
+    monkeypatch.setattr("whileai.simulations.generate.adapters.local_model", fake_local)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_writer)
+    data = wai.simulate(
         agent="vllm:one-model@http://127.0.0.1:9",
         tools=TOOLS,
         policy=POLICY,
@@ -172,7 +172,7 @@ def test_same_model_is_said_out_loud(monkeypatch):
     assert "simulator=" in note and "user_model=" in note
 
     # a separate user model clears that half of the note
-    data2 = zps.simulate(
+    data2 = wai.simulate(
         agent="vllm:one-model@http://127.0.0.1:9",
         tools=TOOLS,
         policy=POLICY,

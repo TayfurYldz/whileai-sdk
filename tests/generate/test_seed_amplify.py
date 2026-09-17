@@ -2,8 +2,8 @@
 engine mint the rest of the situation space itself. Five seeds must be
 enough; originals always survive; disclosure is recorded."""
 
-import zeroproof.simulations.generate.generator as gen
-from zeroproof.simulations.generate.generator import amplify_seeds
+import whileai.simulations.generate.generator as gen
+from whileai.simulations.generate.generator import amplify_seeds
 
 SEEDS = [
     "who are you?",
@@ -54,8 +54,8 @@ def test_amplify_is_opt_in_and_respects_offline(monkeypatch):
     """Legacy advanced seed openers stay literal; simulator=False never
     reaches the network; non-Latin seeds are distinct, not dropped."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
-    from zeroproof.simulations.generate import generator
+    from whileai.simulations import simulate
+    from whileai.simulations.generate import generator
 
     def _explode(*a, **k):
         raise AssertionError("amplify called the backend")

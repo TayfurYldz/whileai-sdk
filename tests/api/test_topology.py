@@ -8,9 +8,9 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import GITHUB_SPEC, POLICY, TOOLS, offline, scripted_agent
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate.scenarios import (
     SEARCH_ARMS,
     build_dimensions,
     reallocate_search_arms,
@@ -18,33 +18,33 @@ from zeroproof.simulations.generate.scenarios import (
 
 
 def test_resolve_topology_defaults_and_aliases():
-    default = zps.resolve_topology()
+    default = wai.resolve_topology()
     assert default["mode"] == "explore"
     assert default["repeat_policy"] == "none"
     assert default["unique_situations"] is True
     assert default["n_req"] == 1
     assert default["k"] == 1
     assert default["k_explicit"] is False
-    adaptive = zps.resolve_topology(mode="adaptive")
+    adaptive = wai.resolve_topology(mode="adaptive")
     assert adaptive["mode"] == "adaptive"
     assert adaptive["repeat_policy"] == "adaptive"
 
-    by_n = zps.resolve_topology(n=4)
-    by_req = zps.resolve_topology(requests_per_situation=4)
-    by_phrasings = zps.resolve_topology(phrasings=4)
+    by_n = wai.resolve_topology(n=4)
+    by_req = wai.resolve_topology(requests_per_situation=4)
+    by_phrasings = wai.resolve_topology(phrasings=4)
     assert by_n["n_req"] == by_req["n_req"] == by_phrasings["n_req"] == 4
     assert by_n["k"] == 1
 
-    by_k = zps.resolve_topology(repeats=5)
-    by_roll = zps.resolve_topology(rollouts_per_request=5)
-    by_prompt = zps.resolve_topology(rollouts_per_prompt=5)
+    by_k = wai.resolve_topology(repeats=5)
+    by_roll = wai.resolve_topology(rollouts_per_request=5)
+    by_prompt = wai.resolve_topology(rollouts_per_prompt=5)
     assert by_k["k"] == by_roll["k"] == by_prompt["k"] == 5
     assert by_k["k_explicit"] is True
 
-    unique = zps.resolve_topology(unique=True)
-    flagged = zps.resolve_topology(unique_situations=True)
-    none = zps.resolve_topology(repeat_policy="none")
-    explore = zps.resolve_topology(mode="explore")
+    unique = wai.resolve_topology(unique=True)
+    flagged = wai.resolve_topology(unique_situations=True)
+    none = wai.resolve_topology(repeat_policy="none")
+    explore = wai.resolve_topology(mode="explore")
     assert unique["unique_situations"] is True
     assert flagged["unique_situations"] is True
     assert unique["n_req"] == unique["k"] == 1
@@ -53,50 +53,50 @@ def test_resolve_topology_defaults_and_aliases():
     assert none["unique_situations"] is True
     assert explore["n_req"] == explore["k"] == 1
 
-    sft = zps.resolve_topology(mode="sft")
+    sft = wai.resolve_topology(mode="sft")
     assert sft["n_req"] == 3 and sft["k"] == 1
-    rl = zps.resolve_topology(mode="rl")
+    rl = wai.resolve_topology(mode="rl")
     assert rl["n_req"] == 1 and rl["k"] == 8 and rl["k_explicit"] is False
-    assert zps.resolve_topology(mode="rl", rollouts_per_request=16)["k"] == 16
-    assert zps.resolve_topology(mode="rl", repeats=16)["k"] == 16
+    assert wai.resolve_topology(mode="rl", rollouts_per_request=16)["k"] == 16
+    assert wai.resolve_topology(mode="rl", repeats=16)["k"] == 16
 
 
 def test_repeat_policy_names_are_checked():
     import pytest
 
-    assert zps.resolve_topology(mode="rl")["repeat_policy"] == "successive"
-    assert zps.resolve_topology(mode="rl", repeat_policy="fixed")["repeat_policy"] == "fixed"
+    assert wai.resolve_topology(mode="rl")["repeat_policy"] == "successive"
+    assert wai.resolve_topology(mode="rl", repeat_policy="fixed")["repeat_policy"] == "fixed"
     with pytest.raises(ValueError, match="repeat_policy"):
-        zps.resolve_topology(mode="rl", repeat_policy="sometimes")
+        wai.resolve_topology(mode="rl", repeat_policy="sometimes")
 
 
 def test_unique_situations_defaults_n_k_unless_set():
-    base = zps.resolve_topology(unique_situations=True)
+    base = wai.resolve_topology(unique_situations=True)
     assert base["n_req"] == 1 and base["k"] == 1
-    with_k = zps.resolve_topology(unique_situations=True, rollouts_per_request=5)
+    with_k = wai.resolve_topology(unique_situations=True, rollouts_per_request=5)
     assert with_k["n_req"] == 1 and with_k["k"] == 5
-    with_n = zps.resolve_topology(unique_situations=True, requests_per_situation=3)
+    with_n = wai.resolve_topology(unique_situations=True, requests_per_situation=3)
     assert with_n["n_req"] == 3 and with_n["k"] == 1
-    sft = zps.resolve_topology(mode="sft", unique_situations=True)
+    sft = wai.resolve_topology(mode="sft", unique_situations=True)
     assert sft["mode"] == "sft" and sft["n_req"] == 1 and sft["k"] == 1
-    rl = zps.resolve_topology(mode="rl", unique_situations=True, rollouts_per_request=5)
+    rl = wai.resolve_topology(mode="rl", unique_situations=True, rollouts_per_request=5)
     assert rl["mode"] == "rl" and rl["k"] == 5 and rl["n_req"] == 1
-    alias = zps.resolve_topology(unique=True, repeats=2)
+    alias = wai.resolve_topology(unique=True, repeats=2)
     assert alias["unique_situations"] is True
     assert alias["k"] == 2
 
 
 def test_situations_int_is_n_list_is_seed():
-    n_cards, seeds = zps.simulation._parse_situations_arg(3, ["extra opener"])
+    n_cards, seeds = wai.simulation._parse_situations_arg(3, ["extra opener"])
     assert n_cards == 3
     assert seeds == ["extra opener"]
     with pytest.raises(ValueError, match="seed_prompts"):
-        zps.simulate(scripted_agent, situations=["not an N"], budget=2, **offline())
-    none, listed = zps.simulation._parse_situations_arg(None, ["where is order ORD-1"])
+        wai.simulate(scripted_agent, situations=["not an N"], budget=2, **offline())
+    none, listed = wai.simulation._parse_situations_arg(None, ["where is order ORD-1"])
     assert none is None
     assert listed == ["where is order ORD-1"]
 
-    capped = zps.simulate(
+    capped = wai.simulate(
         scripted_agent, situations=2, requests_per_situation=1, repeats=1, budget=20, **offline()
     )
     assert capped.n_situations == 2
@@ -109,7 +109,7 @@ def test_situations_int_is_n_list_is_seed():
     }
     assert len(keys) <= 2
 
-    seeded = zps.simulate(
+    seeded = wai.simulate(
         scripted_agent,
         repeats=1,
         budget=6,
@@ -131,8 +131,8 @@ def test_public_n_is_requests_per_situation_not_completions(monkeypatch):
         topic = f"{letters[(idx // 26) % 26]}{letters[idx % 26]}topic"
         return {"content": json.dumps([{"region_id": None, "message": f"check {topic}"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
-    data = zps.simulate(
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
+    data = wai.simulate(
         scripted_agent,
         mode="adaptive",
         n=5,
@@ -151,7 +151,7 @@ def test_public_n_is_requests_per_situation_not_completions(monkeypatch):
     assert all(n <= 3 for n in seen)
 
     seen.clear()
-    data2 = zps.simulate(
+    data2 = wai.simulate(
         scripted_agent,
         mode="adaptive",
         n=1,
@@ -171,13 +171,13 @@ def test_public_n_is_requests_per_situation_not_completions(monkeypatch):
 
 
 def test_mode_sft_rl_explore_change_n_and_k():
-    sft = zps.simulate(scripted_agent, mode="sft", budget=12, **offline())
+    sft = wai.simulate(scripted_agent, mode="sft", budget=12, **offline())
     assert sft.mode == "sft"
     assert sft.rollouts_per_request == 1
     assert sft.requests_per_situation == 3
     assert len({t["prompt"] for t in sft.trajectories}) == len(sft.trajectories)
 
-    rl = zps.simulate(scripted_agent, mode="rl", budget=16, **offline())
+    rl = wai.simulate(scripted_agent, mode="rl", budget=16, **offline())
     assert rl.mode == "rl"
     assert rl.rollouts_per_request == 8
     assert rl.repeat_policy == "successive"
@@ -189,20 +189,20 @@ def test_mode_sft_rl_explore_change_n_and_k():
     assert rl.search["groups"]["k"] == 8 and rl.search["groups"]["mixed"] == 0
     assert rl.allocator.get("explore", 0) + rl.allocator.get("expand", 0) >= 1
 
-    fixed = zps.simulate(
+    fixed = wai.simulate(
         scripted_agent, mode="rl", budget=16, **offline(advanced={"repeat_policy": "fixed"})
     )
     assert fixed.repeat_policy == "fixed"
     assert len({t["prompt"] for t in fixed.trajectories}) == 2
 
-    explore = zps.simulate(scripted_agent, mode="explore", budget=10, **offline())
+    explore = wai.simulate(scripted_agent, mode="explore", budget=10, **offline())
     assert explore.repeat_policy == "none"
     assert explore.requests_per_situation == 1
     assert len({t["prompt"] for t in explore.trajectories}) == len(explore.trajectories)
 
 
 def test_rl_covering_grid_and_fault_rate_are_overridable():
-    from zeroproof.simulations.generate.scenarios import scenario_regions
+    from whileai.simulations.generate.scenarios import scenario_regions
 
     def n_faults(regions):
         return sum(
@@ -218,7 +218,7 @@ def test_rl_covering_grid_and_fault_rate_are_overridable():
     assert n_faults(rl) > n_faults(explore)
     assert n_faults(forced_on) == n_faults(explore)
     assert n_faults(forced_off) == n_faults(rl)
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         mode="rl",
         rollouts_per_request=16,
@@ -234,10 +234,10 @@ def test_n_phrasings_are_not_k_repeats():
     """n = different phrasings of one situation. k = same phrasing, k repeats."""
     from collections import Counter
 
-    n_run = zps.simulate(
+    n_run = wai.simulate(
         scripted_agent, requests_per_situation=3, rollouts_per_request=1, budget=12, **offline()
     )
-    k_run = zps.simulate(
+    k_run = wai.simulate(
         scripted_agent, requests_per_situation=1, rollouts_per_request=3, budget=12, **offline()
     )
     assert n_run.requests_per_situation == 3
@@ -255,13 +255,13 @@ def test_n_phrasings_are_not_k_repeats():
 
 
 def test_unique_situations_keeps_new_cards_unless_n_k_set():
-    plain = zps.simulate(scripted_agent, mode="sft", unique_situations=True, budget=8, **offline())
+    plain = wai.simulate(scripted_agent, mode="sft", unique_situations=True, budget=8, **offline())
     assert plain.unique_situations is True
     assert plain.requests_per_situation == 1
     assert plain.rollouts_per_request == 1
     assert len({t["prompt"] for t in plain.trajectories}) == len(plain.trajectories)
 
-    rl = zps.simulate(
+    rl = wai.simulate(
         scripted_agent,
         mode="rl",
         rollouts_per_request=5,
@@ -277,22 +277,22 @@ def test_unique_situations_keeps_new_cards_unless_n_k_set():
     assert set(Counter(prompts).values()) == {5}
     # the rl default is successive: k is the ceiling, the probe opens more
     # prompts first and a deterministic agent never earns the rest
-    succ = zps.simulate(scripted_agent, mode="rl", rollouts_per_request=5, budget=10, **offline())
+    succ = wai.simulate(scripted_agent, mode="rl", rollouts_per_request=5, budget=10, **offline())
     assert succ.rollouts_per_request == 5 and succ.repeat_policy == "successive"
     assert max(Counter(t["prompt"] for t in succ.trajectories).values()) <= 5
 
-    alias = zps.simulate(scripted_agent, unique=True, budget=8, **offline())
+    alias = wai.simulate(scripted_agent, unique=True, budget=8, **offline())
     assert alias.unique_situations is True
     assert alias.requests_per_situation == 1
     assert alias.rollouts_per_request == 1
 
 
 def test_phrasings_alias_is_requests_per_situation():
-    data = zps.simulate(scripted_agent, phrasings=3, repeats=1, budget=12, **offline())
+    data = wai.simulate(scripted_agent, phrasings=3, repeats=1, budget=12, **offline())
     assert data.requests_per_situation == 3
     assert data.rollouts_per_request == 1
     with pytest.raises(ValueError, match="not both"):
-        zps.resolve_topology(phrasings=3, n=4)
+        wai.resolve_topology(phrasings=3, n=4)
 
 
 def test_unique_is_topology_not_writer_flight():
@@ -319,7 +319,7 @@ def test_unique_is_topology_not_writer_flight():
 
         return writer
 
-    u = zps.simulate(
+    u = wai.simulate(
         scripted_agent,
         unique=True,
         budget=24,
@@ -331,7 +331,7 @@ def test_unique_is_topology_not_writer_flight():
         time_budget=None,
         advanced={"mutate_failures": False},
     )
-    d = zps.simulate(
+    d = wai.simulate(
         scripted_agent,
         mode="adaptive",
         unique=False,
@@ -362,7 +362,7 @@ def test_until_compute_vs_saturation_and_aliases():
         "tool_condition": ["success"],
         "history": ["fresh"],
     }
-    compute = zps.simulate(
+    compute = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         budget=40,
         until="budget_only",
@@ -375,7 +375,7 @@ def test_until_compute_vs_saturation_and_aliases():
     assert compute.coverage["until"] == "compute"
     assert len(compute.trajectories) == 40
 
-    halt = zps.simulate(
+    halt = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         budget=40,
         until="first",
@@ -390,7 +390,7 @@ def test_until_compute_vs_saturation_and_aliases():
 
 
 def test_budget_and_time_budget_are_compute_caps():
-    rows = zps.simulate(scripted_agent, budget=7, repeats=1, **offline())
+    rows = wai.simulate(scripted_agent, budget=7, repeats=1, **offline())
     assert len(rows.trajectories) == 7
     assert rows.stopped_because == "budget"
     assert rows.budget == 7
@@ -399,7 +399,7 @@ def test_budget_and_time_budget_are_compute_caps():
         time.sleep(0.01)
         return scripted_agent(message)
 
-    clock = zps.simulate(
+    clock = wai.simulate(
         slow_agent,
         budget=200,
         time_budget=0.15,
@@ -428,7 +428,7 @@ def test_risk_aliases_fault_rate_and_stays_off_fail_arms():
     assert weights["failure_mutation"] <= 0.08 + 1e-9
     assert weights["failure_mutation"] < 0.15
 
-    off = zps.simulate(
+    off = wai.simulate(
         scripted_agent,
         risk=0,
         repeats=1,
@@ -443,7 +443,7 @@ def test_risk_aliases_fault_rate_and_stays_off_fail_arms():
         },
         **offline(),
     )
-    on = zps.simulate(
+    on = wai.simulate(
         scripted_agent,
         risk=1,
         repeats=1,
@@ -464,11 +464,11 @@ def test_risk_aliases_fault_rate_and_stays_off_fail_arms():
 
 
 def test_seed_grade_grader_dimensions_texture_output(tmp_path):
-    a = zps.simulate(scripted_agent, repeats=1, budget=8, **offline())
-    b = zps.simulate(scripted_agent, repeats=1, budget=8, **offline(seed=1))
+    a = wai.simulate(scripted_agent, repeats=1, budget=8, **offline())
+    b = wai.simulate(scripted_agent, repeats=1, budget=8, **offline(seed=1))
     assert [t["prompt"] for t in a.trajectories] != [t["prompt"] for t in b.trajectories]
 
-    graded = zps.simulate(
+    graded = wai.simulate(
         scripted_agent,
         grade=True,
         repeats=1,
@@ -481,7 +481,7 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
         time_budget=None,
         advanced={"per_round": 6, "mutate_failures": False},
     )
-    raw = zps.simulate(
+    raw = wai.simulate(
         scripted_agent,
         grade=False,
         repeats=1,
@@ -497,7 +497,7 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
     assert all(isinstance(t.get("reward"), (int, float)) for t in graded.trajectories)
     assert all(t.get("reward") is None for t in raw.trajectories)
 
-    scored = zps.simulate(
+    scored = wai.simulate(
         scripted_agent,
         grade=True,
         grader=lambda _t: 0.25,
@@ -521,7 +521,7 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
         "tool_condition": ["success"],
         "history": ["fresh"],
     }
-    dimmed = zps.simulate(scripted_agent, dimensions=tiny, repeats=1, budget=10, **offline())
+    dimmed = wai.simulate(scripted_agent, dimensions=tiny, repeats=1, budget=10, **offline())
     cells = {
         json.dumps(t.get("scenario_dimensions"), sort_keys=True, default=str)
         for t in dimmed.trajectories
@@ -531,13 +531,13 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
     assert all("lookup_order" in c for c in cells)
 
     dest = tmp_path / "out.jsonl"
-    written = zps.simulate(scripted_agent, output=str(dest), repeats=1, budget=3, **offline())
+    written = wai.simulate(scripted_agent, output=str(dest), repeats=1, budget=3, **offline())
     assert dest.exists()
     assert len(dest.read_text().splitlines()) == len(written.trajectories)
 
 
 def test_texture_reaches_writer_tag_draw(monkeypatch):
-    from zeroproof.simulations.generate.diversity import sample_cell_tags as orig
+    from whileai.simulations.generate.diversity import sample_cell_tags as orig
 
     seen: list[float] = []
 
@@ -545,13 +545,13 @@ def test_texture_reaches_writer_tag_draw(monkeypatch):
         seen.append(float(texture_rate))
         return orig(seed, round_index, key, assignment, texture_rate=texture_rate, **kw)
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.sample_cell_tags", tracked)
+    monkeypatch.setattr("whileai.simulations.generate.generator.sample_cell_tags", tracked)
 
     def fake_complete(_url, _model, _messages, **_kwargs):
         return {"content": json.dumps([{"region_id": None, "message": "where's my order ORD-1"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
-    zps.simulate(
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
+    wai.simulate(
         scripted_agent,
         mode="adaptive",
         texture=0.0,
@@ -567,7 +567,7 @@ def test_texture_reaches_writer_tag_draw(monkeypatch):
     assert seen
     assert all(rate == 0.0 for rate in seen)
     seen.clear()
-    zps.simulate(
+    wai.simulate(
         scripted_agent,
         mode="adaptive",
         texture=1.0,
@@ -612,8 +612,8 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
 
         return agent
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.local_model", fake_local)
-    zps.simulate(
+    monkeypatch.setattr("whileai.simulations.run.engine.local_model", fake_local)
+    wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         backend="vllm:fake@http://127.0.0.1:9",
@@ -650,7 +650,7 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
             active -= 1
         return {"steps": [], "final_text": "ok"}
 
-    zps.simulate(
+    wai.simulate(
         slow,
         tools=TOOLS,
         policy=POLICY,
@@ -677,13 +677,13 @@ def test_embedder_is_used_for_selection():
             called["n"] += len(texts)
             return [[float(i), 0.0, 1.0] for i, _ in enumerate(texts)]
 
-    data = zps.simulate(scripted_agent, embedder=Spy(), repeats=1, budget=8, **offline())
+    data = wai.simulate(scripted_agent, embedder=Spy(), repeats=1, budget=8, **offline())
     assert called["n"] > 0
     assert data.embedder_name == "spy"
 
 
 def test_spec_tools_policy_agent_simulator_change_rows():
-    github = zps.simulate(
+    github = wai.simulate(
         scripted_agent,
         spec=str(GITHUB_SPEC),
         budget=4,
@@ -705,7 +705,7 @@ def test_spec_tools_policy_agent_simulator_change_rows():
             for i in range(6)
         ]
 
-    custom = zps.simulate(
+    custom = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -733,11 +733,11 @@ def test_k_does_not_clone_followups(monkeypatch):
             return {"content": f"Refund note {last.get('content')}"}
         return {"content": "Order ORD-1 is packed. Want me to check the refund too?"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
-    data = zps.simulate(
+    data = wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         extra_situations=["where is my order ORD-1"],
@@ -765,13 +765,13 @@ def test_k_does_not_clone_followups(monkeypatch):
 
 
 def test_adaptive_allocator_short_clock_is_messier():
-    short = zps.adaptive_allocator(20, "compute")
-    long = zps.adaptive_allocator(180, "compute")
-    sat = zps.adaptive_allocator(20, "saturation")
-    first = zps.adaptive_allocator(20, "first")
-    none = zps.adaptive_allocator(None, "compute")
-    early = zps.adaptive_allocator(60, "compute", elapsed=5)
-    late = zps.adaptive_allocator(60, "compute", elapsed=50)
+    short = wai.adaptive_allocator(20, "compute")
+    long = wai.adaptive_allocator(180, "compute")
+    sat = wai.adaptive_allocator(20, "saturation")
+    first = wai.adaptive_allocator(20, "first")
+    none = wai.adaptive_allocator(None, "compute")
+    early = wai.adaptive_allocator(60, "compute", elapsed=5)
+    late = wai.adaptive_allocator(60, "compute", elapsed=50)
     assert short["n_req"] > 1 and short["k"] > 1
     assert long["n_req"] > 1 and long["k"] > 1
     assert short["expand"] + short["verify"] > long["expand"] + long["verify"]
@@ -780,8 +780,8 @@ def test_adaptive_allocator_short_clock_is_messier():
     assert first["until"] == sat["until"] == "saturation"
     assert none["explore"] >= long["explore"]
     assert late["expand"] + late["verify"] > early["expand"] + early["verify"]
-    short_slots = zps.allocator_slot_counts(8, short)
-    long_slots = zps.allocator_slot_counts(8, long)
+    short_slots = wai.allocator_slot_counts(8, short)
+    long_slots = wai.allocator_slot_counts(8, long)
     assert short_slots["expand"] + short_slots["verify"] > (
         long_slots["expand"] + long_slots["verify"]
     )
@@ -789,7 +789,7 @@ def test_adaptive_allocator_short_clock_is_messier():
 
 
 def test_adaptive_allocator_records_explore_expand_verify():
-    data = zps.simulate(scripted_agent, mode="adaptive", budget=16, **offline(time_budget=15))
+    data = wai.simulate(scripted_agent, mode="adaptive", budget=16, **offline(time_budget=15))
     assert data.mode == "adaptive"
     assert data.allocator
     assert data.allocator.get("explore", 0) >= 1
@@ -801,7 +801,7 @@ def test_adaptive_allocator_records_explore_expand_verify():
 
 
 def test_explore_cards_walk_different_tools_or_stances():
-    data = zps.simulate(scripted_agent, mode="explore", budget=16, **offline())
+    data = wai.simulate(scripted_agent, mode="explore", budget=16, **offline())
     prompts = [t["prompt"] for t in data.trajectories]
     assert prompts
     assert len(prompts) == len(set(prompts))
@@ -830,8 +830,8 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
 
         return agent
 
-    monkeypatch.setattr("zeroproof.simulations.generate.adapters.local_model", fake_local)
-    zps.simulate(
+    monkeypatch.setattr("whileai.simulations.generate.adapters.local_model", fake_local)
+    wai.simulate(
         agent="vllm:fake@http://127.0.0.1:9",
         tools=TOOLS,
         policy=POLICY,
@@ -849,7 +849,7 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
 
 def test_agent_max_tokens_does_not_break_an_http_agent():
     """openai_http takes no reply budget; the option must not reach it."""
-    from zeroproof.simulations.generate.adapters import resolve
+    from whileai.simulations.generate.adapters import resolve
 
     agent, kind = resolve(
         "http://127.0.0.1:9/v1/chat/completions", tools=TOOLS, policy=POLICY, max_tokens=4096

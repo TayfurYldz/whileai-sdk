@@ -3,7 +3,7 @@ query's result set. Plus the small shared pieces every script needs (tasks,
 split, rows) and, for the Modal trainer, a Postgres that starts inside the
 container.
 
-`SQLExec` is a `zeroproof.simulations.verify.Verifier`, so it is the judge
+`SQLExec` is a `whileai.simulations.verify.Verifier`, so it is the judge
 for `data.grade(judge=SQLExec())`, `evaluate`, `optimize` and a gated push.
 The gold is read from `privileged.reference`, which the training export never
 projects. The match is Spider-style execution accuracy: same multiset of rows
@@ -31,7 +31,7 @@ from typing import Any
 
 from schema_prompt import NOTES, ddl, system_prompt  # noqa: F401  (re-exported)
 
-from zeroproof.simulations.verify.base import Verifier
+from whileai.simulations.verify.base import Verifier
 
 HERE = Path(__file__).resolve().parent
 DSN = os.environ.get("T2S_PG_DSN") or "postgresql://postgres@127.0.0.1:5499/shop"

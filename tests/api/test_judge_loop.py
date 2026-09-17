@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import json
 
-from zeroproof.simulations.export import export_training
-from zeroproof.simulations.ingest.traces import dimensions_from_traces, mine_traces
-from zeroproof.simulations.score.judging import (
+from whileai.simulations.export import export_training
+from whileai.simulations.ingest.traces import dimensions_from_traces, mine_traces
+from whileai.simulations.score.judging import (
     ScoredData,
     evaluate,
     normalize_judge_result,
@@ -191,7 +191,7 @@ def test_preference_pairs_and_export(tmp_path):
     assert pair["chosen"]["reward"] == 1 and pair["rejected"]["reward"] == 0
     assert pair["lineage"]["chosen"]["scoring_run_id"] == scored.run_id
 
-    from zeroproof.simulations.export import export_preference
+    from whileai.simulations.export import export_preference
 
     out = str(tmp_path / "prefs.jsonl")
     report = export_preference(pairs, out, system_prompt=POLICY, tools=TOOLS)
@@ -213,7 +213,7 @@ def test_selection_lanes_and_dataset_alias(tmp_path):
     sft, _rep = scored.select_for_sft(target=4)
     assert len(sft) <= 4
     assert all(r["reward"] == 1 for r in sft)
-    from zeroproof.simulations.export import export_dataset, export_training
+    from whileai.simulations.export import export_dataset, export_training
 
     assert export_dataset is export_training
     out = export_dataset(sft, str(tmp_path / "d.jsonl"), system_prompt=POLICY, tools=TOOLS)
@@ -221,12 +221,12 @@ def test_selection_lanes_and_dataset_alias(tmp_path):
 
 
 def test_scaffold_is_generation_only():
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY as HP
     from tests.helpers import TOOLS as HT
     from tests.helpers import scripted_agent
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=HT,
         policy=HP,
@@ -237,7 +237,7 @@ def test_scaffold_is_generation_only():
     )
     assert data.scaffold_chars == len("Ground every claim in tool results.")
     assert "Ground every claim" not in str(data.profile.policy)
-    exported = zps.training_rows(data.trajectories[:1], system_prompt=HP, tools=HT)
+    exported = wai.training_rows(data.trajectories[:1], system_prompt=HP, tools=HT)
     assert "Ground every claim" not in exported[0]["messages"][0]["content"]
 
 

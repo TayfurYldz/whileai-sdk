@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.ingest.traces import (
+from whileai.simulations.ingest.traces import (
     format_trace_report,
     load_traces,
     simulate_from_traces,
