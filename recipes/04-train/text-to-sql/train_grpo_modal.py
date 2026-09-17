@@ -41,7 +41,7 @@ _base = (
         "datasets==3.6.0",
         "accelerate==1.8.1",
         "psycopg[binary]==3.2.9",
-        "whileai==0.44",
+        "whileai>=0.51",
     )
     .env(
         {

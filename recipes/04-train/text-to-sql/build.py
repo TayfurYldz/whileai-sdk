@@ -249,10 +249,10 @@ def main() -> int:
         # train_grpo_modal.py --task-ids out/band_ids.txt trains the next round
         # on these alone (whilehq/whileai-sdk#254).
         band_ids = sorted({r.get("scenario_id") for r in rl_rows if r.get("scenario_id")})
-        (OUT / "band_ids.txt").write_text("
-".join(band_ids) + "
-", encoding="utf-8")
-        print(f"band: {len(band_ids)} prompts of {len({r.get('scenario_id') for r in train})} -> out/band_ids.txt")
+        (OUT / "band_ids.txt").write_text("\n".join(band_ids) + "\n", encoding="utf-8")
+        print(
+            f"band: {len(band_ids)} prompts of {len({r.get('scenario_id') for r in train})} -> out/band_ids.txt"
+        )
         graded_train = [r for r in train if r.get("reward") in (0, 1)]
         scan = hack_scan(graded_train, endorsed=["marker:executes"])
         print(format_hack_scan(scan, top=8))
