@@ -18,7 +18,7 @@ keywords:
   - zeroproof
 tags: [safety, evals, agents, prompt-injection, data-leakage]
 reading_time: 12 min
-code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals
+code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals
 ---
 
 # AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks Before You Ship
@@ -33,7 +33,7 @@ one in under a thousand lines of Python (suite, judge, three agents, runner) on 
 three agents in under two seconds with no API key, and shows the two
 numbers that matter: **pass^k per attack class** and a **before/after that
 fails on over-refusal**. The code is
-[`examples/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals).
+[`recipes/02-measure/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals).
 
 ## What is a safety eval for an AI agent?
 
@@ -329,12 +329,12 @@ four the SDK reports pass^k as `None` rather than a number too noisy to
 act on.
 
 **Where do the numbers above come from?**
-`python examples/safety-evals/run.py` in the SDK repo, seed 0, k=4. No API
+`python recipes/02-measure/safety-evals/run.py` in the SDK repo, seed 0, k=4. No API
 key, about a second. `--json out.json` writes every report.
 
 ## Further reading
 
-- The runnable example: [`examples/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals)
+- The runnable example: [`recipes/02-measure/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals)
 - The recipe: [`docs/safety-evals.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/safety-evals.md)
 - Judge trust and the probes: [`docs/reward-hacking.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/reward-hacking.md)
 - OWASP Top 10 for LLM Applications: [owasp.org](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
@@ -355,7 +355,7 @@ key, about a second. `--json out.json` writes every report.
       "mainEntityOfPage": "https://zeroproofai.com/blog/agent-safety-evals",
       "keywords": "AI agent safety evals, LLM agent security testing, prompt injection testing, indirect prompt injection, data leakage evaluation, agent red teaming, OWASP LLM Top 10, over-refusal, pass^k",
       "proficiencyLevel": "Expert",
-      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/examples/safety-evals"
+      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals"
     },
     {
       "@type": "FAQPage",

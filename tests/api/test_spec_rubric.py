@@ -93,6 +93,6 @@ def test_grade_uses_the_rubric_and_names_the_conduct_floor(monkeypatch, tmp_path
 
 
 def test_tracked_spec_fixtures_ship_a_rubric():
-    for folder in ("examples/prime-intellect-rl", "tests/fixtures/github"):
+    for folder in ("recipes/03-select/prime-intellect-rl", "tests/fixtures/github"):
         text = spec_rubric(folder)
         assert text and text.startswith("The task is"), folder

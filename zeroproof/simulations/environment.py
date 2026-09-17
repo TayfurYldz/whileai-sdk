@@ -429,7 +429,7 @@ def export_environment(
     or ``'module:attr'``; it must be importable in the trainer process.
     With no reward the conduct grade is used and the report warns: it is
     a process reward, and a policy trained on it alone learns to call
-    nothing (see examples/prime-intellect-rl). ``execute`` names a live
+    nothing (see recipes/03-select/prime-intellect-rl). ``execute`` names a live
     world ``(tool, arguments) -> result``; without it the SDK's mock
     world answers, seeded per task so every rollout of a task sees the
     same world. Returns the report; the same text is the package README.

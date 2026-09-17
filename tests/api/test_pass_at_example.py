@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = REPO_ROOT / "examples" / "pass-at-k"
+EXAMPLE = REPO_ROOT / "recipes" / "02-measure" / "pass-at-k"
 
 
 def _load():

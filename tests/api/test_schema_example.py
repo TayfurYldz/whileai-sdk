@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-EXAMPLE = REPO_ROOT / "examples" / "schema"
+EXAMPLE = REPO_ROOT / "recipes" / "03-select" / "schema"
 
 
 def _load(name: str):

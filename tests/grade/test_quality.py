@@ -318,7 +318,7 @@ def test_simulate_does_not_write_quality_until_rank(tmp_path):
 
 
 def test_live_example_sample_scores():
-    path = REPO_ROOT / "examples" / "sft" / "coding.jsonl"
+    path = REPO_ROOT / "recipes" / "sft" / "coding.jsonl"
     if not path.is_file():
         return
     rows = [json.loads(line) for line in path.read_text().splitlines() if line][:8]
