@@ -22,6 +22,7 @@ sets when unset.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -39,7 +40,6 @@ from sql_verifier import (
     read_jsonl,
     split_of,
     system_prompt,
-    write_jsonl,
 )
 
 import zeroproof.simulations as zps
@@ -95,6 +95,16 @@ def main() -> int:
         "--hosted", default="", help="a model served from your account (zps.serve name)"
     )
     ap.add_argument("--agent", default="", help="any SDK agent spec, e.g. openai:gpt-4.1-mini")
+    ap.add_argument(
+        "--system-prefix",
+        default="",
+        help="text placed before the schema prompt (e.g. a Nemotron reasoning switch: 'detailed thinking on')",
+    )
+    ap.add_argument(
+        "--name",
+        default="",
+        help="file stem for raw/<name>.jsonl (default: derived from the model)",
+    )
     ap.add_argument("--k", type=int, default=4)
     ap.add_argument("--split", default="all", choices=["all", "holdout", "train"])
     ap.add_argument("--concurrency", type=int, default=8)
@@ -111,7 +121,9 @@ def main() -> int:
     if args.hosted:
         name, spec = f"hosted-{args.hosted}", f"vllm:{args.hosted}@{SERVE_URL}"
     elif args.agent:
-        name, spec = args.agent.replace(":", "-").replace("/", "-"), args.agent
+        name, spec = args.agent.split("@")[0].replace(":", "-").replace("/", "-"), args.agent
+    if args.name:
+        name = args.name
     if isinstance(spec, str) and spec.startswith("claude-"):
         spec = claude_agent(spec)
 
@@ -132,8 +144,13 @@ def main() -> int:
         return 0
 
     t0 = time.time()
+    sys_p = (
+        (args.system_prefix.strip() + "\n\n" + system_prompt())
+        if args.system_prefix
+        else system_prompt()
+    )
     kw = dict(
-        system_prompt=system_prompt(),
+        system_prompt=sys_p,
         tasks=[{"prompt": t["question"], "scenario_id": t["id"]} for t in todo],
         repeats=args.k,
         # one user turn, one reply: no simulated follow-ups. avg_turns=1 also
@@ -171,7 +188,12 @@ def main() -> int:
         r["agent"] = AGENT
         r["model_version"] = name
         rows.append(r)
-    write_jsonl(out_path, have + rows)
+    # append, never rewrite: two runs on the same file (a top-up next to a long
+    # sampling job) lost rows when the second finished with a stale copy
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, default=str) + "\n")
     print(
         f"  {len(rows)} rows in {time.time() - t0:.0f}s ({data.stopped_because}); {len(have) + len(rows)} on disk",
         flush=True,

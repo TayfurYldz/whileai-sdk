@@ -146,6 +146,7 @@ def _train(
     from_run: str = "",
     use_vllm: bool = False,
     steps_per_generation: int = 1,
+    system_prefix: str = "",
 ) -> dict:
     import json
 
@@ -174,6 +175,9 @@ def _train(
     os.environ.setdefault("T2S_STATEMENT_TIMEOUT_MS", "2000")  # a training candidate gets 2 s
     R.start_postgres(open("/root/schema.sql").read(), open("/root/seed.sql").read())
     system_prompt = open("/root/prompt.txt", encoding="utf-8").read()
+    if system_prefix:
+        # e.g. Llama-Nemotron: 'detailed thinking on' as the first line of the system prompt
+        system_prompt = system_prefix.strip() + "\n\n" + system_prompt
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     if tokenizer.pad_token is None:
@@ -207,6 +211,7 @@ def _train(
         "from_run": from_run or None,
         "use_vllm": use_vllm,
         "steps_per_generation": steps_per_generation,
+        "system_prefix": system_prefix or None,
         "eval": "hosted (served adapter, rollout.py --hosted <name>)"
         if skip_eval
         else "in-container",
@@ -449,6 +454,7 @@ def main(
     use_vllm: bool = False,
     steps_per_generation: int = 1,
     lora_rank: int = 16,
+    system_prefix: str = "",
 ):
     import hashlib
     import json
@@ -486,6 +492,7 @@ def main(
         from_run=from_run,
         steps_per_generation=steps_per_generation,
         lora_rank=lora_rank,
+        system_prefix=system_prefix,
     )
     if spawn:
         # Submit and return. With `modal run --detach` the call keeps running
