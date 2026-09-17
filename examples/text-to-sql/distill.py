@@ -70,7 +70,7 @@ def main() -> int:
         if "</think>" in str(r.get("final_text") or "") and extract_sql(r["final_text"])
     ]
     short = [r for r in complete if len(str(r["final_text"])) <= args.max_chars]
-    picked, report = zps.optimize(short, mode="sft", select="top_per_prompt", min_reward=1.0)
+    picked, _report = zps.optimize(short, mode="sft", select="top_per_prompt", min_reward=1.0)
     tasks_all = {r["scenario_id"] for r in rows}
     print(
         f"train rows {len(rows)} on {len(tasks_all)} tasks; correct {len(correct)}; complete traces {len(complete)}; "
