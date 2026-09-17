@@ -41,7 +41,7 @@ OUT = HERE / "out"
 AGENT = "text-to-sql-shop"
 HOLDOUT = 0.2
 MAX_ROWS = 200
-STATEMENT_TIMEOUT_MS = 5000
+STATEMENT_TIMEOUT_MS = int(os.environ.get("T2S_STATEMENT_TIMEOUT_MS") or 5000)
 
 TABLES = [
     "categories",

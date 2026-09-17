@@ -171,6 +171,7 @@ def _train(
             "MASTER_PORT": "29511",
         }.items():
             os.environ.setdefault(k, v)
+    os.environ.setdefault("T2S_STATEMENT_TIMEOUT_MS", "2000")  # a training candidate gets 2 s
     R.start_postgres(open("/root/schema.sql").read(), open("/root/seed.sql").read())
     system_prompt = open("/root/prompt.txt", encoding="utf-8").read()
 
@@ -236,11 +237,17 @@ def _train(
 
     calls = {"n": 0}
 
+    from concurrent.futures import ThreadPoolExecutor
+
+    pool = ThreadPoolExecutor(max_workers=16)
+
     def sql_reward(completions, gold, **kwargs):
-        out = []
-        for completion, g in zip(completions, gold):
-            text = completion[0]["content"] if isinstance(completion, list) else str(completion)
-            out.append(R.shaped_reward(text, g))
+        # 64-128 candidate queries per generation call; scored in parallel
+        # (thread-local Postgres connections), because a policy that explores
+        # heavy joins hits the statement timeout often enough that a serial
+        # loop turned a 10 s step into minutes.
+        texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
+        out = list(pool.map(R.shaped_reward, texts, gold))
         calls["n"] += 1
         if calls["n"] <= 3:
             sample = (
