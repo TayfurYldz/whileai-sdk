@@ -25,6 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from .passat import pass_at
 from .stats import DEFAULT_BOOT, compare_runs, eval_variance, marker_names, task_means
 
 GROUP_KEYS = ("delta", "ci95", "verdict", "mean_a", "mean_b", "n_used", "n_paired", "paired")
@@ -181,6 +182,14 @@ def delta_report(
     ``CEILING_MIN_TASKS_WITH_ROOM`` paired tasks (and under half) are not
     already passed every time: there is little room left for an
     improvement to show, whatever the training did.
+
+
+    ``config`` says what each side was produced with (``pass_at(...).config``
+    per side: task count, k, temperature, max_tokens, policy and judge
+    versions, prompt hash). A warning names each setting the two sides
+    disagree on, and says so when both sides are the same policy version
+    (rlhf-book ch. 16: a comparison is only as good as the settings it
+    was run under).
     """
     names = (
         list(markers)
@@ -336,6 +345,35 @@ def delta_report(
             warnings.append(
                 f"by={by if isinstance(by, str) else 'callable'}: no group is on both row sets"
             )
+    # What each side was produced with. A delta between two settings is
+    # not a delta between two policies, so each difference is named, and
+    # so is the case where nothing changed at all.
+    config = {"before": pass_at(before).config, "after": pass_at(after).config}
+    cfg_a, cfg_b = config["before"], config["after"]
+
+    def _both(key: str) -> bool:
+        return cfg_a.get(key) is not None and cfg_b.get(key) is not None
+
+    if _both("judge_version") and cfg_a["judge_version"] != cfg_b["judge_version"]:
+        warnings.append(
+            f"Before and after were graded by different judges ({cfg_a['judge_version']} vs "
+            f"{cfg_b['judge_version']}); grade both sides with the same judge before reading "
+            "the delta."
+        )
+    if _both("temperature") and cfg_a["temperature"] != cfg_b["temperature"]:
+        warnings.append(
+            f"Before was sampled at temperature {cfg_a['temperature']} and after at "
+            f"{cfg_b['temperature']}; re-run one side so both use the same temperature=."
+        )
+    if _both("max_tokens") and cfg_a["max_tokens"] != cfg_b["max_tokens"]:
+        warnings.append(
+            f"Before allowed {cfg_a['max_tokens']} reply tokens and after {cfg_b['max_tokens']}; "
+            "re-run one side so both use the same agent_max_tokens=."
+        )
+    if _both("policy_version") and cfg_a["policy_version"] == cfg_b["policy_version"]:
+        warnings.append(
+            "Before and after are the same policy version; this compares a model to itself."
+        )
     return {
         "ok": ok,
         "target": target_key,
@@ -360,6 +398,7 @@ def delta_report(
         "over_optimized": over_optimized,
         "metrics": results,
         "warnings": warnings,
+        "config": config,
         "by": (
             by if isinstance(by, str) else (getattr(by, "__name__", "callable") if by else None)
         ),

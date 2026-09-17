@@ -16,6 +16,9 @@ from .agents import complete, local_model, parse_backend_spec, split_user_turns
 #: Claude Code tool results are kept to this many characters on the step;
 #: a longer one is cut and the step says so (result_truncated, result_chars).
 CLAUDE_CODE_RESULT_CHARS = 2000
+#: Reply budget in tokens for an ``http`` agent; ``agent_max_tokens`` does
+#: not reach it, so every row from one says this number.
+HTTP_REPLY_TOKENS = 1024
 
 
 def _missing(extra: str, exc: Exception) -> ImportError:
@@ -47,6 +50,7 @@ def openai_http(
     """Any OpenAI-compatible /v1/chat/completions endpoint with tool support."""
     sim = execute or (lambda tool, args: {"ok": True})
     policy_text = str(system or "").strip()
+    reply_tokens = HTTP_REPLY_TOKENS
 
     def agent(message: str) -> dict:
         # New chat every call. Prior turns do not carry over.
@@ -59,7 +63,13 @@ def openai_http(
         final_text = ""
         for _ in range(max_turns):
             reply = complete(
-                url, model, messages, tools=tools, api_key=api_key, temperature=temperature
+                url,
+                model,
+                messages,
+                tools=tools,
+                api_key=api_key,
+                temperature=temperature,
+                max_tokens=reply_tokens,
             )
             calls = reply.get("tool_calls") or []
             spoken = (reply.get("content") or "").strip()
@@ -102,6 +112,12 @@ def openai_http(
         return {"steps": steps, "final_text": final_text}
 
     agent.__name__ = f"openai_http[{model}]"
+    # How every reply was sampled, as the engine stamps it on the row.
+    agent.sampling = {  # type: ignore[attr-defined]
+        "temperature": float(temperature),
+        "max_tokens": reply_tokens,
+        "model": model,
+    }
     agent.system = policy_text  # type: ignore[attr-defined]
     agent.policy = policy_text  # type: ignore[attr-defined]
     return agent
@@ -333,6 +349,7 @@ def resolve(
     result_shapes: dict | None = None,
     timeout: float | None = None,
     max_tokens: int | None = None,
+    user_model: str | None = None,
 ) -> tuple[Any, str]:
     if isinstance(target, ConnectedAgent):
         return target.run, target.transport
@@ -351,6 +368,8 @@ def resolve(
         if max_tokens:
             # only local_model takes a reply budget; openai_http does not
             loop_kw["max_tokens"] = int(max_tokens)
+        if user_model:
+            loop_kw["user_model"] = user_model
         return local_model(
             url,
             spec_model,

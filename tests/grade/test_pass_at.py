@@ -106,7 +106,8 @@ def test_recommend_rl_names_the_headroom():
 def test_save_meta_writes_pass_at_to_sidecar(tmp_path):
     rows = _rows({"a": [1, 0, 1, 1], "b": [0, 0, 0, 1]})
     for row in rows:
-        row.update({"arm": "ordinary", "scenario_id": "s", "messages": []})
+        # one situation per prompt: rows sharing a scenario_id are one task
+        row.update({"arm": "ordinary", "scenario_id": "s-" + row["prompt"], "messages": []})
     data = SimulationData(trajectories=rows)
     data.save(str(tmp_path / "r.jsonl"), meta=True)
     meta = json.loads((tmp_path / "r.meta.json").read_text())

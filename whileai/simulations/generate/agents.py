@@ -1360,6 +1360,16 @@ def _answer_tool_call(env: Any, execute: Callable | None, tool: str, arguments: 
 LOCAL_MODEL_TEMPERATURE = 0.8
 
 
+def reply_budget(max_tokens: int | None = None) -> int:
+    """Tokens one agent reply may use: ``simulate(agent_max_tokens=)`` when
+    set, else 768, or 2048 above an 8k context (``ZP_CONTEXT_TOKENS``). A
+    coding agent's diff does not fit in 768; a reasoning model's thinking
+    does not fit in 2048."""
+    if max_tokens:
+        return int(max_tokens)
+    return 768 if CONTEXT_TOKENS <= 8192 else 2048
+
+
 def local_model(
     base_url: str,
     model: str,
@@ -1380,9 +1390,18 @@ def local_model(
     execute: Callable | None = None,
     timeout: float = 60,
     max_tokens: int | None = None,
+    user_model: str | None = None,
 ) -> Callable:
     local = threading.local()
     plans = fault_plans if fault_plans is not None else {}
+    # The simulated user's model. None means the agent's own model plays
+    # the user (the default); a backend spec moves that role to another
+    # model, with the key resolved for that endpoint.
+    if user_model:
+        user_url, user_name = parse_backend_spec(user_model)
+        user_key: str | None = None
+    else:
+        user_url, user_name, user_key = base_url, model, api_key
     shapes = result_shapes if result_shapes is not None else {}
     cap = default_max_turns(n_tools=len(tools)) if max_turns is None else max(1, int(max_turns))
     min_users = max(1, min(int(min_user_turns), max(1, cap // 2)))
@@ -1456,9 +1475,7 @@ def local_model(
                 api_key=api_key,
                 temperature=temperature,
                 timeout=timeout,
-                # A coding agent's diff does not fit in 768; a reasoning model's
-                # thinking does not fit in 2048: simulate(agent_max_tokens=) wins.
-                max_tokens=max_tokens or (768 if CONTEXT_TOKENS <= 8192 else 2048),
+                max_tokens=reply_budget(max_tokens),
                 logprobs=logprobs,
             )
             calls, assistant = _calls_from_reply(reply)
@@ -1485,13 +1502,13 @@ def local_model(
                         # voiced by the user simulator - never a mock
                         # payload. It also counts as a user turn.
                         answer = _human_answer(
-                            base_url,
-                            model,
+                            user_url,
+                            user_name,
                             want=turns[0],
                             question=str(
                                 arguments.get("question") or arguments.get("summary") or ""
                             ),
-                            api_key=api_key,
+                            api_key=user_key,
                             timeout=timeout,
                             stance=stance,
                         )
@@ -1574,11 +1591,11 @@ def local_model(
                 )
             ):
                 follow = _user_followup(
-                    base_url,
-                    model,
+                    user_url,
+                    user_name,
                     last_user,
                     spoken,
-                    api_key=api_key,
+                    api_key=user_key,
                     timeout=timeout,
                     messages=messages,
                     steps=steps,
@@ -1604,6 +1621,12 @@ def local_model(
         return _done(steps, final_text)
 
     agent.__name__ = f"local_model[{model}]"
+    # How every reply was sampled, as the engine stamps it on the row.
+    agent.sampling = {  # type: ignore[attr-defined]
+        "temperature": float(temperature),
+        "max_tokens": reply_budget(max_tokens),
+        "model": model,
+    }
     agent.fault_plans = plans  # type: ignore[attr-defined]
     agent.system = policy_text  # type: ignore[attr-defined]
     agent.policy = policy_text  # type: ignore[attr-defined]
