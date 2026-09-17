@@ -114,6 +114,18 @@ makes a result look worse gets investigated within the hour; one that makes it l
 better gets published. When a number improves for a reason you did not plan, check the
 denominator before you celebrate.
 
+**A theory that predicts the shape of your data is weak evidence when a rival predicts
+the same shape.** One eval lost a contiguous block of pinned tasks, ordered by file
+position and identical across both arms. Three diagnoses fit that shape exactly: rollouts
+dying inside the agent call, prompts rejected for exceeding the context window, and a
+wall-clock stop abandoning in-flight work. All three were wrong. What answered it was one
+instrumented run with one changed variable: warming the endpoint before the first rollout,
+after which every pinned task ran and the engine reported so. The defect that survived
+every wrong diagnosis was the same one each time: the failures were never counted, so the
+log had no errors and "no errors" read as "no failures". When two mechanisms predict your
+data equally well, change one variable and measure; do not pick the one you thought of
+first.
+
 **Print what the check assumed, on the face of the output.** The fix here was not
 smarter detection, it was one line: `reply field: final_text` above the table. An
 assumption you can see is an assumption someone can falsify.
