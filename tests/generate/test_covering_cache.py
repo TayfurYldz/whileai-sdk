@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.generate import scenarios
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate import scenarios
+from whileai.simulations.generate.scenarios import (
     _covering_assignments,
     _covering_assignments_uncached,
 )

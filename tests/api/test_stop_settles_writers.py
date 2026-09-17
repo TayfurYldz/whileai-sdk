@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent
 
 
@@ -17,7 +17,7 @@ def test_writer_waves_running_after_the_grace_are_reported():
         return [f"where is my refund for order {index}-{i}" for i in range(4)]
 
     t0 = time.monotonic()
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -44,7 +44,7 @@ def test_writer_waves_that_finish_in_the_grace_are_not_flagged():
         time.sleep(0.05)
         return [f"where is my refund for order {index}-{i}" for i in range(4)]
 
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,

@@ -6,9 +6,9 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.generate.agents import missing_hosted_key
+from whileai.simulations.generate.agents import missing_hosted_key
 
 
 def test_openai_endpoint_without_key_names_the_variable(monkeypatch):
@@ -31,7 +31,7 @@ def test_simulate_with_openai_spec_and_no_key_raises_at_setup(monkeypatch):
     monkeypatch.delenv("VLLM_API_KEY", raising=False)
     t0 = time.monotonic()
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
-        zps.simulate(
+        wai.simulate(
             agent="openai:gpt-4.1-mini",
             tools=TOOLS,
             system_prompt=POLICY,

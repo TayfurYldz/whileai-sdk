@@ -2,12 +2,12 @@
 
     python run.py                  # all four steps, SFT on Qwen/Qwen3-4B, then a chat call
     python run.py data             # simulate, grade, split, push train + holdout
-    python run.py train            # zps.train on the pushed set, wait for it
-    python run.py serve            # zps.serve the adapter under --name
+    python run.py train            # wai.train on the pushed set, wait for it
+    python run.py serve            # wai.serve the adapter under --name
     python run.py call             # one chat completion against the endpoint
     python run.py models           # what the account hosts
 
-Needs a key: ``zeroproof login`` or ZEROPROOF_API_KEY
+Needs a key: ``whileai login`` or WHILEAI_API_KEY
 (https://www.zeroproofai.com/docs/get-started). The
 rows come from the offline template writer and a scripted agent, so no model
 key is needed to build them. Training runs on the platform's A10G (about a
@@ -27,9 +27,9 @@ from pathlib import Path
 
 import requests
 
-import zeroproof.simulations as zps
-from zeroproof.auth import resolve_api_key
-from zeroproof.simulations.score.judging import run_judge
+import whileai.simulations as wai
+from whileai.auth import resolve_api_key
+from whileai.simulations.score.judging import run_judge
 
 STATE = Path(__file__).with_name("hosted-loop.json")
 DOCS = "https://www.zeroproofai.com/docs/training"
@@ -70,7 +70,7 @@ def scripted_agent(message: str) -> dict:
     """Reliability depends on the ask, so the graded set has passes to imitate
     and contrast between repeats: some asks always pass, some never, some
     on alternate repeats."""
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     match = re.search(r"\b(\d{4,})\b", message)
     order = match.group(1) if match else None
@@ -124,7 +124,7 @@ def need(state: dict, *keys: str) -> None:
 
 
 def step_data(args: argparse.Namespace) -> None:
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         system_prompt=POLICY,
@@ -137,9 +137,9 @@ def step_data(args: argparse.Namespace) -> None:
     )
     scored = run_judge(data.trajectories, judge)
     print(f"simulated {len(data.trajectories)} rows, pass@1 {scored.pass_at.pass_at_1:.2f}")
-    train, holdout = zps.split_pseudo_production(scored.rows, fraction=0.25, seed=args.seed)
+    train, holdout = wai.split_pseudo_production(scored.rows, fraction=0.25, seed=args.seed)
     print(f"split by task: train {len(train)} rows, holdout {len(holdout)} rows")
-    pushed = zps.push_rows(
+    pushed = wai.push_rows(
         train,
         f"{args.name}-train",
         purpose="train",
@@ -149,7 +149,7 @@ def step_data(args: argparse.Namespace) -> None:
         description="recipes/04-train/hosted-loop: scripted refund agent, template situations",
     )
     train_id = pushed["datasetId"]
-    held = zps.push_rows(
+    held = wai.push_rows(
         holdout, f"{args.name}-holdout", purpose="holdout", agent=args.name, parent=train_id
     )
     gate = pushed.get("gate") or {}
@@ -163,7 +163,7 @@ def step_train(args: argparse.Namespace) -> None:
     state = load()
     need(state, "train_id", "holdout_id")
     started = time.time()
-    run = zps.train(
+    run = wai.train(
         state["train_id"],
         method=args.method,
         holdout=state["holdout_id"],
@@ -187,7 +187,7 @@ def step_train(args: argparse.Namespace) -> None:
 def step_serve(args: argparse.Namespace) -> None:
     state = load()
     need(state, "run_id")
-    model = zps.serve(args.name, state["run_id"])
+    model = wai.serve(args.name, state["run_id"])
     print(f"serving {model['name']} v{model.get('version')} on {model['baseModel']}")
     print(f"endpoint {model['endpoint']}")
     save(endpoint=model["endpoint"], model_name=model["name"])
@@ -220,7 +220,7 @@ def step_call(args: argparse.Namespace) -> None:
 
 
 def step_models(args: argparse.Namespace) -> None:
-    for m in zps.models():
+    for m in wai.models():
         print(f"{m['name']:24s} v{m.get('version')}  {m['baseModel']}  run {m.get('adapterRunId')}")
 
 
@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=1800)
     args = parser.parse_args(argv)
     if not resolve_api_key():
-        sys.exit(f"No API key. Run `zeroproof login` or set ZEROPROOF_API_KEY ({DOCS}).")
+        sys.exit(f"No API key. Run `whileai login` or set WHILEAI_API_KEY ({DOCS}).")
     steps = list(STEPS) if args.step == "all" else [args.step]
     if args.step == "all":
         steps.remove("models")

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import data as data_mod
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as wai
+from whileai.simulations import data as data_mod
+from whileai.simulations.ingest import platform
 
 
 def test_agents_and_register_agent(monkeypatch):
@@ -17,8 +17,8 @@ def test_agents_and_register_agent(monkeypatch):
         return {"slug": "airline-support", **(body or {})}
 
     monkeypatch.setattr(platform, "_call", fake_call)
-    assert zps.agents() == [{"slug": "airline-support", "traces": 3}]
-    out = zps.register_agent(
+    assert wai.agents() == [{"slug": "airline-support", "traces": 3}]
+    out = wai.register_agent(
         "Airline Support",
         description="refunds",
         tools=[{"name": "lookup"}],

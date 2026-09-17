@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.judging import build_preference_pairs, evaluate, run_judge
-from zeroproof.simulations.score.optimize import eval_sourced, select_for_rl, select_for_sft
+from whileai.simulations.score.judging import build_preference_pairs, evaluate, run_judge
+from whileai.simulations.score.optimize import eval_sourced, select_for_rl, select_for_sft
 
 
 def _row(prompt: str, reward, final: str, **extra) -> dict:

@@ -53,7 +53,7 @@ assert _GRADER_SCRIPT != _SCRIPT
 
 def _run(hash_seed: str, script: str = _SCRIPT) -> dict:
     env = dict(os.environ, PYTHONHASHSEED=hash_seed)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     out = subprocess.run(
         [sys.executable, "-c", script % {"repo": str(REPO)}],
@@ -89,7 +89,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
     import random
     import re
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY, TOOLS, scripted_agent
 
     timing = re.compile(r"(seconds|elapsed|rate|_s$|_at$|per_second)")
@@ -110,7 +110,7 @@ def test_parallel_run_is_identical_with_reproducible_flag():
             time.sleep(rng.random() * 0.03)
             return scripted_agent(message)
 
-        d = zps.simulate(
+        d = wai.simulate(
             jittery,
             tools=TOOLS,
             policy=POLICY,
@@ -153,9 +153,9 @@ def test_serial_graded_reruns_in_one_process_are_identical():
     import re
     import time
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     timing = re.compile(r"(seconds|elapsed|rate|_s$|_at$|per_second)")
 
@@ -186,7 +186,7 @@ def test_serial_graded_reruns_in_one_process_are_identical():
                 }
             return scripted_agent(message)
 
-        d = zps.simulate(
+        d = wai.simulate(
             careless,
             tools=TOOLS,
             policy=POLICY,

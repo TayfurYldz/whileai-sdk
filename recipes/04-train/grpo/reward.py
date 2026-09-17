@@ -158,12 +158,12 @@ def messages_for(prompt: str) -> list[dict[str, str]]:
 def build_prompts(n: int = 200, seed: int = 0) -> list[dict[str, Any]]:
     """``n`` first-turn prompts from the simulator's offline template writer,
     each with its ``case``. No model, no key."""
-    import zeroproof.simulations as zps
+    import whileai.simulations as wai
 
     def silent_agent(message: str) -> dict:
         return {"steps": [], "final_text": "ok."}
 
-    data = zps.simulate(
+    data = wai.simulate(
         silent_agent,
         tools=TOOLS,
         policy=POLICY,

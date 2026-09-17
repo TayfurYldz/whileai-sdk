@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from zeroproof.simulations.score.judging import evaluate, normalize_judge_result, run_judge
+from whileai.simulations.score.judging import evaluate, normalize_judge_result, run_judge
 
 
 def _row(i):

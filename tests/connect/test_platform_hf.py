@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from zeroproof.simulations.ingest import platform
-from zeroproof.simulations.ingest.platform import PlatformError
+from whileai.simulations.ingest import platform
+from whileai.simulations.ingest.platform import PlatformError
 
 
 class Recorder:

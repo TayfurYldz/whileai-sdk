@@ -3,7 +3,175 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.53 (2026-09-17)
+
+- `rubric_judge` warms the hosted judge once before the rows fan out, the
+  same `warm_judge` call and 600s budget `grade_llm` already used. A serve
+  container that had scaled to zero took longer to load its weights than the
+  120s per-call timeout, so all eight of `run_judge`'s concurrent calls timed
+  out together and every row came back `invalid_result` with `reward: None`.
+  A failed warm-up is not fatal: the rows are judged anyway and report the
+  real error.
+- `pass_at` on a set where every row failed judging says so, naming the
+  status and the judge's own error, instead of `no binary rewards; grade
+  first` -- which pointed at the step that had just run. Sets that were
+  never judged, and partly graded sets, keep the old wording.
+- `leak_report` on exported rows says why it found nothing. `rows()`,
+  `save()` and `push()` scrub `privileged` at any depth, so the detector had
+  nothing to check and `checked: False` read as "nothing populated it"
+  rather than "you passed the scrubbed copy". When the rows came through the
+  export, `summary` now names it and points at `data.trajectories`.
+- `recipes/_template/` to copy (`README.md`, `run.py`, `smoke.sh`), a
+  "Contributing a recipe" section in `CONTRIBUTING.md`, two issue forms,
+  and a CI job that runs every `recipes/**/smoke.sh` on every pull request:
+  no key, no GPU, under a minute, so "it runs" is checked rather than
+  claimed.
+
+## 0.52 (2026-09-17)
+
+- `simulate(tasks=base, runs=3)`: the same task set replayed three times in
+  one call, every row stamped `lineage.eval_run` (0, 1, 2), one
+  `SimulationData` back (`search["eval_runs"]` has the rows and stop reason
+  per run). Without `tasks=` the first run draws the set and the rest replay
+  it. Between runs only the agent's sampling changes. `eval_variance(rows)`
+  splits by `eval_run` on its own.
+- `delta_report` verdicts are honest about repeats (rlhf-book ch. 16,
+  appendix C). With two or more eval runs on each side it computes `run_std`
+  itself (pooled over the sides, on the headline metric) and applies the
+  existing noise band; `eval_runs`, `run_std_source` and `replicated` say
+  where the band came from. With one run on either side and no `run_std=`,
+  a target that moved reads `moved_unreplicated` and the warning names the
+  `runs=3` call that settles it. This changes existing single-run reports:
+  `moved` now needs repeats or a `run_std`.
+- `delta_report` flags `ceiling=True` (with a warning) when the before side
+  already passes 0.9 of its tasks, or fewer than 20 paired tasks (and under
+  half) still have room, so a training run cannot show a gain on that eval.
+- Training runs carry the holdout numbers with their uncertainty:
+  `run.delta(...)` and `attach_delta(...)` put `summary["holdout"]` on the
+  run (per side `pass`, `n_tasks`, `k`, `ci95`; the delta report's `verdict`
+  word; `eval_runs`, `run_std`, `ceiling`) and `run.holdout_summary` holds
+  it. A hosted run read back with `refresh()` has the same shape with every
+  interval field `None` and `note` "No interval: the platform only returned
+  two numbers".
+- The judge is checked by default. `grade` (the hosted judge, `judge=`, and
+  `grader=` paths) ends by measuring the judge against the rows' human labels
+  and stamps the summary on every graded row as `judge_meta["trust"]`
+  (`agreement`, `agreement_low`, `kappa`, `n_gold`, `ok`) and in the report's
+  `trust`; with no human labels it prints one line saying so. `trust="warn"`
+  (default), `"require"` (raise), or `"off"` on `data.grade`, `data.grade_llm`,
+  `grade_llm`, and `apply_grade_llm`. `publish_gate` reports it as
+  `judge_trust`. `trust_after_grade` is the helper.
+- Gold has provenance. `attach_labels` writes `gold_kind` next to
+  `gold_reward` (`"human"`, or `"model"` for a model's labels).
+  `judge_trust` and `judge_agreement` report `gold_kind` and return
+  `ok=False` with the reason when the labels are a model's, a second judge
+  pass, or unknown (older rows with `gold_reward` and no kind);
+  `allow_model_gold=True` keeps the old behavior. Rows hand-labeled before
+  this release need `gold_kind="human"` (re-run `attach_labels`) to count.
+- A floor, not a hint. `judge_trust(min_agreement=0.8, min_kappa=0.6)`: the
+  Wilson lower bound of agreement and kappa must clear the floors or `ok` is
+  false with the number, the floor, and the fix in one sentence. The
+  kappa-under-0.4 hint is replaced by the floor, so `ok` can now be false on
+  a labeled judge that used to pass.
+- The auditor cannot be the grader. `audit_grades` swaps to the other hosted
+  model when the resolved auditor is the model that graded the rows (Phi-4
+  to hosted Qwen and back), records `grader` and `auditor` in the report,
+  and raises `ValueError` when no different model is available.
+- Every row says how it was sampled. `sampling` is now on every row a
+  model backend produces (the default hosted agent, `agent="vllm:..."` /
+  `"openai:..."`, `backend=`, an HTTP agent), as `{"temperature",
+  "max_tokens", "model"}` with the defaults the backend resolved; before,
+  it was stamped only when `backend=` was passed by hand. A callable
+  agent's rows carry `sampling: None` unless you pass
+  `simulate(sampling={...})`, which is recorded as given. The `logprobs`
+  key is gone from `sampling`; the row's `logprob` fields already say
+  whether logprobs were captured.
+- `pass_at(rows).config` (and `to_dict()["config"]`) says what the rows
+  were produced with: task count, k, temperature, max_tokens, policy and
+  judge versions, prompt hash, with `mixed` naming any the rows disagree
+  on. `delta_report` carries the same per side under `config["before"]`
+  / `config["after"]` and warns when the judge, temperature or reply
+  budget differ between sides, or when both sides are the same policy
+  version.
+- One task key everywhere. `wai.task_key(row)` (`scenario_id`, else
+  `task_id`, else the prompt text) is what `pass_at`, `group_signal`,
+  `compare_runs`, `delta_report`, `eval_variance`, `curriculum`,
+  `retire_solved`, `trim_unanimous_groups`, `trim_out_of_band`,
+  `select_for_rl`, `calibrate` / `publish_gate`, `mean_kl`, `judge_trust`
+  and the exporters' `group_id` now all group by. Before, `pass_at` and
+  the RL pruners grouped by prompt text while `compare_runs` grouped by
+  id, so the same rows gave two task counts. On engine rows this means
+  the rephrasings of one situation pool into one task: a task is a
+  situation, not a string. `PassAt.per_task` and `curriculum()`'s
+  `task_id` are keyed by that key; `curriculum()` still carries a
+  `prompt` per task.
+- `select_for_rl` / `optimize(mode="rl")`: asks inside the difficulty band
+  are now taken round-robin across pass rates within each fault kind, with
+  no preference for a 50% pass rate (`order="spread"`, the default). The
+  older nearest-to-50% ranking is `order="middle"`. A selection cut off by
+  `target` can come back with different asks than before.
+- `curriculum` / `retire_solved`: `floor` and `solved` default to the band's
+  edges (0.2 and 0.8, from `DEFAULT_BAND`) instead of 0.0 and 0.9, and the
+  edges are inclusive: trainable is `floor <= pass_rate <= solved`, retired
+  is above `solved`, not ready is below `floor`. A task at 1 of 8 is no
+  longer trainable.
+- `Calibration.pass_rate_ci95`: the Wilson 95% interval on the task's pass
+  rate, stamped by `calibrate` and `carry_calibration`; `calibration_of`
+  reads it back. The RL optimize report lists one row per selected task
+  under `calibration.tasks` and adds a `hygiene_warnings` note when the
+  median rollouts per task is under 16, with the measured interval width.
+  `Calibration.student` is filled from the row's `policy_version` when no
+  `policy=` is given.
+- `train(temperature=...)`: the GRPO rollout temperature, sent to the host;
+  when the pushed dataset's rows were measured at a different
+  `sampling.temperature`, `train` warns once. `recipes/04-train/grpo`
+  trains and evaluates at the same temperature (0.8).
+- Every row says which model did which job. `writer_model` (the situation
+  writer's model tag, or `template` / `seed` / `pinned` when no model wrote
+  the prompt) and `user_model` (who played the simulated user; absent when
+  the agent took a single message) sit next to `model_version` on every
+  row, ride through `export_row`, `training_rows`, and the `from_row` /
+  `to_row` round trip like `policy_version`, and appear in `data.metadata`
+  and the `.meta.json` sidecar with `judge_model` (read off each row's
+  existing `judge_meta.model`).
+- `simulate(user_model=...)`: a backend spec for the model that plays the
+  user in follow-up turns and answers the agent's questions. `None` (the
+  default) keeps today's behavior, the agent's own model.
+- When the agent model also wrote the situations or played the user, the
+  run appends `same_model` to `degraded`, adds one plain sentence to the new
+  `data.warnings` list naming the call that separates them (`simulator=`,
+  `user_model=`), and logs it once at the end. Defaults are unchanged: the
+  same hosted model still does all three jobs unless you say otherwise.
+- The import alias in every example, recipe, docstring and the skill is
+  `wai` (`import whileai.simulations as wai`), not `zps`. Nothing in the
+  package changes; `zps` was only ever a name in your own code.
+  `scripts/rebrand.py --alias` applies the same rename to an open branch.
+
+## 0.51 (2026-09-16)
+
+- **Renamed to `whileai`.** ZeroProof is now While, and the package follows:
+  `pip install whileai`, `import whileai`, `import whileai.simulations as zps`,
+  the `whileai` command, `WHILEAI_*` environment variables, `~/.whileai` for
+  the saved login, and `whileai.WhileIngestError`. Nothing old breaks: the
+  `zeroproof` distribution keeps releasing as a shim (`compat/zeroproof`) that
+  installs `whileai` and aliases `import zeroproof` and
+  `import zeroproof_simulations` to the same module objects with a
+  `DeprecationWarning`; the `zeroproof` command still runs; every
+  `ZEROPROOF_*` variable is read when its `WHILEAI_*` twin is unset; a
+  `~/.zeroproof/credentials.json` is used until `~/.whileai` has one;
+  `ZeroProofIngestError` is an alias of `WhileIngestError`. Hosts
+  (`api.zeroproofai.com`, the Modal apps), the `zp_` key prefix, the
+  Hugging Face org and the `zeroproof.*` span attributes are unchanged. The
+  repository moved to `whilehq/whileai-sdk`. The rename is `scripts/rebrand.py`,
+  a script to run on an open branch instead of resolving conflicts by hand.
+- `simulate(tasks=...)` no longer drafts a tool surface for a prompt-only
+  agent. Pinned tasks bring their own prompts, so there is no situation to
+  anchor, and the drafted schemas reached the policy: Nemotron-Nano-8B
+  answered every text-to-SQL task with a call to a tool that did not exist
+  (pass@1 0.00), and 42 of 560 holdout replies from a Qwen3-4B checkpoint
+  did the same. Declared `tools=` still pass through unchanged.
+
+## 0.50 (2026-09-17)
 
 - `recipes/papers/`: recent post-training papers as recipes. One directory per
   paper (README in a fixed shape, one `recipe.py` with a baseline arm and the

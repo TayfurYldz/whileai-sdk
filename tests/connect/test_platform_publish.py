@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as wai
+from whileai.simulations.ingest import platform
 
 
 class Recorder:
@@ -28,7 +28,7 @@ def test_publish_posts_agent_and_description(monkeypatch):
         {("POST", "/datasets/ds_1/publish"): {"datasetId": "ds_1", "agent": "airline-support"}}
     )
     monkeypatch.setattr(platform, "_call", rec)
-    card = zps.publish("ds_1", "airline-support", "Graded refunds.")
+    card = wai.publish("ds_1", "airline-support", "Graded refunds.")
     assert card["agent"] == "airline-support"
     assert rec.calls == [
         (
@@ -39,30 +39,30 @@ def test_publish_posts_agent_and_description(monkeypatch):
             None,
         )
     ]
-    zps.unpublish("ds_1")
+    wai.unpublish("ds_1")
     assert rec.calls[-1][:2] == ("POST", "/datasets/ds_1/unpublish")
 
 
 def test_catalog_needs_no_key(monkeypatch):
     rec = Recorder({("GET", "/catalog"): {"datasets": [], "agents": []}})
     monkeypatch.setattr(platform, "_call", rec)
-    assert zps.catalog() == {"datasets": [], "agents": []}
+    assert wai.catalog() == {"datasets": [], "agents": []}
     assert rec.calls[0][3] is True, "public call, no X-Api-Key"
 
 
 def test_pull_uses_the_catalog_when_there_is_no_key(monkeypatch, tmp_path):
-    monkeypatch.setenv("ZEROPROOF_HOME", str(tmp_path))
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.delenv("ZEROPROOF_DELEGATED_CREDENTIAL", raising=False)
+    monkeypatch.setenv("WHILEAI_HOME", str(tmp_path))
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.delenv("WHILEAI_DELEGATED_CREDENTIAL", raising=False)
     rec = Recorder({("GET", "/catalog/ds_pub/download"): {"parts": ["https://s3/x"]}})
     monkeypatch.setattr(platform, "_call", rec)
-    rows = zps.pull("ds_pub")
+    rows = wai.pull("ds_pub")
     assert rows == [{"prompt": "p"}]
     assert rec.calls[0][:2] == ("GET", "/catalog/ds_pub/download") and rec.calls[0][3] is True
 
 
 def test_pull_prefers_your_own_copy_and_falls_back_to_the_catalog(monkeypatch):
-    monkeypatch.setenv("ZEROPROOF_API_KEY", "zp_x")
+    monkeypatch.setenv("WHILEAI_API_KEY", "zp_x")
     rec = Recorder(
         {
             ("GET", "/datasets/ds_pub/download"): platform.PlatformError(
@@ -72,7 +72,7 @@ def test_pull_prefers_your_own_copy_and_falls_back_to_the_catalog(monkeypatch):
         }
     )
     monkeypatch.setattr(platform, "_call", rec)
-    assert zps.pull("ds_pub") == [{"prompt": "p"}]
+    assert wai.pull("ds_pub") == [{"prompt": "p"}]
     assert [c[1] for c in rec.calls[:2]] == [
         "/datasets/ds_pub/download",
         "/catalog/ds_pub/download",
@@ -87,7 +87,7 @@ def test_pull_prefers_your_own_copy_and_falls_back_to_the_catalog(monkeypatch):
     )
     monkeypatch.setattr(platform, "_call", rec)
     with pytest.raises(platform.PlatformError, match="401"):
-        zps.pull("ds_pub")
+        wai.pull("ds_pub")
 
 
 def test_push_with_publish_needs_an_agent_and_returns_the_card(monkeypatch):
@@ -104,7 +104,7 @@ def test_push_with_publish_needs_an_agent_and_returns_the_card(monkeypatch):
         calls.append(("publish", dataset_id, agent, description))
         return {"datasetId": dataset_id, "agent": agent}
 
-    monkeypatch.setattr("zeroproof.simulations.data.push_rows", fake_push_rows)
+    monkeypatch.setattr("whileai.simulations.data.push_rows", fake_push_rows)
     monkeypatch.setattr(platform, "publish", fake_publish)
     with pytest.raises(ValueError, match="agent"):
         data.push("run", publish=True)

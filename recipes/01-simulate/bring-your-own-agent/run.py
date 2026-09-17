@@ -21,8 +21,8 @@ import argparse
 import os
 import sys
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import evaluate, run_judge
+import whileai.simulations as wai
+from whileai.simulations.score.judging import evaluate, run_judge
 
 TOOLS = [
     {
@@ -63,7 +63,7 @@ def ops_agent(message: str) -> dict:
     what the agent said at the end. Nothing else is required; extra keys
     are kept on the row.
     """
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     service = "checkout-api" if "checkout" in message.lower() else "search-api"
     # Every third repeat this agent skips the runbook: a behavior a judge
@@ -88,9 +88,9 @@ def ops_agent(message: str) -> dict:
     return {"steps": steps, "final_text": f"Restarted {service}."}
 
 
-def part_contract() -> zps.SimulationData:
+def part_contract() -> wai.SimulationData:
     print("== contract: a working callable")
-    data = zps.simulate(
+    data = wai.simulate(
         ops_agent,
         tools=TOOLS,
         system_prompt=POLICY,
@@ -127,7 +127,7 @@ def agent_wrong_shape(message: str) -> dict:
 def part_broken() -> None:
     print("== broken: what the run says when the agent is the problem")
     for name, fn in (("raises", agent_that_raises), ("wrong shape", agent_wrong_shape)):
-        data = zps.simulate(
+        data = wai.simulate(
             fn, tools=TOOLS, system_prompt=POLICY, simulator=False, budget=8, seed=0
         )
         print(
@@ -146,7 +146,7 @@ def runbook_judge(row: dict) -> int:
     return 1 if "get_runbook" in tools else 0
 
 
-def part_eval(data: zps.SimulationData) -> None:
+def part_eval(data: wai.SimulationData) -> None:
     print("== eval: a held-out score is not a reward")
     train = run_judge(data.trajectories, runbook_judge)  # lineage.source == "grade"
     held_out = evaluate(data.trajectories, runbook_judge)  # lineage.source == "eval"

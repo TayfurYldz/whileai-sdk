@@ -7,8 +7,8 @@ import warnings
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import TrainerCallback, TrainingRun, training_run
+import whileai.simulations as wai
+from whileai.simulations.training import TrainerCallback, TrainingRun, training_run
 
 
 class Transport:
@@ -123,11 +123,11 @@ def test_trainer_callback_maps_transformers_logs():
 
 
 def test_package_exports_and_repr():
-    assert zps.training_run is training_run and zps.TrainerCallback is TrainerCallback
+    assert wai.training_run is training_run and wai.TrainerCallback is TrainerCallback
     run = TrainingRun("run_1", name="n", transport=lambda *a, **k: {})
     assert "run_1" in repr(run) and run.status == "running"
     for name in ("list_runs", "get_run", "delete_run"):
-        assert name in zps.__all__
+        assert name in wai.__all__
 
 
 def test_trainer_callback_maps_rl_keys():
@@ -174,10 +174,10 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
     before = [row for p in range(12) for row in _graded(f"t{p}", [1, 0, 0, 0])]
     after = [row for p in range(12) for row in _graded(f"t{p}", [1, 1, 1, 0])]
     report = run.delta(before, after, target="pass_at_1")
-    assert report["target_verdict"] == "moved"
+    assert report["target_verdict"] == "moved_unreplicated"
     run.finish("done", summary={"final_loss": 0.9})
     sent = t.calls[-1][2]["summary"]
-    assert sent["final_loss"] == 0.9 and sent["delta"]["target_verdict"] == "moved"
+    assert sent["final_loss"] == 0.9 and sent["delta"]["target_verdict"] == "moved_unreplicated"
     assert isinstance(sent["delta"]["metrics"]["pass_at_1"]["ci95"], list)
 
     # After the fact: fetch, merge, re-send with the status kept.
@@ -189,7 +189,7 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
             return {"runId": "run_x", "status": "done", "summary": {"final_loss": 0.9}}
         return {"runId": "run_x", "status": "done"}
 
-    import zeroproof.simulations.training as tr
+    import whileai.simulations.training as tr
 
     monkey = tr._call
     tr._call = transport
@@ -197,10 +197,10 @@ def test_delta_rides_on_finish_and_attach_delta_resends():
         out = tr.attach_delta("run_x", before, after)
     finally:
         tr._call = monkey
-    assert out["target_verdict"] == "moved"
+    assert out["target_verdict"] == "moved_unreplicated"
     assert calls[-1][1] == "/runs/run_x/finish"
     assert calls[-1][2]["status"] == "done" and calls[-1][2]["summary"]["final_loss"] == 0.9
-    assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved"
+    assert calls[-1][2]["summary"]["delta"]["target_verdict"] == "moved_unreplicated"
     # The report measured the held-out pass rate on both sides; the run page
     # opens with those two keys, so the delta fills them in.
     assert calls[-1][2]["summary"]["holdoutPassBefore"] == pytest.approx(0.25)
@@ -234,7 +234,7 @@ def test_attach_holdout_resends_a_finished_run():
             return {"runId": "run_x", "status": "stopped", "summary": {"final_loss": 0.9}}
         return {"runId": "run_x", "status": "stopped"}
 
-    import zeroproof.simulations.training as tr
+    import whileai.simulations.training as tr
 
     monkey = tr._call
     tr._call = transport

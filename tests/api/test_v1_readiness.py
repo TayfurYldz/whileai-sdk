@@ -12,15 +12,15 @@ import json
 
 from tests.connect.test_otel import BATCH
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations import rows_from_otel
-from zeroproof.simulations.export import tool_call_roundtrip, training_rows
-from zeroproof.simulations.ingest.traces import (
+from whileai.simulations import rows_from_otel
+from whileai.simulations.export import tool_call_roundtrip, training_rows
+from whileai.simulations.ingest.traces import (
     dimensions_from_traces,
     load_traces,
     simulate_from_traces,
     trace_report,
 )
-from zeroproof.simulations.score.judging import (
+from whileai.simulations.score.judging import (
     ScoredData,
     build_preference_pairs,
     evaluate,
@@ -193,7 +193,7 @@ def test_otel_reward_attribute_is_preserved():
                                             [{"role": "user", "content": "cancel res 45678"}]
                                         ),
                                     ),
-                                    _attr("zeroproof.reward", 0.0),
+                                    _attr("whileai.reward", 0.0),
                                 ],
                             ),
                             _span(
@@ -207,7 +207,7 @@ def test_otel_reward_attribute_is_preserved():
                                             [{"role": "user", "content": "check my bag count"}]
                                         ),
                                     ),
-                                    _attr("zeroproof.reward", 0.7),
+                                    _attr("whileai.reward", 0.7),
                                 ],
                             ),
                             _span(
@@ -219,7 +219,7 @@ def test_otel_reward_attribute_is_preserved():
                                         "gen_ai.input.messages",
                                         json.dumps([{"role": "user", "content": "book a flight"}]),
                                     ),
-                                    _attr("zeroproof.reward", 7),
+                                    _attr("whileai.reward", 7),
                                 ],
                             ),
                         ]
