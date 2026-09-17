@@ -3,6 +3,24 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `split_pseudo_production` splits by `task_key` (the `scenario_id`,
+  else the prompt), so the held-out slice is disjoint from train in the
+  unit every report groups by. Splitting on the prompt alone left 16 of
+  28 held-out situations in train through their rephrasings, and
+  `decontaminate` could not see it. (#268)
+- `metric_summary` (and so `marker_summary`) flags a metric whose
+  applicable rows all scored the same: `degenerate: True`, `ci95: None`,
+  a `warning` that it has not been shown to be able to come out any other
+  way, and `n_rows_at_1` / `n_rows_at_0` next to the mean. A marker that
+  never fires and one that is always true looked identical (`1.000`,
+  zero-width interval). `delta_report` names a `must_not_regress` metric
+  that is degenerate on both sides as a guard that cannot fail
+  (`degenerate_guards`). (#270)
+- README: the served-model eval path (`simulate(tasks=pinned,
+  agent=wai.local_model(...))`, both arms through the same call). (#269)
+
 ## 0.57 (2026-09-17)
 
 - `audit_grades(rows, judge=, sample=, passes=)` estimates how often the

@@ -278,15 +278,20 @@ def dimensions_from_traces(
 def _task_key(row: dict, index: int) -> tuple[str, object]:
     """What makes two rows the same task for splitting purposes.
 
-    ``prompt`` first, because that is what a train/eval split has to keep
-    disjoint and what ``leakage_report`` measures. ``scenario_id`` covers
-    rows that carry no prompt. A row with neither is its own task, so rows
-    that merely lack both are not swept onto one side together.
+    The unit every report counts in: ``task_key`` (``scenario_id`` when
+    the row has one, else ``task_id``, else the prompt), so repeats and
+    rephrasings of one situation land on the same side and the held-out
+    slice is disjoint from train in the unit ``pass_at``, ``compare_runs``
+    and ``delta_report`` group by (#268). Splitting on the prompt alone
+    left 16 of 28 held-out situations in train, and ``decontaminate``
+    cannot see that because it compares prompts. A row with no key is its
+    own task, so rows that merely lack one are not swept onto one side.
     """
-    for field in ("prompt", "scenario_id"):
-        value = row.get(field)
-        if value is not None and str(value).strip():
-            return (field, str(value))
+    from ..score.stats import task_key
+
+    key = task_key(row) if isinstance(row, dict) else ""
+    if key and str(key).strip():
+        return ("task", str(key))
     return ("index", index)
 
 
@@ -295,9 +300,10 @@ def split_pseudo_production(
 ) -> tuple[list[dict], list[dict]]:
     """Set aside a pseudo-production slice; the rest stays for training.
 
-    The split is by task, not by row: every row sharing a ``prompt`` (or a
-    ``scenario_id``, for rows without a prompt) lands on the same side, so
-    the held-out slice is prompt-disjoint from the training side. Splitting
+    The split is by task, not by row: every row sharing a ``task_key``
+    (the ``scenario_id``, else the prompt) lands on the same side, so the
+    held-out slice is disjoint from the training side in the unit every
+    report groups by, not just prompt-disjoint. Splitting
     by row is not enough — under ``mode="rl"`` with ``repeats=k`` each
     prompt has k rows, and scattering siblings across the two sides trains
     the student on every prompt it is then evaluated on.

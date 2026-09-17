@@ -183,7 +183,11 @@ rollout touched, a marker that fired on no row. A 1.00 on a run like that is not
 
 Bring your own model. Any OpenAI-compatible chat endpoint that returns tool
 calls works; it writes the situations and plays the agent, so both run on
-your key:
+your key. To put a number on a model you serve (`wai.serve`, or your own
+vLLM), make it the agent: `wai.simulate(tasks=pinned,
+agent=wai.local_model(endpoint, name, tools=TOOLS, system=POLICY,
+thinking=False))`, and run both arms of a before/after through that same
+call so the only difference is the weights.
 
 ```bash
 export OPENAI_API_KEY=...
