@@ -209,6 +209,25 @@ training file.
   failures. Pinned tasks now never draft tools; the r3 row below is the clean
   re-measure. The polluted files are kept in `raw/with-drafted-tools/`.
 
+## The holdout grew to 459 tasks (2026-09-17)
+
+140 tasks gave a +-0.06 band, so a real 3-point gain could never be proven
+(whilehq/whileai-sdk#257). `author.py` wrote 1,482 more tasks the same way
+(rounds 2-11, every gold executed twice); the id hash puts 459 of the 2,223
+in the holdout, about +-0.035 at k=4. The new tasks are harder (base hard
+0.45 vs 0.56 on the old 140), so absolute numbers drop; the paired deltas
+are what to read.
+
+| Checkpoint | pass@1 on 459 (95% CI) | pass^4 | pass@4 | vs base, paired |
+|---|---|---|---|---|
+| base (Qwen3-4B, thinking on) | 0.53 (0.49..0.56) | 0.25 | 0.76 | - |
+| r4 | 0.55 (0.52..0.59) | 0.27 | 0.77 | +0.026 (+0.001..+0.050); hard +0.07 (+0.03..+0.11) |
+
+On the small holdout r4 vs base was +0.021 (-0.029..+0.068), "no change".
+On 459 tasks the same two checkpoints give +0.026 with an interval that
+excludes zero: the gain was real and small, and the eval was too small to
+see it. Every later row is measured here.
+
 ## Other bases on the same holdout (140 tasks, k=4)
 
 Served with `serve_modal.py` (vLLM on one L40S; `--adapter volume:<run_id>`
