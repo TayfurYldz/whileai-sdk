@@ -110,6 +110,17 @@ def simulate(
     thread-local set before each rollout with ``prompt``, ``rollout_index``
     and ``seed``, so ``execute`` can tell which run it is answering.
 
+    Three models can take part: the agent (``agent=`` / ``backend=``), the
+    situation writer (``simulator=``), and the simulated user
+    (``user_model=``, a backend spec; ``None`` means the writer's model, the
+    agent's own by default). Every row records all three next to
+    ``model_version``: ``writer_model``, ``user_model``, and
+    ``judge_meta.model`` once graded. When the agent model also wrote the
+    situations or played the user, the run's ``degraded`` list carries
+    ``same_model`` and ``warnings`` says which call separates them.
+    Training on a model's own unfiltered output teaches it its own habits
+    (rlhf-book ch. 12), so the row says who wrote what.
+
     ``scaffold=`` is generation-only guidance appended to the system prompt
     of the MODEL-BACKED teacher during rollout (and to the scene writer).
     It never enters ``profile.policy``, so exports and evals stay on the

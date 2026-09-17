@@ -1384,9 +1384,18 @@ def local_model(
     execute: Callable | None = None,
     timeout: float = 60,
     max_tokens: int | None = None,
+    user_model: str | None = None,
 ) -> Callable:
     local = threading.local()
     plans = fault_plans if fault_plans is not None else {}
+    # The simulated user's model. None means the agent's own model plays
+    # the user (the default); a backend spec moves that role to another
+    # model, with the key resolved for that endpoint.
+    if user_model:
+        user_url, user_name = parse_backend_spec(user_model)
+        user_key: str | None = None
+    else:
+        user_url, user_name, user_key = base_url, model, api_key
     shapes = result_shapes if result_shapes is not None else {}
     cap = default_max_turns(n_tools=len(tools)) if max_turns is None else max(1, int(max_turns))
     min_users = max(1, min(int(min_user_turns), max(1, cap // 2)))
@@ -1489,13 +1498,13 @@ def local_model(
                         # voiced by the user simulator - never a mock
                         # payload. It also counts as a user turn.
                         answer = _human_answer(
-                            base_url,
-                            model,
+                            user_url,
+                            user_name,
                             want=turns[0],
                             question=str(
                                 arguments.get("question") or arguments.get("summary") or ""
                             ),
-                            api_key=api_key,
+                            api_key=user_key,
                             timeout=timeout,
                             stance=stance,
                         )
@@ -1578,11 +1587,11 @@ def local_model(
                 )
             ):
                 follow = _user_followup(
-                    base_url,
-                    model,
+                    user_url,
+                    user_name,
                     last_user,
                     spoken,
-                    api_key=api_key,
+                    api_key=user_key,
                     timeout=timeout,
                     messages=messages,
                     steps=steps,
