@@ -11,8 +11,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.schema import VERDICT_KEYS
+import whileai.simulations as zps
+from whileai.simulations.schema import VERDICT_KEYS
 
 PKG = Path(zps.__file__).resolve().parent
 PATTERN = re.compile(r'\w+\["({})"\]\s*='.format("|".join(VERDICT_KEYS)))

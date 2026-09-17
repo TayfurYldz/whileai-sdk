@@ -102,7 +102,7 @@ def test_locked_down_fails_the_guard_and_hardened_passes(run, graded):
 
 def test_cli_runs_offline_and_writes_json(tmp_path):
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     out = tmp_path / "out.json"

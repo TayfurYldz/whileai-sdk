@@ -206,7 +206,7 @@ check(
 print("\nground truth is the nominated outcome")
 gt = agent.ground_truth_score(True)
 # The bar is the whole point of sending this on the scores route: a span can
-# qualify the unnamed score with zeroproof.score.pass_at and has no way to say
+# qualify the unnamed score with whileai.score.pass_at and has no way to say
 # it about a named measurement, so without this nothing is nominated and the
 # charts can only be ordered by volume.
 check("carries pass_at", gt.get("pass_at") == 1.0, str(gt))

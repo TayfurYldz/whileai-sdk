@@ -15,15 +15,15 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.hack_scan import (
+import whileai.simulations as zps
+from whileai.simulations.score.hack_scan import (
     auto_terms,
     format_hack_scan,
     hack_scan,
     hand_features,
     scan_text,
 )
-from zeroproof.simulations.score.optimize import select_for_rl
+from whileai.simulations.score.optimize import select_for_rl
 
 WORDS = [
     "order",

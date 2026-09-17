@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.score.publish_gate import PublishGateError
+import whileai.simulations as zps
+from whileai.simulations import schema
+from whileai.simulations.score.publish_gate import PublishGateError
 
 
 def _rows(spec: dict[str, list[int]]) -> list[dict]:
@@ -35,7 +35,7 @@ def _rows(spec: dict[str, list[int]]) -> list[dict]:
 
 
 def test_push_file_gates_and_uploads_stamped_rows(monkeypatch, tmp_path):
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     uploads: list[bytes] = []
 
@@ -102,7 +102,7 @@ def test_training_rows_carry_a_loss_mask_on_assistant_turns_only():
 def test_final_mask_mode_trains_only_the_last_assistant_turn(tmp_path):
     import json
 
-    from zeroproof.simulations.export import export_training, loss_mask, training_rows
+    from whileai.simulations.export import export_training, loss_mask, training_rows
 
     row = {
         "prompt": "look up issue 4412",

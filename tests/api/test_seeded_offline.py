@@ -19,11 +19,11 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, offline, scripted_agent
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.generate.agents import current_rollout
-from zeroproof.simulations.score.checklist import expected_outcome, privileged_context
+from whileai.simulations.data import export_row
+from whileai.simulations.generate.agents import current_rollout
+from whileai.simulations.score.checklist import expected_outcome, privileged_context
 
 _FAULT_STATUS = {"timeout", "permission_denied"}
 

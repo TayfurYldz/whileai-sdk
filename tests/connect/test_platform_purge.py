@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof import cli
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as zps
+from whileai import cli
+from whileai.simulations.ingest import platform
 
 
 class Fake:

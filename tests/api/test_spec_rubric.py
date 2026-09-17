@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, offline, scripted_agent
-from zeroproof.simulations.run.spec import spec_rubric
-from zeroproof.simulations.score.grade_llm import RUBRIC_TAIL, rubric_prompt
+from whileai.simulations.run.spec import spec_rubric
+from whileai.simulations.score.grade_llm import RUBRIC_TAIL, rubric_prompt
 
 
 def _spec_folder(tmp_path, rubric: str | None):
@@ -66,8 +66,8 @@ def test_grade_uses_the_rubric_and_names_the_conduct_floor(monkeypatch, tmp_path
         seen.append(kw)
         return {"status": "judged", "graded": 0}
 
-    monkeypatch.setattr("zeroproof.simulations.data.apply_grade_llm", fake_apply)
-    monkeypatch.setattr("zeroproof.simulations.data.require_judge_key", lambda *a, **k: "k")
+    monkeypatch.setattr("whileai.simulations.data.apply_grade_llm", fake_apply)
+    monkeypatch.setattr("whileai.simulations.data.require_judge_key", lambda *a, **k: "k")
 
     folder = _spec_folder(tmp_path, "Do the job.")
     data = zps.simulate(

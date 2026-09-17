@@ -2,11 +2,11 @@
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.score import grade_llm
-from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.judging import normalize_judge_result, run_judge
+import whileai.simulations as zps
+from whileai.simulations import schema
+from whileai.simulations.score import grade_llm
+from whileai.simulations.score.agreement import judge_agreement
+from whileai.simulations.score.judging import normalize_judge_result, run_judge
 
 
 def _rows(n, start=0):
@@ -185,7 +185,7 @@ def test_verifier_meta_is_not_nested_under_itself():
     ``row["judge_meta"]["judge_meta"]["verifier"]``, so the documented
     ``row["judge_meta"]["verifier"]`` was ``None`` on every verified row.
     """
-    from zeroproof.simulations.verify import ExactMatch
+    from whileai.simulations.verify import ExactMatch
 
     row = {"prompt": "q", "final_text": "Paris", "steps": [], "answer": "Paris"}
     raw = ExactMatch()(row)
@@ -255,7 +255,7 @@ def test_rating_scale_lane_flattens_judge_meta_too():
 def test_a_verifier_names_itself_on_the_scored_row():
     """A Verifier is an instance, so it has no ``__name__``: every verified row
     recorded ``judge_name == "judge"`` and two verifiers were indistinguishable."""
-    from zeroproof.simulations.verify import ExactMatch, MathEqual
+    from whileai.simulations.verify import ExactMatch, MathEqual
 
     rows = _rows(1)
     assert run_judge(rows, ExactMatch()).rows[0]["judge_name"] == "ExactMatch"
@@ -264,7 +264,7 @@ def test_a_verifier_names_itself_on_the_scored_row():
 
 
 def test_the_verifier_name_reaches_the_scorer_ref():
-    from zeroproof.simulations.verify import ExactMatch
+    from whileai.simulations.verify import ExactMatch
 
     row = {"prompt": "q", "final_text": "Paris", "steps": [], "answer": "Paris"}
     scored = run_judge([row], ExactMatch()).rows[0]

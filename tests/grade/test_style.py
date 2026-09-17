@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.hygiene import reward_correlations
-from zeroproof.simulations.score.style import (
+import whileai.simulations as zps
+from whileai.simulations.score.hygiene import reward_correlations
+from whileai.simulations.score.style import (
     STYLE_MARKERS,
     assistant_text,
     refusal_report,

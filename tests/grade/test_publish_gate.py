@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.optimize import (
+import whileai.simulations as zps
+from whileai.simulations.score.optimize import (
     DEFAULT_BAND,
     group_signal,
     select_for_rl,
     trim_out_of_band,
 )
-from zeroproof.simulations.score.publish_gate import (
+from whileai.simulations.score.publish_gate import (
     PublishGateError,
     calibrate,
     is_rl_shaped,
@@ -131,7 +131,7 @@ def test_push_gates_by_default_and_can_skip(monkeypatch):
         pushed.append(rows)
         return {"datasetId": "ds_new"}
 
-    monkeypatch.setattr("zeroproof.simulations.data.push_rows", fake_push_rows)
+    monkeypatch.setattr("whileai.simulations.data.push_rows", fake_push_rows)
 
     data = simulate_offline(budget=8, seed=0, mode="rl", repeats=4)
     with pytest.raises(PublishGateError, match="ungraded_rl_rows"):
@@ -160,7 +160,7 @@ def test_push_gates_by_default_and_can_skip(monkeypatch):
 
 
 def test_push_rows_gate_flag(monkeypatch):
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     calls = []
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import data as data_mod
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as zps
+from whileai.simulations import data as data_mod
+from whileai.simulations.ingest import platform
 
 
 def test_agents_and_register_agent(monkeypatch):

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.scenarios import novelty
-from zeroproof.simulations.score.grading import behavior_signature
+import whileai.simulations as zps
+from whileai.simulations.generate.scenarios import novelty
+from whileai.simulations.score.grading import behavior_signature
 
 
 def test_novelty_is_the_minimum_cosine_distance_to_any_tested_row():

@@ -23,7 +23,7 @@ What happens:
    zeroproofai.com/platform/training as it goes.
 4. The holdout is sampled again: pass@1 after. ``run.delta`` puts the
    before/after comparison on the run page, and the adapter lands on the
-   ``zeroproof-dpo-runs`` volume under the run name.
+   ``whileai-dpo-runs`` volume under the run name.
 
 DPO is offline: it learns from the pairs it is given and never samples
 during training, so a run is cheap and deterministic given the pairs. The
@@ -48,7 +48,7 @@ BASE_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 DEFAULT_GPU = os.environ.get("ZP_DPO_GPU", "A10G")
 VOLUME_ROOT = "/vol"
 
-app = modal.App("zeroproof-dpo")
+app = modal.App("whileai-dpo")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -59,7 +59,7 @@ image = (
         "peft==0.16.0",
         "datasets==3.6.0",
         "accelerate==1.8.1",
-        "zeroproof",
+        "whileai",
     )
     .env({"HF_HOME": "/root/.cache/huggingface", "TOKENIZERS_PARALLELISM": "false"})
     .add_local_file(str(HERE.parent / "grpo" / "reward.py"), "/root/reward.py")
@@ -67,13 +67,13 @@ image = (
     .add_local_file(str(HERE / "pairs.py"), "/root/pairs.py")
     # From inside this repo the checkout's SDK rides along and shadows the
     # PyPI one, so an unreleased SDK change works here first.
-    .add_local_python_source("zeroproof")
+    .add_local_python_source("whileai")
 )
 
-runs_volume = modal.Volume.from_name("zeroproof-dpo-runs", create_if_missing=True)
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
+runs_volume = modal.Volume.from_name("whileai-dpo-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
 dashboard_secret = modal.Secret.from_dict(
-    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+    {"WHILEAI_API_KEY": os.environ.get("WHILEAI_API_KEY", "")}
 )
 
 
@@ -178,7 +178,7 @@ def train(
     from pairs import sampled_pairs
     from reward import SYSTEM, reward_rows
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as zps
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     if tokenizer.pad_token is None:
@@ -216,7 +216,7 @@ def train(
         "reward": "reward.py: lookup before refund, never invent an id, ask when none given",
     }
     run = None
-    if os.environ.get("ZEROPROOF_API_KEY"):
+    if os.environ.get("WHILEAI_API_KEY"):
         run = zps.training_run(
             run_name,
             base_model=base_model,
@@ -367,7 +367,7 @@ def train(
             must_not_regress=["well_formed", "argument_grounding"],
             by="category",
         )
-        run.finish("done", summary=summary, adapter=f"zeroproof-dpo-runs:/{run_name}/adapter")
+        run.finish("done", summary=summary, adapter=f"whileai-dpo-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     else:
         delta = zps.delta_report(

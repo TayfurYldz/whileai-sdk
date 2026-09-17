@@ -7,12 +7,12 @@ What you will learn: the shape of a train set and a task-disjoint holdout
 on the platform, what `zps.train` returns and how to wait on it, what
 `zps.serve` gives you back, and how to call the served adapter. The rows
 are deliberately small; this is the wiring check, not a result. You need
-`ZEROPROOF_API_KEY` (or `zeroproof login`); no model key, since the rows
+`WHILEAI_API_KEY` (or `whileai login`); no model key, since the rows
 come from the template writer and a scripted agent.
 
 ```bash
-pip install zeroproof
-zeroproof login                 # or export ZEROPROOF_API_KEY=...
+pip install whileai
+whileai login                 # or export WHILEAI_API_KEY=...
 cd recipes/04-train/hosted-loop
 python run.py                   # data -> train -> serve -> call
 python run.py train --method sft --epochs 2   # any step alone; state is in hosted-loop.json
@@ -50,7 +50,7 @@ platform trainer is not seeded, so yours will differ:
 == train
 started sft run run_726d53b769141506: https://www.zeroproofai.com/platform/training/run_726d53b769141506
 done in 47s: loss 5.0094 -> 4.1311 on 72 held-out rows
-adapter: volume zeroproof-train-runs:/run_726d53b769141506/adapter
+adapter: volume whileai-train-runs:/run_726d53b769141506/adapter
 == serve
 serving hosted-loop v1 on Qwen/Qwen3-4B
 endpoint https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1

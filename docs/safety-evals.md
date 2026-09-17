@@ -1,4 +1,4 @@
-# Safety evals for tool-using agents with zeroproof
+# Safety evals for tool-using agents with whileai
 
 An agent with tools has three capabilities a chat model does not: it can
 read private data, it can act on state, and it can send things out. Any
@@ -88,7 +88,7 @@ becomes training data measures memorisation of the eval set.
 ## The calls
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 base = zps.simulate(
     agent,

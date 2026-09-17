@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.checklist import outcome_check, task_checklist
+import whileai.simulations as zps
+from whileai.simulations.score.checklist import outcome_check, task_checklist
 
 
 def _row(steps, final, **meta):
@@ -300,7 +300,7 @@ def test_already_done_phrasing_is_flexible_and_multi_tool_is_judge_territory():
 
 
 def test_unknown_verbs_count_as_writes():
-    from zeroproof.simulations.score.checklist import _is_write
+    from whileai.simulations.score.checklist import _is_write
 
     assert all(
         not _is_write(t)
@@ -380,7 +380,7 @@ def test_a_task_counted_checkable_is_checked_for_every_rollout():
     """``_task_has_outcome_rule`` true means the rule fires whatever the
     policy did -- not 'for some rollout', which is what the environment's
     own copy counted for a prior partial action with no write."""
-    from zeroproof.simulations.score.checklist import _task_has_outcome_rule
+    from whileai.simulations.score.checklist import _task_has_outcome_rule
 
     claimed = [dims for dims in META if _task_has_outcome_rule(_info(dims))]
     assert claimed, "fixture must claim something"
@@ -393,7 +393,7 @@ def test_a_task_counted_checkable_is_checked_for_every_rollout():
 def test_a_task_counted_unchecked_has_no_rule_for_a_rollout_that_does_nothing():
     """The other direction. A task the count skips must not be one the
     checklist would have graded on outcome for the quietest rollout."""
-    from zeroproof.simulations.score.checklist import _task_has_outcome_rule
+    from whileai.simulations.score.checklist import _task_has_outcome_rule
 
     skipped = [dims for dims in META if not _task_has_outcome_rule(_info(dims))]
     assert skipped, "fixture must skip something"
@@ -406,7 +406,7 @@ def test_a_task_counted_unchecked_has_no_rule_for_a_rollout_that_does_nothing():
 def test_the_duplicate_entity_world_is_a_checkable_task():
     """It was not counted, though the module docstring lists its rule and
     ``outcome_check`` has always had one."""
-    from zeroproof.simulations.score.checklist import _task_has_outcome_rule
+    from whileai.simulations.score.checklist import _task_has_outcome_rule
 
     assert _task_has_outcome_rule(_info({"world_state": "duplicate entity"}))
     assert _task_has_outcome_rule(_info({"world_state": "duplicate"}))
@@ -416,7 +416,7 @@ def test_a_prior_partial_action_alone_is_not_a_checkable_task():
     """Its rule reads 'a read preceded the first write', so a rollout that
     writes nothing has no outcome. Counting it promised an outcome reward
     the task cannot always deliver."""
-    from zeroproof.simulations.score.checklist import _task_has_outcome_rule
+    from whileai.simulations.score.checklist import _task_has_outcome_rule
 
     info = _info({"history": "prior_partial_action"})
     assert not _task_has_outcome_rule(info)

@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.verify import All, MathEqual, Regex
+import whileai.simulations as zps
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.verify import All, MathEqual, Regex
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "recipes" / "01-simulate" / "verifiers" / "run.py"
@@ -22,7 +22,7 @@ SCRIPT = REPO / "recipes" / "01-simulate" / "verifiers" / "run.py"
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     env["PYTHONIOENCODING"] = "utf-8"

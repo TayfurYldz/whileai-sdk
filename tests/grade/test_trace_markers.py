@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.hack_scan import hand_features
-from zeroproof.simulations.score.hygiene import reward_correlations
-from zeroproof.simulations.score.trace import (
+import whileai.simulations as zps
+from whileai.simulations.score.hack_scan import hand_features
+from whileai.simulations.score.hygiene import reward_correlations
+from whileai.simulations.score.trace import (
     FLAGS,
     TRACE_MARKERS,
     step_failed,

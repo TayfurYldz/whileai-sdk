@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import json
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.score import grade_llm as G
+import whileai.simulations as zps
+from whileai.simulations.data import export_row
+from whileai.simulations.score import grade_llm as G
 
 SPEC = "vllm:phi@http://127.0.0.1:9/v1"
 

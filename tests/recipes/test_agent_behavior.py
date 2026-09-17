@@ -27,11 +27,11 @@ def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
     for key in (
         "OPENAI_API_KEY",
-        "ZEROPROOF_API_KEY",
+        "WHILEAI_API_KEY",
         "VLLM_API_KEY",
-        "ZEROPROOF_MODEL_URL",
-        "ZEROPROOF_MODEL_KEY",
-        "ZEROPROOF_API_URL",
+        "WHILEAI_MODEL_URL",
+        "WHILEAI_MODEL_KEY",
+        "WHILEAI_API_URL",
     ):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
@@ -85,7 +85,7 @@ def test_without_a_platform_key_names_the_env_var(tmp_path):
     out = _run("run.py", "--runs", "1", cwd=tmp_path)
     assert out.returncode == 2
     message = out.stdout + out.stderr
-    assert "ZEROPROOF_API_KEY" in message, message[-2000:]
+    assert "WHILEAI_API_KEY" in message, message[-2000:]
     assert "http" in message, message[-2000:]
 
 
@@ -94,7 +94,7 @@ def test_dry_run_without_a_model_fails_before_the_pool(tmp_path):
     to run every turn into the same LlmError and exit 0."""
     out = _run("run.py", "--runs", "2", "--dry-run", cwd=tmp_path)
     assert out.returncode == 2, out.stdout[-2000:]
-    assert "ZEROPROOF_MODEL_URL" in out.stderr, out.stderr[-2000:]
+    assert "WHILEAI_MODEL_URL" in out.stderr, out.stderr[-2000:]
     assert "[  1/2]" not in out.stdout
 
 

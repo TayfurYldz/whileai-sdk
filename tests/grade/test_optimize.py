@@ -1,6 +1,6 @@
 """RL filter keeps gold ``reward`` rows. Offline: no writes, no GPU."""
 
-from zeroproof.simulations.score.optimize import (
+from whileai.simulations.score.optimize import (
     INCOMPLETE_JUNK,
     KEPT_VERIFIED_ZERO,
     UNUSABLE_LABEL,
@@ -114,7 +114,7 @@ def _grouped_rows():
 
 
 def test_group_signal_counts_mix_and_band():
-    from zeroproof.simulations.score.optimize import group_signal
+    from whileai.simulations.score.optimize import group_signal
 
     signal = group_signal(_grouped_rows())
     assert signal["n_groups"] == 4
@@ -127,7 +127,7 @@ def test_group_signal_counts_mix_and_band():
 
 
 def test_trim_unanimous_drops_dead_groups_keeps_singles():
-    from zeroproof.simulations.score.optimize import trim_unanimous_groups
+    from whileai.simulations.score.optimize import trim_unanimous_groups
 
     kept, report = trim_unanimous_groups(_grouped_rows())
     prompts = {row["prompt"] for row in kept}
@@ -137,7 +137,7 @@ def test_trim_unanimous_drops_dead_groups_keeps_singles():
 
 
 def test_select_for_rl_keeps_whole_groups():
-    from zeroproof.simulations.score.optimize import select_for_rl
+    from whileai.simulations.score.optimize import select_for_rl
 
     # The fixture repeats one identical trajectory per ask, which the
     # duplicate gate would collapse; switch it off to test group selection.
@@ -157,7 +157,7 @@ def test_select_for_rl_keeps_whole_groups():
 
 
 def test_select_for_sft_takes_only_passes_and_spreads_behaviors():
-    from zeroproof.simulations.score.optimize import select_for_sft
+    from whileai.simulations.score.optimize import select_for_sft
 
     rows = _grouped_rows()
     picked, report = select_for_sft(rows, target=3)
@@ -185,7 +185,7 @@ def _scored(prompt, reward, final="ok"):
 def test_select_for_sft_ranks_partial_credit_by_reward():
     """rlhf-book ch. 9: argmax per prompt over a scalar reward. A 0.9 used
     to be dropped as not-pass because only exact 1s qualified."""
-    from zeroproof.simulations.score.optimize import select_for_sft
+    from whileai.simulations.score.optimize import select_for_sft
 
     rows = [_scored("a", 0.3), _scored("a", 0.9), _scored("a", 0.6), _scored("b", 0.7)]
     picked, report = select_for_sft(rows, target=10)
@@ -197,7 +197,7 @@ def test_select_for_sft_ranks_partial_credit_by_reward():
 
 
 def test_select_for_sft_top_k_overall_and_random_controls():
-    from zeroproof.simulations.score.optimize import select_for_sft
+    from whileai.simulations.score.optimize import select_for_sft
 
     rows = [_scored("a", 0.3), _scored("a", 0.9), _scored("a", 0.6), _scored("b", 0.7)]
     picked, report = select_for_sft(rows, select="top_k_overall", k=2, min_reward=0.0)
@@ -217,7 +217,7 @@ def test_select_for_sft_top_k_overall_and_random_controls():
 def test_optimize_dispatches_on_mode_and_never_overwrites(tmp_path):
     import json
 
-    from zeroproof.simulations.score.optimize import optimize
+    from whileai.simulations.score.optimize import optimize
 
     src = tmp_path / "batch.jsonl"
     rows = _grouped_rows()
@@ -232,7 +232,7 @@ def test_optimize_dispatches_on_mode_and_never_overwrites(tmp_path):
 
 
 def test_no_tool_agent_keeps_refusal_demonstrations():
-    from zeroproof.simulations.score.optimize import is_do_nothing, select_for_sft
+    from whileai.simulations.score.optimize import is_do_nothing, select_for_sft
 
     row = {
         "prompt": "check the status of order 98765 for me",
@@ -254,7 +254,7 @@ def test_no_tool_agent_keeps_refusal_demonstrations():
     # judge's call, whatever the grid expected.
     picked, _report = select_for_sft([row], target=5)
     assert len(picked) == 1
-    from zeroproof.simulations.score.optimize import drop_reason
+    from whileai.simulations.score.optimize import drop_reason
 
     unlabeled = dict(row)
     unlabeled.pop("reward")

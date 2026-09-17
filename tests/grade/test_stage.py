@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from zeroproof.simulations.score.stage import (
+from whileai.simulations.score.stage import (
     STAGES,
     StageError,
     format_stages,

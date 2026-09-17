@@ -7,11 +7,11 @@ from math import comb
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.data import SimulationData
-from zeroproof.simulations.score.judging import ScoredData
-from zeroproof.simulations.score.optimize import group_signal
-from zeroproof.simulations.score.passat import PassAt, pass_at
+import whileai.simulations as zps
+from whileai.simulations.data import SimulationData
+from whileai.simulations.score.judging import ScoredData
+from whileai.simulations.score.optimize import group_signal
+from whileai.simulations.score.passat import PassAt, pass_at
 
 
 def _rows(spec: dict[str, list[int]]) -> list[dict]:

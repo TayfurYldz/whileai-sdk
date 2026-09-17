@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import hashlib
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.generate.test_logprobs import POLICY, TOOLS, _simulate
 from tests.helpers import simulate_offline
-from zeroproof.simulations import schema
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.generate.agents import LOCAL_MODEL_TEMPERATURE
-from zeroproof.simulations.score.logprobs import staleness_report
+from whileai.simulations import schema
+from whileai.simulations.export import training_rows
+from whileai.simulations.generate.agents import LOCAL_MODEL_TEMPERATURE
+from whileai.simulations.score.logprobs import staleness_report
 
 
 def test_model_backed_rows_carry_policy_version_sampling_and_token_logprobs(monkeypatch):
@@ -76,10 +76,10 @@ def _tokens_complete_factory(calls: dict):
 def test_token_logprobs_roll_up_from_steps_in_order(monkeypatch):
     calls: dict = {}
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.complete", _tokens_complete_factory(calls)
+        "whileai.simulations.generate.agents.complete", _tokens_complete_factory(calls)
     )
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
     data = zps.simulate(
         tools=TOOLS,

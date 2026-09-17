@@ -1,4 +1,4 @@
-"""`zeroproof login`: the device flow from the CLI's side, with the gate faked."""
+"""`whileai login`: the device flow from the CLI's side, with the gate faked."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from zeroproof import auth, cli
-from zeroproof.simulations.ingest import platform
+from whileai import auth, cli
+from whileai.simulations.ingest import platform
 
 
 class FakeGate:
@@ -83,10 +83,10 @@ TRIAL = {
 
 @pytest.fixture
 def gate(monkeypatch, tmp_path):
-    monkeypatch.setenv("ZEROPROOF_HOME", str(tmp_path))
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.delenv("ZEROPROOF_DELEGATED_CREDENTIAL", raising=False)
-    monkeypatch.delenv("ZEROPROOF_API_URL", raising=False)
+    monkeypatch.setenv("WHILEAI_HOME", str(tmp_path))
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.delenv("WHILEAI_DELEGATED_CREDENTIAL", raising=False)
+    monkeypatch.delenv("WHILEAI_API_URL", raising=False)
     fake = FakeGate()
     monkeypatch.setattr(auth, "_post", fake.post)
     monkeypatch.setattr(auth, "_get", fake.get)
@@ -197,12 +197,12 @@ def test_key_name_defaults_to_the_host(gate):
 
 
 def test_platform_calls_fall_back_to_the_saved_key(gate, monkeypatch):
-    with pytest.raises(platform.PlatformError, match="zeroproof login"):
+    with pytest.raises(platform.PlatformError, match="whileai login"):
         platform._key(None)
     gate.approved = True
     auth.login(open_browser=False, out=lambda s: None)
     assert platform._key(None) == "zp_" + "a" * 48
-    monkeypatch.setenv("ZEROPROOF_API_KEY", "zp_env")
+    monkeypatch.setenv("WHILEAI_API_KEY", "zp_env")
     assert platform._key(None) == "zp_env", "the env var still wins"
     assert platform._key("zp_explicit") == "zp_explicit"
 
@@ -246,7 +246,7 @@ def test_signup_creates_the_account_and_saves_the_key(gate, tmp_path):
 
 
 def test_signup_existing_account_points_at_login(gate):
-    with pytest.raises(auth.LoginError, match="zeroproof login"):
+    with pytest.raises(auth.LoginError, match="whileai login"):
         auth.signup("taken@example.com", out=lambda s: None)
     with pytest.raises(auth.LoginError, match="valid email"):
         auth.signup("nope", out=lambda s: None)
@@ -259,7 +259,7 @@ def test_cli_signup(gate, capsys):
     assert shown["source"] == "file"
     assert shown["tier"] == "trial"
     assert cli.main(["signup", "--email", "taken@example.com"]) == 1
-    assert "zeroproof login" in capsys.readouterr().err
+    assert "whileai login" in capsys.readouterr().err
 
 
 def test_cli_exit_codes(gate):

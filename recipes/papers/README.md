@@ -22,8 +22,8 @@ The table is generated: `python recipes/papers/check.py --write` reads every
 ## Run one
 
 ```bash
-pip install zeroproof modal
-export ZEROPROOF_API_KEY=...        # run page + datasets at zeroproofai.com/platform
+pip install whileai modal
+export WHILEAI_API_KEY=...        # run page + datasets at zeroproofai.com/platform
 modal token set --token-id ... --token-secret ...
 cd recipes/papers/<slug>
 python recipe.py                    # both arms, writes results.json

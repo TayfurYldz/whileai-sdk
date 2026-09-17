@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.agents import current_rollout
+import whileai.simulations as zps
+from whileai.simulations.generate.agents import current_rollout
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "03-select" / "prime-intellect-rl"
@@ -34,7 +34,7 @@ INFO_FIELDS = {
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     env["PYTHONIOENCODING"] = "utf-8"

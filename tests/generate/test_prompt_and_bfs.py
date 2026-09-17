@@ -1,13 +1,13 @@
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import GITHUB_SPEC, LINEAR_SPEC, POLICY, REPO_ROOT, TOOLS, scripted_agent
-from zeroproof.simulations.generate.agents import complete as _real_complete
-from zeroproof.simulations.generate.generator import ModelSimulator
+from whileai.simulations.generate.agents import complete as _real_complete
+from whileai.simulations.generate.generator import ModelSimulator
 
 
 def test_agent_voice_user_catches_desk_clarifiers():
-    from zeroproof.simulations.generate.generator import agent_voice_user
+    from whileai.simulations.generate.generator import agent_voice_user
 
     bad = (
         "I'm trying to be specific—what's the exact name of the repo "
@@ -28,7 +28,7 @@ def test_agent_voice_user_catches_desk_clarifiers():
     assert not agent_voice_user("where's my order ORD-1")
     assert not agent_voice_user("can you look up my reservation tonight")
     assert not agent_voice_user("merge acme/api#448 if checks are green")
-    from zeroproof.simulations.generate.generator import usable_user_message
+    from whileai.simulations.generate.generator import usable_user_message
 
     assert usable_user_message("merge acme/api#448 if checks are green")
     assert usable_user_message("where's my order ORD-1")
@@ -54,8 +54,8 @@ def test_agent_voice_user_catches_desk_clarifiers():
 
 
 def test_writer_prompt_forbids_copying_policy_as_user_line():
-    from zeroproof.simulations.generate.diversity import sample_cell_tags
-    from zeroproof.simulations.generate.scenarios import policy_sections
+    from whileai.simulations.generate.diversity import sample_cell_tags
+    from whileai.simulations.generate.scenarios import policy_sections
 
     spec_path = LINEAR_SPEC / "spec.json"
     spec = json.loads(spec_path.read_text())
@@ -150,7 +150,7 @@ def test_model_prompt_has_no_opener_instructions():
 
 
 def test_message_realizes_tags_and_writer_omits_raw_labels():
-    from zeroproof.simulations.generate.generator import message_realizes_tags, usable_user_message
+    from whileai.simulations.generate.generator import message_realizes_tags, usable_user_message
 
     long_calm = (
         "I think we can merge this one now — it's clean, passes all "
@@ -184,7 +184,7 @@ def test_message_realizes_tags_and_writer_omits_raw_labels():
 
 
 def test_writer_aside_aims_or_goes_vague():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     sim = ModelSimulator(tools=TOOLS, policy=POLICY, seed=1)
     prompt = sim._prompt(0, sim.regions[:16])
@@ -197,7 +197,7 @@ def test_writer_aside_aims_or_goes_vague():
     assert "long prompt" not in prompt.lower()
     assert "no named tool" not in prompt
     assert "you have not named it yet" not in prompt
-    from zeroproof.simulations.generate.generator import _cell_aside
+    from whileai.simulations.generate.generator import _cell_aside
 
     missing = _cell_aside({"tool": "lookup_order", "world_state": "entity missing"}, {})
     assert "you're not sure this is still there" in missing
@@ -236,7 +236,7 @@ def test_writer_aside_aims_or_goes_vague():
 
 
 def test_writer_invents_person_without_leaking_labels():
-    from zeroproof.simulations.generate.generator import (
+    from whileai.simulations.generate.generator import (
         _grid_card,
         _strip_directive_phrases,
         usable_user_message,
@@ -276,7 +276,7 @@ def test_writer_invents_person_without_leaking_labels():
 
 
 def test_hundred_row_mix_is_ordinary_majority_plus_other_tiers():
-    from zeroproof.simulations.generate.diversity import (
+    from whileai.simulations.generate.diversity import (
         ORDINARY_SHARE,
         behavior_tier,
         mix_items_by_tier,
@@ -338,7 +338,7 @@ def test_you_are_policy_keeps_rule_axis():
 
 
 def test_github_writer_knows_kind_not_tools():
-    from zeroproof.simulations.generate.generator import _omit_assistant_kind, assistant_kind
+    from whileai.simulations.generate.generator import _omit_assistant_kind, assistant_kind
 
     spec_path = GITHUB_SPEC / "spec.json"
     spec = json.loads(spec_path.read_text())
@@ -368,16 +368,16 @@ def test_writer_prompt_keeps_tools_off_the_page():
     assert '"parameters"' not in prompt
     assert "Rules" not in prompt
     assert "capability and scenario cards" in prompt
-    from zeroproof.simulations.generate.agents import CONTEXT_TOKENS
-    from zeroproof.simulations.generate.generator import _OUT_TOKENS, _token_estimate
+    from whileai.simulations.generate.agents import CONTEXT_TOKENS
+    from whileai.simulations.generate.generator import _OUT_TOKENS, _token_estimate
 
     assert _OUT_TOKENS >= 256
     assert _token_estimate(prompt) < CONTEXT_TOKENS - 256
 
 
 def test_coding_writer_prompt_fits_context():
-    from zeroproof.simulations.generate.agents import CONTEXT_TOKENS
-    from zeroproof.simulations.generate.generator import _token_estimate
+    from whileai.simulations.generate.agents import CONTEXT_TOKENS
+    from whileai.simulations.generate.generator import _token_estimate
 
     spec_path = REPO_ROOT / "specs" / "coding" / "spec.json"
     if not spec_path.is_file():
@@ -581,7 +581,7 @@ def test_unique_still_deduplicates_prompts():
 
 
 def test_clean_user_message_strips_turns_plan():
-    from zeroproof.simulations.generate.generator import _parse_messages, clean_user_message
+    from whileai.simulations.generate.generator import _parse_messages, clean_user_message
 
     assert clean_user_message("{'turns': ['first', 'follow-up']}") == ""
     assert "reservation" in clean_user_message(
@@ -598,7 +598,7 @@ def test_clean_user_message_strips_turns_plan():
 
 
 def test_want_followup_until_budget_user_turns():
-    from zeroproof.simulations.generate.agents import _want_followup
+    from whileai.simulations.generate.agents import _want_followup
 
     asked = "Which store and sku?"
     done = "The item is in stock at store 10289."
@@ -625,7 +625,7 @@ def test_want_followup_until_budget_user_turns():
 
 
 def test_accept_followup_allows_short_ids():
-    from zeroproof.simulations.generate.agents import _accept_followup, _mostly_thanks
+    from whileai.simulations.generate.agents import _accept_followup, _mostly_thanks
 
     asked = "Which repo and PR number?"
     assert _accept_followup("acme/app #42", "check the pr", asked)
@@ -647,8 +647,8 @@ def test_accept_followup_allows_short_ids():
 
 
 def test_turn_budget_and_context_max_span_a_range():
-    from zeroproof.simulations.generate.agents import CONTEXT_TOKENS, default_max_turns
-    from zeroproof.simulations.generate.diversity import sample_turn_budget, sampling_plan
+    from whileai.simulations.generate.agents import CONTEXT_TOKENS, default_max_turns
+    from whileai.simulations.generate.diversity import sample_turn_budget, sampling_plan
 
     cap = default_max_turns()
     assert cap >= 8
@@ -677,7 +677,7 @@ def test_turn_budget_and_context_max_span_a_range():
 
 
 def test_agent_loop_continues_past_short_preamble(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     calls = {"n": 0}
 
@@ -698,7 +698,7 @@ def test_agent_loop_continues_past_short_preamble(monkeypatch):
             }
         return {"content": "and the refund too"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("where is my order ORD-1")
     assert out["steps"]
@@ -707,7 +707,7 @@ def test_agent_loop_continues_past_short_preamble(monkeypatch):
 
 
 def test_refusal_does_not_stack_assistant_variants(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     agent_calls = {"n": 0}
 
@@ -725,9 +725,9 @@ def test_refusal_does_not_stack_assistant_variants(monkeypatch):
             )
         }
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("where is my order")
@@ -741,7 +741,7 @@ def test_refusal_does_not_stack_assistant_variants(monkeypatch):
 
 
 def test_agent_speaks_after_tools_when_budget_spent(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     replies = [
         {"content": "Which repo and PR number?"},
@@ -765,9 +765,9 @@ def test_agent_speaks_after_tools_when_budget_spent(monkeypatch):
             return replies.pop(0)
         return {"content": "Order ORD-1 is packed."}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 2
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 2
     )
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("where is my order")
@@ -781,7 +781,7 @@ def test_agent_speaks_after_tools_when_budget_spent(monkeypatch):
 
 
 def test_agent_loop_keeps_mid_turn_text(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     replies = [
         {
@@ -805,9 +805,9 @@ def test_agent_loop_keeps_mid_turn_text(monkeypatch):
             return {"content": "Order ORD-1 is packed."}
         return replies.pop(0)
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("where is my order ORD-1\n<USER_TURN>\nand the refund?")
@@ -822,7 +822,7 @@ def test_agent_loop_keeps_mid_turn_text(monkeypatch):
 
 
 def test_text_tool_markup_keeps_preamble():
-    from zeroproof.simulations.generate.agents import _calls_from_reply, _spoken_text
+    from whileai.simulations.generate.agents import _calls_from_reply, _spoken_text
 
     reply = {
         "content": (
@@ -838,7 +838,7 @@ def test_text_tool_markup_keeps_preamble():
 
 
 def test_spec_extra_fields_join_the_world():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     spec = {
         "tools": TOOLS,
@@ -858,7 +858,7 @@ def test_spec_extra_fields_join_the_world():
 
 
 def test_agent_records_model_written_followup(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     seen = {}
 
@@ -871,9 +871,9 @@ def test_agent_records_model_written_followup(monkeypatch):
             return {"content": "Refund is still pending on that order."}
         return {"content": "Order ORD-1 is packed. Want me to check the refund too?"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("where is my order ORD-1")
@@ -889,16 +889,16 @@ def test_agent_records_model_written_followup(monkeypatch):
 
 
 def test_complete_agent_turn_does_not_force_followup(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     def fake_complete(_url, _model, messages, **kwargs):
         if not kwargs.get("tools"):
             raise AssertionError("follow-up writer should not run after a finished turn")
         return {"content": "The item with SKU 78901 is in stock at store 10289."}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
     agent = local_model("http://example", "m", tools=TOOLS, max_turns=8)
     out = agent("check stock at store 10289 for sku 78901")
@@ -909,7 +909,7 @@ def test_complete_agent_turn_does_not_force_followup(monkeypatch):
 def test_hung_slot_retries_then_omits():
     import concurrent.futures as cf
 
-    from zeroproof.simulations.simulation import _collect_finished
+    from whileai.simulations.simulation import _collect_finished
 
     class Slow:
         def __init__(self, delay, value):
@@ -977,9 +977,9 @@ def test_hung_request_not_written_as_speech():
 
 
 def test_complete_asks_vllm_for_n_samples(monkeypatch):
-    from zeroproof.simulations.generate.agents import _tls
+    from whileai.simulations.generate.agents import _tls
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", _real_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", _real_complete)
     _tls.conn = None
     _tls.conn_key = None
     seen = {}
@@ -1017,9 +1017,7 @@ def test_complete_asks_vllm_for_n_samples(monkeypatch):
             seen["closed"] = True
 
     monkeypatch.setenv("VLLM_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.http.client.HTTPConnection", FakeConn
-    )
+    monkeypatch.setattr("whileai.simulations.generate.agents.http.client.HTTPConnection", FakeConn)
     reply = _real_complete(
         "http://127.0.0.1:9/v1", "m", [{"role": "user", "content": "hi"}], n=4, timeout=1
     )
@@ -1030,9 +1028,9 @@ def test_complete_asks_vllm_for_n_samples(monkeypatch):
 
 
 def test_complete_drops_n_after_400(monkeypatch):
-    from zeroproof.simulations.generate.agents import _tls
+    from whileai.simulations.generate.agents import _tls
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", _real_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", _real_complete)
     _tls.conn = None
     _tls.conn_key = None
     calls = []
@@ -1063,9 +1061,7 @@ def test_complete_drops_n_after_400(monkeypatch):
             pass
 
     monkeypatch.setenv("VLLM_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.http.client.HTTPConnection", FakeConn
-    )
+    monkeypatch.setattr("whileai.simulations.generate.agents.http.client.HTTPConnection", FakeConn)
     reply = _real_complete(
         "http://127.0.0.1:9/v1", "m", [{"role": "user", "content": "hi"}], n=4, timeout=1
     )
@@ -1075,10 +1071,10 @@ def test_complete_drops_n_after_400(monkeypatch):
 
 
 def test_complete_retries_lost_track_500(monkeypatch):
-    from zeroproof.simulations.generate.agents import _tls
+    from whileai.simulations.generate.agents import _tls
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", _real_complete)
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.time.sleep", lambda _s: None)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", _real_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.time.sleep", lambda _s: None)
     _tls.conn = None
     _tls.conn_key = None
     calls = []
@@ -1111,9 +1107,7 @@ def test_complete_retries_lost_track_500(monkeypatch):
             pass
 
     monkeypatch.setenv("VLLM_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.http.client.HTTPConnection", FakeConn
-    )
+    monkeypatch.setattr("whileai.simulations.generate.agents.http.client.HTTPConnection", FakeConn)
     reply = _real_complete(
         "http://127.0.0.1:9/v1", "m", [{"role": "user", "content": "hi"}], timeout=1
     )
@@ -1122,10 +1116,10 @@ def test_complete_retries_lost_track_500(monkeypatch):
 
 
 def test_complete_lost_track_maps_to_hosted_message(monkeypatch):
-    from zeroproof.simulations.generate.agents import HOSTED_DROPPED, _tls
+    from whileai.simulations.generate.agents import HOSTED_DROPPED, _tls
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", _real_complete)
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.time.sleep", lambda _s: None)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", _real_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.time.sleep", lambda _s: None)
     _tls.conn = None
     _tls.conn_key = None
 
@@ -1152,9 +1146,7 @@ def test_complete_lost_track_maps_to_hosted_message(monkeypatch):
             pass
 
     monkeypatch.setenv("VLLM_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.http.client.HTTPSConnection", FakeConn
-    )
+    monkeypatch.setattr("whileai.simulations.generate.agents.http.client.HTTPSConnection", FakeConn)
     try:
         _real_complete(
             "https://zeroproofai--stressd-vllm-serve.modal.run/v1",
@@ -1171,7 +1163,7 @@ def test_complete_lost_track_maps_to_hosted_message(monkeypatch):
 
 
 def test_public_llm_error_hides_modal_500():
-    from zeroproof.simulations.generate.agents import HOSTED_DROPPED, public_llm_error
+    from whileai.simulations.generate.agents import HOSTED_DROPPED, public_llm_error
 
     raw = (
         "zeroproofai--stressd-vllm-serve.modal.run returned 500: "
@@ -1183,7 +1175,7 @@ def test_public_llm_error_hides_modal_500():
 
 
 def test_writer_merges_n_completions(monkeypatch):
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     def fake_complete(_url, _model, _messages, **kwargs):
         n = int(kwargs.get("n") or 1)
@@ -1204,7 +1196,7 @@ def test_writer_merges_n_completions(monkeypatch):
             ],
         }
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     sim = ModelSimulator(
         "vllm:fake@http://example", tools=TOOLS, policy=POLICY, seed=1, completions=4
     )
@@ -1221,12 +1213,12 @@ def test_writer_merges_n_completions(monkeypatch):
 
 
 def test_writer_temperature_is_continuous_per_batch(monkeypatch):
-    from zeroproof.simulations.generate.diversity import (
+    from whileai.simulations.generate.diversity import (
         WRITER_TEMP_HI,
         WRITER_TEMP_LO,
         sample_writer_temperature,
     )
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     seen = []
 
@@ -1234,7 +1226,7 @@ def test_writer_temperature_is_continuous_per_batch(monkeypatch):
         seen.append(float(kwargs.get("temperature")))
         return {"content": json.dumps([{"region_id": None, "message": "where's my order ORD-1"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     sim = ModelSimulator(
         "vllm:fake@http://example", tools=TOOLS, policy=POLICY, seed=3, completions=1
     )
@@ -1253,8 +1245,8 @@ def test_writer_temperature_is_continuous_per_batch(monkeypatch):
 def test_writer_n_follows_time_budget(monkeypatch):
     import time
 
-    from zeroproof.simulations.generate.diversity import sample_writer_n
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.diversity import sample_writer_n
+    from whileai.simulations.generate.generator import ModelSimulator
 
     unknown = [sample_writer_n(0, i) for i in range(40)]
     assert all(1 <= n <= 4 for n in unknown)
@@ -1281,7 +1273,7 @@ def test_writer_n_follows_time_budget(monkeypatch):
         seen.append(int(kwargs.get("n") or 1))
         return {"content": json.dumps([{"region_id": None, "message": "where's my order ORD-1"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     now = time.monotonic()
     early_sim = ModelSimulator(
         "vllm:fake@http://example",
@@ -1308,7 +1300,7 @@ def test_writer_n_follows_time_budget(monkeypatch):
 
 
 def test_distinct_writer_cards_do_not_overlap_before_grid_wraps():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     sim = ModelSimulator(
         "vllm:fake@http://example",
@@ -1330,8 +1322,8 @@ def test_distinct_writer_cards_do_not_overlap_before_grid_wraps():
 
 
 def test_writer_cards_prefer_unused_tools_before_repeats():
-    from zeroproof.simulations.generate.generator import ModelSimulator
-    from zeroproof.simulations.generate.scenarios import retarget_regions
+    from whileai.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.scenarios import retarget_regions
 
     sim = ModelSimulator(
         "vllm:fake@http://example",
@@ -1363,7 +1355,7 @@ def test_hosted_agent_gets_spec_policy_unchanged(monkeypatch):
         seen["system"] = system
         return lambda m: {"steps": [], "final_text": "ok"}
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.hosted_model", fake_hosted)
+    monkeypatch.setattr("whileai.simulations.run.engine.hosted_model", fake_hosted)
     zps.simulate(
         spec=str(GITHUB_SPEC),
         budget=2,
@@ -1377,7 +1369,7 @@ def test_hosted_agent_gets_spec_policy_unchanged(monkeypatch):
 
 
 def test_empty_policy_does_not_invent_identity(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     seen = []
 
@@ -1387,9 +1379,9 @@ def test_empty_policy_does_not_invent_identity(monkeypatch):
             return {"content": "Order found on the dock."}
         return {"content": "follow"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents._want_followup", lambda *_a, **_k: False
+        "whileai.simulations.generate.agents._want_followup", lambda *_a, **_k: False
     )
     agent = local_model("http://example", "m", tools=TOOLS, system="", max_turns=4)
     agent("where is my order ORD-1")
@@ -1399,7 +1391,7 @@ def test_empty_policy_does_not_invent_identity(monkeypatch):
 
 
 def test_agent_loop_starts_a_new_chat_each_call(monkeypatch):
-    from zeroproof.simulations.generate.agents import local_model
+    from whileai.simulations.generate.agents import local_model
 
     seen = []
 
@@ -1409,9 +1401,9 @@ def test_agent_loop_starts_a_new_chat_each_call(monkeypatch):
             return {"content": "Order found on the dock."}
         return {"content": "follow"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents._want_followup", lambda *_a, **_k: False
+        "whileai.simulations.generate.agents._want_followup", lambda *_a, **_k: False
     )
     agent = local_model("http://example", "m", tools=TOOLS, system=POLICY, max_turns=4)
     agent("first scenario about ORD-1")
@@ -1431,7 +1423,7 @@ def test_agent_loop_starts_a_new_chat_each_call(monkeypatch):
 
 
 def test_scene_brief_is_private_writer_context():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     brief = (
         "who: shoppers asking about shipments\n"
@@ -1455,7 +1447,7 @@ def test_scene_brief_is_private_writer_context():
 
 
 def test_long_policy_is_bounded_for_writer_but_samples_whole_document():
-    from zeroproof.simulations.generate.generator import ModelSimulator, writer_policy_digest
+    from whileai.simulations.generate.generator import ModelSimulator, writer_policy_digest
 
     sections = [f"Section {i}: " + (f"operational detail {i} " * 30) for i in range(24)]
     sections[-1] += " Customers may exchange delivered items."
@@ -1470,7 +1462,7 @@ def test_long_policy_is_bounded_for_writer_but_samples_whole_document():
 
 
 def test_scene_brief_receives_policy_digest_not_long_policy(monkeypatch):
-    from zeroproof.simulations.generate.generator import write_scene_brief
+    from whileai.simulations.generate.generator import write_scene_brief
 
     policy = "\n".join(f"Rule {i}: " + (f"detail {i} " * 40) for i in range(30))
     seen = {}
@@ -1487,14 +1479,14 @@ def test_scene_brief_receives_policy_digest_not_long_policy(monkeypatch):
             )
         }
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     assert write_scene_brief(TOOLS, policy, backend_spec="vllm:fake@http://example")
     assert len(seen["payload"]) < len(policy)
     assert "Rule 29" in seen["payload"]
 
 
 def test_scene_brief_not_copied_into_messages(monkeypatch):
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     brief = (
         "who: shoppers asking about shipments\n"
@@ -1514,7 +1506,7 @@ def test_scene_brief_not_copied_into_messages(monkeypatch):
             )
         }
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     sim = ModelSimulator(
         "vllm:fake@http://example", tools=TOOLS, policy=POLICY, seed=1, scene_brief=brief
     )
@@ -1525,7 +1517,7 @@ def test_scene_brief_not_copied_into_messages(monkeypatch):
 
 
 def test_scene_brief_is_derived_from_spec(monkeypatch):
-    from zeroproof.simulations.generate.generator import write_scene_brief
+    from whileai.simulations.generate.generator import write_scene_brief
 
     seen = []
 
@@ -1541,7 +1533,7 @@ def test_scene_brief_is_derived_from_spec(monkeypatch):
             )
         }
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     gh = json.loads((GITHUB_SPEC / "spec.json").read_text())
     bank_path = REPO_ROOT / "specs" / "bank" / "spec.json"
     if bank_path.is_file():
@@ -1600,8 +1592,8 @@ def test_simulate_writes_scene_brief_once(monkeypatch):
     def fake_complete(_url, _model, _messages, **kwargs):
         return {"content": json.dumps([{"region_id": None, "message": "where's my order ORD-1"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.write_scene_brief", fake_brief)
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.run.engine.write_scene_brief", fake_brief)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     data = zps.simulate(
         scripted_agent,
         tools=TOOLS,
@@ -1627,7 +1619,7 @@ def test_simulator_false_skips_scene_brief(monkeypatch):
         calls["n"] += 1
         return "should not run"
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.write_scene_brief", fake_brief)
+    monkeypatch.setattr("whileai.simulations.run.engine.write_scene_brief", fake_brief)
     data = zps.simulate(
         scripted_agent,
         tools=TOOLS,
@@ -1645,7 +1637,7 @@ def test_simulator_false_skips_scene_brief(monkeypatch):
 
 
 def test_sandbox_does_not_invent_a_github_world():
-    from zeroproof.simulations.world.sandbox import MockEnvironment
+    from whileai.simulations.world.sandbox import MockEnvironment
 
     tutor = [
         {
@@ -1671,7 +1663,7 @@ def test_sandbox_does_not_invent_a_github_world():
 
 
 def test_bare_confirmation_accepted_only_when_agent_asked():
-    from zeroproof.simulations.generate.agents import _accept_followup
+    from whileai.simulations.generate.agents import _accept_followup
 
     asked = (
         "To proceed with updating the baggage count I need to confirm "
@@ -1685,7 +1677,7 @@ def test_bare_confirmation_accepted_only_when_agent_asked():
 
 
 def test_identifier_answers_are_not_echoes():
-    from zeroproof.simulations.generate.agents import _accept_followup, _echoes_agent
+    from whileai.simulations.generate.agents import _accept_followup, _echoes_agent
 
     ask_id = (
         "Could you please provide your user ID so I can verify your "
@@ -1701,7 +1693,7 @@ def test_identifier_answers_are_not_echoes():
 
 
 def test_intent_for_tool_keeps_prepositions_and_plurals_readable():
-    from zeroproof.simulations.generate.scenarios import intent_for_tool
+    from whileai.simulations.generate.scenarios import intent_for_tool
 
     assert intent_for_tool("escalate_to_human") == "escalate to a human"
     assert intent_for_tool("transfer_to_human_agents") == "transfer to human agents"
@@ -1713,7 +1705,7 @@ def test_intent_for_tool_keeps_prepositions_and_plurals_readable():
 
 
 def test_standard_texture_keeps_identifiers_lowercase():
-    from zeroproof.simulations.generate.generator import _realize_typed_message
+    from whileai.simulations.generate.generator import _realize_typed_message
 
     tags = {"texture": "standard"}
     assert _realize_typed_message("mia_lopez_4821", tags) == "mia_lopez_4821."
@@ -1724,7 +1716,7 @@ def test_standard_texture_keeps_identifiers_lowercase():
 
 
 def test_lowercase_texture_keeps_identifiers_and_codes():
-    from zeroproof.simulations.generate.generator import _realize_typed_message
+    from whileai.simulations.generate.generator import _realize_typed_message
 
     tags = {"texture": "lowercase"}
     assert _realize_typed_message("It's USE-8481", tags) == "it's USE-8481"
@@ -1737,7 +1729,7 @@ def test_lowercase_texture_keeps_identifiers_and_codes():
 
 
 def test_user_simulator_hints_come_from_this_agents_tools():
-    from zeroproof.simulations.generate.agents import user_sim_system
+    from whileai.simulations.generate.agents import user_sim_system
 
     orders = [
         {

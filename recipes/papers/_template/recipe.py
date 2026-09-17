@@ -27,7 +27,7 @@ from datetime import date
 from importlib.metadata import version
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 HERE = Path(__file__).resolve().parent
 BASE_MODEL = "Qwen/Qwen3-4B"
@@ -98,7 +98,7 @@ def main() -> None:
             "seed": args.seed,
         },
         "verified": date.today().isoformat(),
-        "zeroproof": version("zeroproof"),
+        "whileai": version("whileai"),
     }
     arm_rows: dict[str, list[dict]] = {}
     for arm in ["baseline", "recipe"] if args.arm == "both" else [args.arm]:

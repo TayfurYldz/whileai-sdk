@@ -11,9 +11,9 @@ import types
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.monitor import ALARMS, HackMonitor, format_hack_monitor
-from zeroproof.simulations.training import training_run
+import whileai.simulations as zps
+from whileai.simulations.monitor import ALARMS, HackMonitor, format_hack_monitor
+from whileai.simulations.training import training_run
 
 WORDS = [
     "order",

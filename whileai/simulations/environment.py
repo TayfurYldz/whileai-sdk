@@ -1,0 +1,770 @@
+"""Export a simulation as an RL environment a trainer can install and drive.
+
+A dataset is rollouts; an environment is what produces them. On-policy
+RL (GRPO, RLOO, PPO) samples its own rollouts from the policy under
+training, so what it needs from us is not rows but the three things a
+row came from: the task set, the world that answers tool calls, and the
+reward that grades the finished trajectory (rlhf-book ch. 6 on on-policy
+sampling, ch. 13 on multi-turn tool use with a single end-of-trajectory
+reward). ``export_environment`` writes those three as an installable
+``verifiers`` package, the shape Prime Intellect and TRL consume::
+
+    import whileai.simulations as zps
+    data = zps.simulate(spec="specs/github", mode="rl", repeats=8)
+    scored = data.grade()
+    zps.export_environment(scored, "envs/github-agent", reward=my_verifier)
+
+    # then, with verifiers installed:
+    #   pip install -e envs/github-agent
+    #   vf-eval github_agent -a '{"split": "holdout"}' -m <policy> ...
+
+What goes in the package:
+
+* ``spec.json``: the system prompt, the tool schemas verbatim, the turn
+  cap, and dotted references to the reward and the world.
+* ``data/train.jsonl`` / ``data/holdout.jsonl``: one task per prompt in
+  the verifiers shape (``prompt``, ``info``, ``example_id``). ``info``
+  carries the task's fault plan, world state, privileged reference and
+  calibration. It is read by the world and the reward on the server and
+  never enters the prompt, so a training file cannot leak the answer key.
+* ``README.md``: the gate. Task counts, the difficulty band applied when
+  the rows were graded, and the train-against-holdout decontamination.
+
+The environment class itself lives here, not in the package, so it is
+tested once: a ``StatefulToolEnv`` whose world is the SDK's mock world
+seeded per task (or the caller's ``execute=``), whose tools are the spec's
+schemas, and whose rubric is the reward through the SDK judge contract.
+A ``Verifier`` (``CodeExec``, ``MathEqual``, ...), a judge callable, or
+``conduct_grade`` all work unchanged. ``verifiers`` is imported lazily;
+export needs nothing but the SDK.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import importlib
+import json
+import re
+import statistics
+from collections.abc import Callable, Sequence
+from pathlib import Path
+from typing import Any
+
+from .export import _resolve
+from .score.checklist import _task_has_outcome_rule
+from .score.judging import normalize_judge_result
+from .score.stats import decontaminate
+
+SPEC_FILE = "spec.json"
+DEFAULT_REWARD = "whileai.simulations.score.checklist:task_checklist"
+DEFAULT_BAND = (0.2, 0.8)
+_TASK_META = (
+    "scenario_dimensions",
+    "stance",
+    "tier",
+    "history",
+    "tool_condition",
+    "ask_family",
+    "intent_known",
+    "tool_known",
+)
+_MODULE_NAME = re.compile(r"[^a-z0-9_]+")
+
+__all__ = [
+    "DEFAULT_BAND",
+    "DEFAULT_REWARD",
+    "build_tasks",
+    "export_environment",
+    "load_environment",
+    "resolve_ref",
+]
+
+
+# --------------------------------------------------------------------------
+# References: a reward or a world is code, and the package names it
+# --------------------------------------------------------------------------
+
+
+def _ref_of(obj: Any) -> str:
+    """``module:qualname`` for something a trainer process can import."""
+    if isinstance(obj, str):
+        if ":" not in obj:
+            raise ValueError(f"expected 'module:attr', got {obj!r}")
+        return obj
+    module = getattr(obj, "__module__", None)
+    qualname = getattr(obj, "__qualname__", None) or getattr(type(obj), "__qualname__", None)
+    if not module or not qualname or "<locals>" in str(qualname) or module == "__main__":
+        raise ValueError(
+            "the reward and the world must be importable by name in the trainer "
+            "process: pass 'module:attr' (or a module-level function or Verifier "
+            "instance defined in an importable module), not a lambda or a local"
+        )
+    if not isinstance(obj, type) and not callable(obj):
+        raise ValueError(f"{obj!r} is not callable")
+    # An instance (a Verifier) is referenced by its module-level name when it
+    # has one; otherwise by its class, which load_environment instantiates.
+    if not isinstance(obj, type) and not hasattr(obj, "__name__"):
+        mod = importlib.import_module(module)
+        for name, value in vars(mod).items():
+            if value is obj:
+                return f"{module}:{name}"
+        # No name to import it by, so the trainer would build a bare
+        # instance. That is only the same object when this one carries no
+        # configuration a bare one lacks: CodeExec(tests=...) written inline
+        # would otherwise reload as CodeExec() and score with no tests.
+        cls = type(obj)
+        try:
+            bare: Any = cls()
+        except Exception:
+            bare = None
+        if bare is None or getattr(bare, "__dict__", None) != getattr(obj, "__dict__", None):
+            raise ValueError(
+                f"{cls.__qualname__} instance is configured but not bound to a "
+                f"module-level name in {module}, so the trainer could only rebuild "
+                f"a bare {cls.__qualname__}(): assign it a name in an importable "
+                "module and pass that, or pass 'module:attr'"
+            )
+        return f"{module}:{cls.__qualname__}"
+    return f"{module}:{qualname}"
+
+
+def resolve_ref(ref: str) -> Any:
+    """Import ``module:attr``. A class is instantiated with no arguments."""
+    module_name, _, attr = str(ref).partition(":")
+    if not module_name or not attr:
+        raise ValueError(f"bad reference {ref!r}; expected 'module:attr'")
+    target: Any = importlib.import_module(module_name)
+    for part in attr.split("."):
+        target = getattr(target, part)
+    if isinstance(target, type):
+        target = target()
+    return target
+
+
+# --------------------------------------------------------------------------
+# Tasks: one per prompt, with what the world and the reward need
+# --------------------------------------------------------------------------
+
+
+def _tool_defs(tools: Sequence[dict] | None) -> list[dict]:
+    """verifiers-shaped tool definitions from OpenAI-shaped (or flat) schemas."""
+    out: list[dict] = []
+    for tool in tools or []:
+        if not isinstance(tool, dict):
+            continue
+        function = tool.get("function")
+        fn: dict = function if isinstance(function, dict) else tool
+        name = str(fn.get("name") or "").strip()
+        if not name:
+            continue
+        params = (
+            fn.get("parameters") or fn.get("input_schema") or {"type": "object", "properties": {}}
+        )
+        out.append(
+            {
+                "name": name,
+                "description": str(fn.get("description") or ""),
+                "parameters": params,
+            }
+        )
+    return out
+
+
+def _label(value: Any) -> float | None:
+    """A graded reward as it counts toward the prompt's solve rate: 0 and
+    1 as they are, partial credit (the checklist's 0.5 when conduct is
+    half) as it is, anything else (None, a bool, text) as ungraded."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    v = float(value)
+    return min(1.0, max(0.0, v)) if v == v else None
+
+
+def build_tasks(
+    rows: Sequence[dict],
+    *,
+    holdout: float | Sequence[str] = 0.2,
+    band: tuple[float, float] | None = DEFAULT_BAND,
+) -> tuple[list[dict], list[dict], dict[str, Any]]:
+    """One task per distinct prompt, split into train and holdout.
+
+    When a prompt has two or more graded rollouts its solve rate is known
+    (partial credit counts as it is) and, with ``band``, prompts the policy
+    always or never solved are dropped: they carry no advantage (rlhf-book
+    ch. 7, difficulty filtering at 20 to 80 percent). Ungraded prompts and
+    single rollouts are kept as they are. ``holdout`` is a fraction, split by scenario id
+    (or the prompt) so a task is wholly on one side, or an explicit list
+    of holdout prompts. Train and holdout are decontaminated against each
+    other at 8-grams and the report says what overlapped.
+    """
+    by_prompt: dict[str, list[dict]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        prompt = str(row.get("prompt") or "").strip()
+        if prompt:
+            by_prompt.setdefault(prompt, []).append(row)
+
+    if isinstance(holdout, bool):
+        raise ValueError("holdout is a fraction (0.2) or a list of holdout prompts")
+    explicit: set[str] | None = None
+    fraction = 0.0
+    if isinstance(holdout, (int, float)):
+        fraction = float(holdout)
+    else:
+        explicit = {" ".join(str(p).lower().split()) for p in holdout}
+
+    tasks: list[dict] = []
+    dropped_band = 0
+    mixed = 0
+    for prompt, members in by_prompt.items():
+        first = members[0]
+        scenario = str(first.get("scenario_id") or "")
+        key = scenario or prompt
+        # The id names the prompt; the split bucket below hashes the scenario
+        # so every prompt drawn from one situation lands on the same side.
+        example_id = hashlib.sha1(f"{scenario}\n{prompt}".encode()).hexdigest()[:12]
+        labels = [v for v in (_label(m.get("reward")) for m in members) if v is not None]
+        info: dict[str, Any] = {
+            "task_id": example_id,
+            "scenario_id": scenario or None,
+            "seed": first.get("seed"),
+            "world_state": first.get("world_state") or "",
+            "faults": first.get("faults") or {},
+        }
+        # The situation's coordinates on the grid. The checklist reward reads
+        # them to know which outcome the task can be checked against.
+        for meta_key in _TASK_META:
+            if first.get(meta_key) is not None:
+                info[meta_key] = first[meta_key]
+        privileged = first.get("privileged")
+        if isinstance(privileged, dict) and privileged:
+            info["privileged"] = privileged
+        if len(labels) >= 2:
+            rate = sum(labels) / len(labels)
+            info["calibration"] = {"pass_rate": round(rate, 4), "n": len(labels)}
+            if min(labels) < max(labels):
+                mixed += 1
+            if band is not None and not (band[0] <= rate <= band[1]):
+                dropped_band += 1
+                continue
+        if explicit is not None:
+            split = "holdout" if " ".join(prompt.lower().split()) in explicit else "train"
+        else:
+            bucket = int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:8], 16) / 0xFFFFFFFF
+            split = "holdout" if bucket < fraction else "train"
+        info["split"] = split
+        tasks.append({"prompt": prompt, "info": info, "example_id": example_id})
+
+    train = [t for t in tasks if t["info"]["split"] == "train"]
+    held = [t for t in tasks if t["info"]["split"] == "holdout"]
+    decon: dict[str, Any] = {}
+    if train and held:
+        _, decon_full = decontaminate(
+            [{"prompt": t["prompt"], "final_text": ""} for t in train],
+            [[{"prompt": t["prompt"], "final_text": ""} for t in held]],
+            n=8,
+        )
+        decon = {
+            k: decon_full[k] for k in ("n_contaminated", "contamination_rate") if k in decon_full
+        }
+        decon["examples"] = [e.get("match") for e in decon_full.get("examples", [])[:3]]
+    report = {
+        "prompts": len(by_prompt),
+        "tasks": len(tasks),
+        "train": len(train),
+        "holdout": len(held),
+        "graded_prompts": sum(1 for t in tasks if "calibration" in t["info"]) + dropped_band,
+        "band": list(band) if band is not None else None,
+        "band_dropped": dropped_band,
+        # prompts the policy both solved and failed: the ones with an advantage
+        "graded_mixed": mixed,
+        "decontamination": decon,
+    }
+    return train, held, report
+
+
+# --------------------------------------------------------------------------
+# Export
+# --------------------------------------------------------------------------
+
+_PACKAGE_INIT = '''"""{name}: a While RL environment. See README.md."""
+
+from pathlib import Path
+
+from whileai.simulations.environment import load_environment as _load
+
+SPEC = Path(__file__).resolve().parent / "spec.json"
+
+
+def load_environment(**kwargs):
+    return _load(SPEC, **kwargs)
+'''
+
+_PYPROJECT = """[project]
+name = "{dist}"
+description = "{description}"
+tags = ["whileai", "agents", "tool-use", "train", "eval"]
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "verifiers>=0.3.1",
+    "whileai>={sdk_version}",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+# Exports often live inside a repo that ignores data files; the wheel carries them anyway.
+ignore-vcs = true
+include = ["{name}/**", "pyproject.toml", "README.md"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["{name}"]
+
+[tool.verifiers.eval]
+num_examples = 5
+rollouts_per_example = 3
+"""
+
+
+def _sdk_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("whileai")
+    except Exception:
+        return "0.42"  # the first release that carries this module
+
+
+def _write_jsonl(path: Path, rows: Sequence[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row, default=str) + "\n")
+
+
+def _readme(name: str, spec: dict, report: dict) -> str:
+    decon = report.get("decontamination") or {}
+    dist = name.replace("_", "-")
+    world = spec.get("execute") or "whileai mock world, seeded per task"
+    lines = [
+        f"# {dist}",
+        "",
+        "A While RL environment: the task set, the world that answers tool",
+        "calls, and the reward that grades a finished trajectory, packaged for",
+        "`verifiers`. The trainer samples its own rollouts from the policy under",
+        "training, so nothing here is off-policy.",
+        "",
+        "### Overview",
+        f"- **Environment ID**: `{dist}`",
+        f"- **Short description**: {spec.get('system_prompt', '')[:160].strip() or 'tool-using agent'}",
+        "- **Tags**: whileai, agents, tool-use, train, eval",
+        "",
+        "### Datasets",
+        "- **Primary dataset(s)**: `data/train.jsonl`, `data/holdout.jsonl` (one task per prompt, written by the While simulator)",
+        f"- **Split sizes**: {report['train']} train / {report['holdout']} holdout",
+        "",
+        "### Task",
+        "- **Type**: multi-turn tool use",
+        f"- **Tools**: {', '.join('`' + t['name'] + '`' for t in spec['tools'])}",
+        f"- **Turn cap**: {spec['max_turns']}",
+        f"- **World**: `{world}`",
+        f"- **Rubric overview**: `reward` = `{spec['reward']}` through the While judge contract (weight 1.0); `n_calls`, `judge_ok` and per-tool call counts logged at weight 0",
+    ]
+    if report.get("band"):
+        lines.append(
+            f"- **Difficulty band**: {report['band'][0]:.0%} to {report['band'][1]:.0%} solve rate; "
+            f"{report['band_dropped']} of {report['graded_prompts']} graded prompts dropped"
+        )
+    if decon:
+        lines.append(
+            f"- **Train vs holdout 8-gram overlap**: {decon.get('n_contaminated', 0)} tasks "
+            f"({(decon.get('contamination_rate') or 0):.1%})"
+        )
+    lines += [
+        "",
+        "### Quickstart",
+        "",
+        "```bash",
+        f"prime eval run {dist}",
+        f'vf-eval {name} -a \'{{"split": "holdout"}}\' -m <policy> -b <base url> -k <key var>',
+        "```",
+        "",
+    ]
+    for warning in report.get("warnings") or []:
+        lines.append(f"**Warning.** {warning}")
+        lines.append("")
+    lines += [
+        "`info` on every task carries its fault plan, world state, privileged",
+        "reference and calibration. The world and the reward read it on the",
+        "server; it never enters the prompt.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def export_environment(
+    source: Any,
+    out: str | Path,
+    *,
+    name: str | None = None,
+    reward: Any = None,
+    execute: Any = None,
+    system_prompt: str | None = None,
+    tools: Sequence[dict] | None = None,
+    holdout: float | Sequence[str] = 0.2,
+    band: tuple[float, float] | None = DEFAULT_BAND,
+    max_turns: int | None = None,
+    description: str = "",
+) -> dict[str, Any]:
+    """Write ``source`` as an installable verifiers environment under ``out``.
+
+    ``source`` is a ``SimulationData`` (system prompt and tools come from
+    its profile), a row list, or a JSONL path; graded rows get the
+    difficulty band, ungraded rows are exported as they are. ``reward``
+    is a ``Verifier``, a judge callable honoring the SDK judge contract,
+    or ``'module:attr'``; it must be importable in the trainer process.
+    With no reward the conduct grade is used and the report warns: it is
+    a process reward, and a policy trained on it alone learns to call
+    nothing (see recipes/03-select/prime-intellect-rl). ``execute`` names a live
+    world ``(tool, arguments) -> result``; without it the SDK's mock
+    world answers, seeded per task so every rollout of a task sees the
+    same world. Returns the report; the same text is the package README.
+    """
+    rows, system, resolved_tools, _ = _resolve(source)
+    if system_prompt is not None:
+        system = str(system_prompt)
+    if tools is not None:
+        resolved_tools = list(tools)
+    tool_defs = _tool_defs(resolved_tools)
+    if not tool_defs:
+        raise ValueError("an environment needs tools: pass tools= or a source with a profile")
+
+    out_dir = Path(out)
+    name = _MODULE_NAME.sub("_", (name or out_dir.name).lower()).strip("_") or "whileai_env"
+    warnings: list[str] = []
+    reward_ref = DEFAULT_REWARD if reward is None else _ref_of(reward)
+    execute_ref = _ref_of(execute) if execute is not None else None
+
+    train, held, report = build_tasks(rows, holdout=holdout, band=band)
+    if reward is None:
+        checkable = sum(1 for t in train + held if _task_has_outcome_rule(t["info"]))
+        report["outcome_checkable"] = checkable
+        if not checkable:
+            warnings.append(
+                "no task carries grid metadata (target tool, stance, world state, "
+                "history), so the default reward reduces to conduct_grade, a process "
+                "reward with no outcome term; a policy trained on it alone learns to "
+                "call nothing. Simulate with the writer, or pass reward= (a Verifier "
+                "or your judge) before training."
+            )
+        elif checkable < len(train + held):
+            warnings.append(
+                f"only {checkable} of {len(train + held)} tasks carry a checkable "
+                "outcome; the rest are scored on conduct alone."
+            )
+    if not train:
+        raise ValueError("no train tasks: every prompt fell outside the band or into the holdout")
+    if max_turns is None:
+        from .generate.agents import default_max_turns
+
+        max_turns = int(default_max_turns(n_tools=len(tool_defs)))
+    spec = {
+        "name": name,
+        "system_prompt": system,
+        "tools": tool_defs,
+        "max_turns": int(max_turns),
+        "reward": reward_ref,
+        "execute": execute_ref,
+        "sdk_version": _sdk_version(),
+    }
+    report.update(
+        {"name": name, "reward": reward_ref, "execute": execute_ref, "warnings": warnings}
+    )
+
+    pkg = out_dir / name
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text(_PACKAGE_INIT.format(name=name), encoding="utf-8")
+    (pkg / SPEC_FILE).write_text(json.dumps(spec, indent=2, default=str), encoding="utf-8")
+    _write_jsonl(pkg / "data" / "train.jsonl", train)
+    _write_jsonl(pkg / "data" / "holdout.jsonl", held)
+    (out_dir / "pyproject.toml").write_text(
+        _PYPROJECT.format(
+            dist=name.replace("_", "-"),
+            name=name,
+            description=description or f"While RL environment: {name}",
+            sdk_version=spec["sdk_version"],
+        ),
+        encoding="utf-8",
+    )
+    (out_dir / "README.md").write_text(_readme(name, spec, report), encoding="utf-8")
+    report["path"] = str(out_dir)
+    return report
+
+
+# --------------------------------------------------------------------------
+# Load: the environment class, built when verifiers is present
+# --------------------------------------------------------------------------
+
+
+def _row_from_state(state: dict, info: dict) -> dict[str, Any]:
+    """The SDK row shape, rebuilt from a verifiers rollout state."""
+    prompt_msgs = state.get("prompt") or []
+    user_text = ""
+    for msg in prompt_msgs if isinstance(prompt_msgs, list) else []:
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+        if role == "user":
+            content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
+            user_text = content if isinstance(content, str) else str(content)
+    completion = state.get("completion") or []
+    final_text = ""
+    for msg in reversed(completion if isinstance(completion, list) else []):
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+        if role == "assistant":
+            content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
+            if isinstance(content, str) and content.strip():
+                final_text = content
+                break
+    row: dict[str, Any] = {
+        "prompt": user_text,
+        "steps": list(state.get("zp_steps") or []),
+        "final_text": final_text,
+        "scenario_id": info.get("scenario_id"),
+        "world_state": info.get("world_state") or "",
+        "faults": info.get("faults") or {},
+    }
+    if info.get("privileged"):
+        row["privileged"] = info["privileged"]
+    for meta_key in _TASK_META:
+        if info.get(meta_key) is not None:
+            row[meta_key] = info[meta_key]
+    return row
+
+
+def _make_env_class() -> type:
+    import verifiers as vf
+
+    from .generate.agents import current_rollout
+    from .world.sandbox import MockEnvironment
+
+    class WhileEnv(vf.StatefulToolEnv):
+        """One SDK world per rollout; the spec's tools; the reward as the rubric."""
+
+        def __init__(
+            self,
+            spec: dict,
+            *,
+            reward: Callable[[dict], Any],
+            execute: Callable[[str, dict], Any] | None = None,
+            **kwargs: Any,
+        ) -> None:
+            self.spec = spec
+            self.reward = reward
+            self.execute = execute
+            self._tool_defs_raw = list(spec.get("tools") or [])
+            rubric = vf.Rubric(
+                funcs=[
+                    self.reward_func,
+                    self.n_calls,
+                    self.judge_ok,
+                    self.truncated,
+                    self.trace_clean,
+                ],
+                weights=[1.0, 0.0, 0.0, 0.0, 0.0],
+            )
+            kwargs.setdefault("rubric", rubric)
+            super().__init__(tools=[], max_turns=int(spec.get("max_turns") or 10), **kwargs)
+            self.tool_defs = self._normalize_tool_defs(self._tool_defs_raw)
+            for tool in self._tool_defs_raw:
+                self.tool_monitor_rubric.add_tool_metric(tool["name"])
+
+        async def setup_state(self, state: dict) -> dict:
+            state = (await super().setup_state(state)) or state
+            info = dict(state.get("info") or {})
+            seed = info.get("seed")
+            state["zp_info"] = info
+            state["zp_steps"] = []
+            if self.execute is None:
+                state["zp_world"] = MockEnvironment(
+                    [{"type": "function", "function": t} for t in self._tool_defs_raw],
+                    seed=int(seed) if isinstance(seed, int) else 0,
+                    faults=dict(info.get("faults") or {}),
+                    world_state=str(info.get("world_state") or ""),
+                )
+            return state
+
+        def update_tool_args(
+            self, tool_name: str, tool_args: dict, messages: Any, state: dict, **kwargs: Any
+        ) -> dict:
+            tool_args["_zp_state"] = state
+            return tool_args
+
+        async def call_tool(
+            self, tool_name: str, tool_args: dict, tool_call_id: str, **kwargs: Any
+        ) -> Any:
+            state = tool_args.pop("_zp_state", None) or {}
+            arguments = dict(tool_args)
+            if self.execute is not None:
+                info = state.get("zp_info") or {}
+                current_rollout.prompt = _row_from_state(state, info)["prompt"]
+                current_rollout.rollout_index = state.get("rollout_idx") or id(state)
+                current_rollout.seed = info.get("seed")
+                try:
+                    result = self.execute(tool_name, arguments)
+                except Exception as exc:
+                    result = {"status": "error", "reason": f"{type(exc).__name__}: {exc}"}
+            else:
+                result = state["zp_world"].call(tool_name, arguments)
+            if not isinstance(result, dict):
+                result = {"status": "ok", "result": result}
+            state.setdefault("zp_steps", []).append(
+                {"tool": tool_name, "arguments": arguments, "result": result}
+            )
+            return vf.ToolMessage(
+                role="tool", content=json.dumps(result, default=str), tool_call_id=tool_call_id
+            )
+
+        # -- rubric ----------------------------------------------------------
+
+        def _verdict(self, state: dict) -> dict:
+            cached = state.get("zp_verdict")
+            if cached is None:
+                row = _row_from_state(state, state.get("zp_info") or {})
+                try:
+                    cached = normalize_judge_result(self.reward(row))
+                except Exception as exc:
+                    cached = {
+                        "reward": None,
+                        "reason": f"{type(exc).__name__}: {exc}",
+                        "judge_status": "error",
+                        "judge_meta": {},
+                    }
+                state["zp_verdict"] = cached
+            return cached
+
+        @staticmethod
+        def _was_truncated(state: dict) -> bool:
+            # A rollout cut at the turn cap or the token cap never finished
+            # the task; scoring it would reward whatever it was doing when
+            # the clock ran out (rlhf-book ch. 6: score only completions
+            # that end on their own).
+            return bool(state.get("is_truncated")) or str(
+                state.get("stop_condition") or ""
+            ).startswith("max_turns")
+
+        def reward_func(self, state: dict, **kwargs: Any) -> float:
+            if self._was_truncated(state):
+                return 0.0
+            value = self._verdict(state).get("reward")
+            return float(value) if isinstance(value, (int, float)) else 0.0
+
+        def truncated(self, state: dict, **kwargs: Any) -> float:
+            return 1.0 if self._was_truncated(state) else 0.0
+
+        def trace_clean(self, state: dict, **kwargs: Any) -> float:
+            """1.0 when none of the SDK's trace flags fired (fabricated test
+            claims, phantom edits, test tampering, ...). Logged, not
+            trained on: a monitor for over-optimization symptoms
+            (rlhf-book ch. 14)."""
+            from .score.trace import trace_flags
+
+            row = _row_from_state(state, state.get("zp_info") or {})
+            flags = trace_flags(row) or {}
+            state["zp_trace_flags"] = flags
+            return 0.0 if any(str(k).startswith(("lie.", "hack.")) for k in flags) else 1.0
+
+        def n_calls(self, state: dict, **kwargs: Any) -> float:
+            return float(len(state.get("zp_steps") or []))
+
+        def judge_ok(self, state: dict, **kwargs: Any) -> float:
+            return 1.0 if self._verdict(state).get("judge_status") == "ok" else 0.0
+
+    return WhileEnv
+
+
+def load_environment(
+    spec: str | Path | dict,
+    *,
+    split: str = "train",
+    reward: Any = None,
+    execute: Any = None,
+    **kwargs: Any,
+) -> Any:
+    """Build the verifiers environment from an exported ``spec.json``.
+
+    ``split`` picks the training task set; the holdout file, when present,
+    becomes ``eval_dataset``. ``reward`` and ``execute`` override the
+    spec's references (a callable or ``'module:attr'``).
+    """
+    try:
+        from datasets import Dataset
+    except ImportError as exc:  # pragma: no cover - verifiers brings datasets
+        raise ImportError("load_environment needs verifiers: pip install 'whileai[rl]'") from exc
+
+    if isinstance(spec, dict):
+        spec_dict = dict(spec)
+        base = Path(spec_dict.get("_dir") or ".")
+    else:
+        path = Path(spec)
+        spec_dict = json.loads(path.read_text(encoding="utf-8"))
+        base = path.parent
+
+    def _tasks(which: str) -> list[dict]:
+        file = base / "data" / f"{which}.jsonl"
+        if not file.exists():
+            return []
+        return [
+            json.loads(line)
+            for line in file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    system = str(spec_dict.get("system_prompt") or "")
+
+    def _rows(tasks: list[dict]) -> list[dict]:
+        return [
+            {
+                "prompt": ([{"role": "system", "content": system}] if system else [])
+                + [{"role": "user", "content": t["prompt"]}],
+                "info": t.get("info") or {},
+                "example_id": t.get("example_id"),
+            }
+            for t in tasks
+        ]
+
+    train = _rows(_tasks(split))
+    held = _rows(_tasks("holdout")) if split != "holdout" else []
+    if not train:
+        raise ValueError(f"no tasks for split {split!r} under {base}")
+    reward_obj = resolve_ref(reward) if isinstance(reward, str) else reward
+    if reward_obj is None:
+        reward_obj = resolve_ref(str(spec_dict.get("reward") or DEFAULT_REWARD))
+    execute_obj = resolve_ref(execute) if isinstance(execute, str) else execute
+    if execute_obj is None and spec_dict.get("execute"):
+        execute_obj = resolve_ref(str(spec_dict["execute"]))
+    env_class = _make_env_class()
+    return env_class(
+        spec_dict,
+        reward=reward_obj,
+        execute=execute_obj,
+        dataset=Dataset.from_list(train),
+        eval_dataset=Dataset.from_list(held) if held else None,
+        **kwargs,
+    )
+
+
+def summarize_tasks(tasks: Sequence[dict]) -> dict[str, Any]:
+    """Counts a reviewer asks for: calibration spread and fault coverage."""
+    rates = [
+        t["info"]["calibration"]["pass_rate"] for t in tasks if t.get("info", {}).get("calibration")
+    ]
+    faults = sum(1 for t in tasks if t.get("info", {}).get("faults"))
+    return {
+        "tasks": len(tasks),
+        "with_calibration": len(rates),
+        "pass_rate_median": round(statistics.median(rates), 3) if rates else None,
+        "with_faults": faults,
+    }

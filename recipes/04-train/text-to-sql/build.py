@@ -33,18 +33,18 @@ from sql_verifier import (
     write_jsonl,
 )
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.hack_scan import format_hack_scan, hack_scan
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.score.passat import pass_at
+import whileai.simulations as zps
+from whileai.simulations.score.hack_scan import format_hack_scan, hack_scan
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.score.passat import pass_at
 
 VERIFIER_VERSION = "sql_exec@db_snapshot_2026-07"
 
 # SDK 0.44 `looks_finished` reads terminal punctuation or a sign-off, so a reply
 # that ends on a closed code fence (every SQL answer here) is called truncated
 # and optimize(mode="rl") drops it. A closed fence is a finished reply.
-from zeroproof.simulations.score import grading as _grading
-from zeroproof.simulations.score import hygiene as _hygiene
+from whileai.simulations.score import grading as _grading
+from whileai.simulations.score import hygiene as _hygiene
 
 _orig_finished = _grading.looks_finished
 

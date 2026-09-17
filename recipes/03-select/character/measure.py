@@ -19,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 HERE = Path(__file__).resolve().parent
 TARGET = "marker:trait"

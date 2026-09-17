@@ -2,8 +2,8 @@
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.grade_llm import (
+import whileai.simulations as zps
+from whileai.simulations.score.grade_llm import (
     AUDIT_SYSTEM,
     JUDGE_MAX_TOKENS,
     JUDGE_SYSTEM,
@@ -25,7 +25,7 @@ def test_data_grade_is_the_optional_qwen_followup(monkeypatch):
         rows[0]["reason"] = "ok"
         return {"status": "judged", "graded": 1}
 
-    monkeypatch.setattr("zeroproof.simulations.data.apply_grade_llm", fake_apply)
+    monkeypatch.setattr("whileai.simulations.data.apply_grade_llm", fake_apply)
     data = zps.SimulationData(
         trajectories=[
             {
@@ -121,7 +121,7 @@ def test_parse_verdict_reason_before_score():
 def test_long_trajectory_payload_keeps_faults_and_ending():
     import json
 
-    from zeroproof.simulations.score.grade_llm import _render_payload
+    from whileai.simulations.score.grade_llm import _render_payload
 
     steps = [
         {"tool": f"step_{i}", "arguments": {"n": i}, "result": {"status": "ok", "data": "x" * 300}}
@@ -194,7 +194,7 @@ def test_last_complete_object_is_the_verdict():
 
 
 def test_apply_grade_llm_does_not_rejudge_length_cap_rows(monkeypatch):
-    from zeroproof.simulations.score import grade_llm as g
+    from whileai.simulations.score import grade_llm as g
 
     seen: list[str] = []
     monkeypatch.setattr(g, "warm_judge", lambda *a, **k: {"ok": True, "seconds": 0.0})
@@ -225,7 +225,7 @@ def test_audit_grades_reports_false_passes_and_reasons(monkeypatch):
     """The audit judge's job is to say what to fix, not to count agreement.
     A row the grader passed and the auditor failed is a rubric hole, and it
     leads the findings because those rows become training data."""
-    from zeroproof.simulations.score import grade_llm
+    from whileai.simulations.score import grade_llm
 
     monkeypatch.setattr(grade_llm, "require_judge_key", lambda *a, **k: "vllm:m@http://x/v1")
     monkeypatch.setattr(grade_llm, "warm_judge", lambda *a, **k: {"ok": True})

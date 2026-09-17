@@ -3,7 +3,7 @@
 Push a graded dataset to a Hub repo you own, pull any Hub split onto your
 account and read its numbers before you train on it, and push a finished
 training run's adapter as a model repo. One script, three calls. You need
-`ZEROPROOF_API_KEY` and a Hugging Face account connected on the platform
+`WHILEAI_API_KEY` and a Hugging Face account connected on the platform
 (the import half of the script works on a public repo without the
 connection); a minute end to end.
 
@@ -13,9 +13,9 @@ connection); a minute end to end.
 | `zps.import_hf("ns/name", split=...)` | any Hub split | a dataset on your account, profiled (pass rate, support, mixed prompts) |
 | `zps.hf_publish_run("run_...")` | a run's LoRA adapter | `huggingface.co/<you>/<repo>` with a model card, private by default |
 
-Versions are commits. Every push is tagged with the ZeroProof id it came
+Versions are commits. Every push is tagged with the While id it came
 from, so `load_dataset(repo, split, revision="zp-ds_...")` loads exactly
-that push, and `zeroproof.json` in the repo maps each split to its dataset
+that push, and `whileai.json` in the repo maps each split to its dataset
 with history. Pushing a new cut into the same split replaces the old parts
 and the commit message carries the delta.
 
@@ -26,8 +26,8 @@ https://www.zeroproofai.com/platform/datasets (the platform holds the
 token, the SDK never sees it). Then:
 
 ```bash
-pip install zeroproof
-zeroproof login                                        # or ZEROPROOF_API_KEY
+pip install whileai
+whileai login                                        # or WHILEAI_API_KEY
 cd recipes/05-export/hugging-face
 python roundtrip.py                                    # import a public split, profile it, print the numbers
 python roundtrip.py --push ds_0123 --repo my-set       # also push one of your sets and print the tag
@@ -49,8 +49,8 @@ imported cornell-movie-review-data/rotten_tomatoes:test -> ds_... (1066 rows)
 
 The imported set is deleted at the end unless you pass `--keep`.
 
-Every call is a request to the platform API (`ZEROPROOF_API_URL`, default
+Every call is a request to the platform API (`WHILEAI_API_URL`, default
 `https://api.zeroproofai.com`); the SDK never talks to the Hub itself. That
 is also how the test suite exercises this script offline: it points
-`ZEROPROOF_API_URL` at a local stub and checks the requests the script
+`WHILEAI_API_URL` at a local stub and checks the requests the script
 makes. See `tests/recipes/test_example_hugging_face.py`.

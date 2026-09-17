@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.stats import eval_variance
+import whileai.simulations as zps
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.stats import eval_variance
 
 
 def _rows(pass_rates: dict[str, float], k: int = 4, run_id: str | None = None) -> list[dict]:

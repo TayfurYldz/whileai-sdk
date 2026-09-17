@@ -1,4 +1,4 @@
-# Character training with zeroproof
+# Character training with whileai
 
 Character training changes the weights so a model has a stable way of
 talking without a system prompt telling it to. It is the same post-training

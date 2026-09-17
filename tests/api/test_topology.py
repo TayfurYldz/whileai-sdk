@@ -8,9 +8,9 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import GITHUB_SPEC, POLICY, TOOLS, offline, scripted_agent
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate.scenarios import (
     SEARCH_ARMS,
     build_dimensions,
     reallocate_search_arms,
@@ -131,7 +131,7 @@ def test_public_n_is_requests_per_situation_not_completions(monkeypatch):
         topic = f"{letters[(idx // 26) % 26]}{letters[idx % 26]}topic"
         return {"content": json.dumps([{"region_id": None, "message": f"check {topic}"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     data = zps.simulate(
         scripted_agent,
         mode="adaptive",
@@ -202,7 +202,7 @@ def test_mode_sft_rl_explore_change_n_and_k():
 
 
 def test_rl_covering_grid_and_fault_rate_are_overridable():
-    from zeroproof.simulations.generate.scenarios import scenario_regions
+    from whileai.simulations.generate.scenarios import scenario_regions
 
     def n_faults(regions):
         return sum(
@@ -537,7 +537,7 @@ def test_seed_grade_grader_dimensions_texture_output(tmp_path):
 
 
 def test_texture_reaches_writer_tag_draw(monkeypatch):
-    from zeroproof.simulations.generate.diversity import sample_cell_tags as orig
+    from whileai.simulations.generate.diversity import sample_cell_tags as orig
 
     seen: list[float] = []
 
@@ -545,12 +545,12 @@ def test_texture_reaches_writer_tag_draw(monkeypatch):
         seen.append(float(texture_rate))
         return orig(seed, round_index, key, assignment, texture_rate=texture_rate, **kw)
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.sample_cell_tags", tracked)
+    monkeypatch.setattr("whileai.simulations.generate.generator.sample_cell_tags", tracked)
 
     def fake_complete(_url, _model, _messages, **_kwargs):
         return {"content": json.dumps([{"region_id": None, "message": "where's my order ORD-1"}])}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", fake_complete)
     zps.simulate(
         scripted_agent,
         mode="adaptive",
@@ -612,7 +612,7 @@ def test_avg_turns_max_turns_concurrency_temperature_backend(monkeypatch):
 
         return agent
 
-    monkeypatch.setattr("zeroproof.simulations.run.engine.local_model", fake_local)
+    monkeypatch.setattr("whileai.simulations.run.engine.local_model", fake_local)
     zps.simulate(
         tools=TOOLS,
         policy=POLICY,
@@ -733,9 +733,9 @@ def test_k_does_not_clone_followups(monkeypatch):
             return {"content": f"Refund note {last.get('content')}"}
         return {"content": "Order ORD-1 is packed. Want me to check the refund too?"}
 
-    monkeypatch.setattr("zeroproof.simulations.generate.agents.complete", fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.agents.complete", fake_complete)
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 8
     )
     data = zps.simulate(
         tools=TOOLS,
@@ -830,7 +830,7 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
 
         return agent
 
-    monkeypatch.setattr("zeroproof.simulations.generate.adapters.local_model", fake_local)
+    monkeypatch.setattr("whileai.simulations.generate.adapters.local_model", fake_local)
     zps.simulate(
         agent="vllm:fake@http://127.0.0.1:9",
         tools=TOOLS,
@@ -849,7 +849,7 @@ def test_agent_max_tokens_reaches_a_spec_agent(monkeypatch):
 
 def test_agent_max_tokens_does_not_break_an_http_agent():
     """openai_http takes no reply budget; the option must not reach it."""
-    from zeroproof.simulations.generate.adapters import resolve
+    from whileai.simulations.generate.adapters import resolve
 
     agent, kind = resolve(
         "http://127.0.0.1:9/v1/chat/completions", tools=TOOLS, policy=POLICY, max_tokens=4096

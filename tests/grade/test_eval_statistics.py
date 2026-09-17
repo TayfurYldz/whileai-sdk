@@ -6,16 +6,16 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.judge_trust import (
+import whileai.simulations as zps
+from whileai.simulations.score.agreement import judge_agreement
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.judge_trust import (
     FILLER,
     format_judge_trust,
     judge_trust,
     length_sensitivity,
 )
-from zeroproof.simulations.score.stats import (
+from whileai.simulations.score.stats import (
     bootstrap_ci,
     compare_runs,
     decontaminate,
@@ -366,7 +366,7 @@ def test_decontaminate_pulls_a_platform_dataset_id(monkeypatch):
         pulled.append(dataset_id)
         return [{"prompt": "what is the capital of france", "answer": "Paris"}]
 
-    monkeypatch.setattr("zeroproof.simulations.ingest.platform.pull", fake_pull)
+    monkeypatch.setattr("whileai.simulations.ingest.platform.pull", fake_pull)
     rows = [_row("what is the capital of france"), _row("refund order 4412")]
     kept, report = decontaminate(rows, against="ds_eval")
     assert pulled == ["ds_eval"]

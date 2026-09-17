@@ -8,8 +8,8 @@ import json
 import re
 import time
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.embeddings import HashEmbedder, resolve_embedder
+import whileai.simulations as zps
+from whileai.simulations.generate.embeddings import HashEmbedder, resolve_embedder
 
 CALENDAR_TOOLS = [
     {
@@ -146,7 +146,7 @@ def test_offline_fallback_arms():
 
 
 def test_llm_guided_with_mocked_model(monkeypatch, tmp_path):
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", _fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", _fake_complete)
     data = zps.simulate(
         _calendar_agent,
         tools=CALENDAR_TOOLS,

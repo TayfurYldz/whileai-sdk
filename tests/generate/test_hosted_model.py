@@ -1,9 +1,9 @@
-"""hosted_model is local_model pointed at the default backend, or ZEROPROOF_AGENT."""
+"""hosted_model is local_model pointed at the default backend, or WHILEAI_AGENT."""
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate import agents
+import whileai.simulations as zps
+from whileai.simulations.generate import agents
 
 
 def _capture_local_model(monkeypatch):
@@ -18,7 +18,7 @@ def _capture_local_model(monkeypatch):
 
 
 def test_default_brain_is_the_hosted_qwen_wearing_the_tools(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_AGENT", raising=False)
+    monkeypatch.delenv("WHILEAI_AGENT", raising=False)
     seen = _capture_local_model(monkeypatch)
     tools = [{"type": "function", "function": {"name": "lookup_order"}}]
     agent = zps.hosted_model(tools, system="Be honest.")
@@ -29,7 +29,7 @@ def test_default_brain_is_the_hosted_qwen_wearing_the_tools(monkeypatch):
 
 
 def test_zeroproof_agent_env_swaps_the_backend_and_kwargs_pass_through(monkeypatch):
-    monkeypatch.setenv("ZEROPROOF_AGENT", "vllm:phi@http://127.0.0.1:9/v1")
+    monkeypatch.setenv("WHILEAI_AGENT", "vllm:phi@http://127.0.0.1:9/v1")
     seen = _capture_local_model(monkeypatch)
     plans = {"lookup_order": {"kind": "timeout"}}
     zps.hosted_model([], fault_plans=plans, max_turns=2)

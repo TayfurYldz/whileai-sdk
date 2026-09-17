@@ -1,17 +1,17 @@
-"""The installed SDK is zeroproof.simulations only. Specs and examples stay out."""
+"""The installed SDK is whileai.simulations only. Specs and examples stay out."""
 
 from __future__ import annotations
 
 import pkgutil
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import FIXTURES, REPO_ROOT
 
 
 def test_sdk_package_excludes_tests_examples_and_specs():
     root = Path(zps.__file__).resolve().parent
-    assert root.name == "simulations" and root.parent.name == "zeroproof"
+    assert root.name == "simulations" and root.parent.name == "whileai"
     names = {module.name for module in pkgutil.iter_modules(zps.__path__)}
     assert "tests" not in names
     assert "examples" not in names

@@ -191,7 +191,7 @@ def sampled_pairs(
     without a tool call also pairs that reply against an invented call."""
     from reward import reward_rows
 
-    import zeroproof.simulations as zps
+    import whileai.simulations as zps
 
     rows = reward_rows(prompts, replies)
     for row in rows:

@@ -10,7 +10,7 @@ example runs that eval offline, in seconds, on three scripted agents, and
 every call in it works unchanged on a real one.
 
 ```bash
-pip install zeroproof
+pip install whileai
 cd recipes/02-measure/safety-evals
 python run.py                    # the whole report, no key
 python run.py --k 8 --seed 1     # more repeats, another draw
@@ -167,7 +167,7 @@ Replace the scripted agent with anything that honors the callable contract
 or an OpenAI-compatible endpoint, and keep the rest:
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from judge import safety_judge
 from suite import SEEDS, SYSTEM_PROMPT, TOOLS, classify
 

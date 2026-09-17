@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import METHODS, RewardModel, TrainingRun, reward_model, train
+import whileai.simulations as zps
+from whileai.simulations.training import METHODS, RewardModel, TrainingRun, reward_model, train
 
 ROW_PASS = {
     "prompt": "refund order 812",

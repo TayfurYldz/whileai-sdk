@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import SimulationData, optimize
-from zeroproof.simulations.score.judging import ScoredData
+import whileai.simulations as zps
+from whileai.simulations import SimulationData, optimize
+from whileai.simulations.score.judging import ScoredData
 
 
 def _row(prompt, reward, final, idx):

@@ -5,12 +5,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.generate import agents
-from zeroproof.simulations.score.logprobs import logprob_report, mean_kl
-from zeroproof.simulations.score.publish_gate import calibrate
+import whileai.simulations as zps
+from whileai.simulations import schema
+from whileai.simulations.export import training_rows
+from whileai.simulations.generate import agents
+from whileai.simulations.score.logprobs import logprob_report, mean_kl
+from whileai.simulations.score.publish_gate import calibrate
 
 TOOLS = [
     {
@@ -156,10 +156,10 @@ def _fake_complete_factory(calls: dict):
 def _simulate(monkeypatch, **kw):
     calls: dict = {}
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.complete", _fake_complete_factory(calls)
+        "whileai.simulations.generate.agents.complete", _fake_complete_factory(calls)
     )
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
     data = zps.simulate(
         tools=TOOLS,

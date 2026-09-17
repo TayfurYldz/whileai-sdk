@@ -6,8 +6,8 @@ import warnings
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import TrainingRun, serve, train
+import whileai.simulations as zps
+from whileai.simulations.training import TrainingRun, serve, train
 
 RUNNING = {
     "callId": "fc-1",
@@ -25,7 +25,7 @@ DONE = {
     "metric": "pass@1",
     "rows": 51,
     "seconds": 129,
-    "adapter": "volume zeroproof-train-runs:/run_h1/adapter",
+    "adapter": "volume whileai-train-runs:/run_h1/adapter",
 }
 
 

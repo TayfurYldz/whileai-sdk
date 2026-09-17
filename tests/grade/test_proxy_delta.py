@@ -7,9 +7,9 @@ import random
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.hack_scan import format_hack_scan_diff, hack_scan_diff
+import whileai.simulations as zps
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.hack_scan import format_hack_scan_diff, hack_scan_diff
 
 WORDS = [
     "order",
