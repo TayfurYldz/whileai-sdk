@@ -3,6 +3,17 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
+## Unreleased
+
+- `judge_trust` on a judge that agrees with every human label but has
+  too few of them (14 perfect labels: lower bound 0.78 under the 0.80
+  floor) said "change the judge prompt or the judge model". It now says
+  the judge is not the problem, the sample is, and how many labels the
+  bound needs at that agreement rate. The recipe README's thread-local
+  recorder snippet dropped calls when the wrapper had not set the list;
+  fixed. Both from the second cold-start test of "use zp to build evals"
+  (2026-09-17, whileai 0.58).
+
 ## 0.58 (2026-09-17)
 
 - `split_pseudo_production` splits by `task_key` (the `scenario_id`,

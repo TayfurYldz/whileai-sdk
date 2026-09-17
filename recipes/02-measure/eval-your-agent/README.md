@@ -113,7 +113,9 @@ _real_run_tool = bot._run_tool
 
 def _recording_run_tool(name, args):
     result = _real_run_tool(name, args)
-    getattr(_local, "calls", []).append({"tool": name, "arguments": args, "result": result})
+    # _local.calls is set per rollout in my_agent below; a rollout that
+    # reaches a tool without it is a wrapper bug, so let it raise.
+    _local.calls.append({"tool": name, "arguments": args, "result": result})
     return result
 
 

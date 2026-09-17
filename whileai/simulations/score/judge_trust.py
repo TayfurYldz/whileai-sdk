@@ -526,11 +526,32 @@ def judge_trust(
     if trusted and agree["n"]:
         low = agree["ci95"][0]
         if low < min_agreement:
-            warnings.append(
-                f"Judge agreement with human labels is {low:.2f} (lower bound), under the "
-                f"{min_agreement:.2f} floor. Change the judge prompt or the judge model, then "
-                "run judge_trust again."
-            )
+            point = float(agree.get("agreement") or 0.0)
+            need = int(agree["n"])
+            if point > min_agreement:
+                while need < 1000:
+                    ci = wilson_interval(round(point * need), need)
+                    if ci is not None and ci[0] >= min_agreement:
+                        break
+                    need += 1
+            if point > min_agreement and need <= 200:
+                # The judge agrees often enough; the sample is what is short.
+                # Say how many labels the bound needs at this agreement rate,
+                # or a perfect judge on 14 labels reads as "change the judge". At
+                # the floor exactly, or when the count is out of reach, the old
+                # advice stands: the judge is what to change.
+                warnings.append(
+                    f"Judge agreement with human labels is {point:.2f} on {agree['n']} labels, "
+                    f"but the lower bound is {low:.2f}, under the {min_agreement:.2f} floor. "
+                    f"The judge is not the problem; the sample is. Label about "
+                    f'{need} rows (attach_labels(kind="human")) and run judge_trust again.'
+                )
+            else:
+                warnings.append(
+                    f"Judge agreement with human labels is {low:.2f} (lower bound), under the "
+                    f"{min_agreement:.2f} floor. Change the judge prompt or the judge model, then "
+                    "run judge_trust again."
+                )
         kappa = agree["kappa"]
         if not degenerate_gold and kappa is not None and kappa < min_kappa:
             warnings.append(
