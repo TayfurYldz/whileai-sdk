@@ -9,60 +9,60 @@
   "k": 4,
   "arms": {
     "base": {
-      "score": 0.32708333333333334,
+      "score": 0.36875,
       "ci": [
-        0.2625,
-        0.39791666666666664
+        0.30833333333333335,
+        0.4375
       ],
-      "pass_at_k": 0.5166666666666667,
+      "pass_at_k": 0.5833333333333334,
       "steps": 0,
       "gpu_minutes": 0
     },
     "baseline": {
-      "score": 0.3625,
+      "score": 0.39166666666666666,
       "ci": [
-        0.29583333333333334,
-        0.43125
+        0.32708333333333334,
+        0.45416666666666666
       ],
-      "pass_at_k": 0.5583333333333333,
+      "pass_at_k": 0.675,
       "steps": 40,
-      "gpu_minutes": 24.9
+      "gpu_minutes": 30.0
     },
     "recipe": {
-      "score": 0.4125,
+      "score": 0.4583333333333333,
       "ci": [
-        0.35,
-        0.4791666666666667
+        0.38958333333333334,
+        0.5291666666666667
       ],
-      "pass_at_k": 0.6666666666666666,
+      "pass_at_k": 0.7,
       "steps": 40,
-      "gpu_minutes": 17.9
+      "gpu_minutes": 21.8
     }
   },
   "delta": {
-    "recipe_vs_baseline": 0.05,
+    "recipe_vs_baseline": 0.06666666666666667,
     "ci": [
-      -0.00625,
-      0.10625
+      0.020833333333333332,
+      0.1125
     ],
-    "verdict": "flat"
+    "verdict": "moved"
   },
   "checks": {
-    "run_std": 0.0232,
+    "run_std": 0.0169,
     "decontaminated_dropped": 0,
     "over_optimized": false,
-    "length_before": 712.3333333333334,
+    "length_before": 727.88125,
     "length_after": {
-      "baseline": 266.8333333333333,
-      "recipe": 424.8979166666667
+      "baseline": 234.15416666666667,
+      "recipe": 496.26875
     },
     "hack_scan_top": "marker:shaped_reward",
     "seed": 0,
     "pins": "torch 2.7.1, transformers 4.54.0, trl 0.19.1, peft 0.16.0"
   },
   "gpu": "L40S",
-  "usd": 1.43,
+  "usd": 1.73,
   "verified": "2026-09-17",
   "whileai": "0.53",
-  "run_url": "https://www.zeroproofai.com/platform/training/run_8ec3ba0f44a20541"
+  "run_url": "https://www.zeroproofai.com/platform/training/run_396d8b162199da3d"
 }
