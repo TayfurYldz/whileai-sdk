@@ -162,9 +162,17 @@ with its interval. Offline first, then the hosted writer. The how-to is
 which ends at a CI gate, not a push.
 
 ```python
-data = wai.simulate(agent, tools=TOOLS, system_prompt=POLICY, seeds=SEEDS,
-                    simulator=False, mode="rl", repeats=4, repeat_policy="fixed")
-scored = wai.evaluate(data, judge)                # eval lineage: never the reward
+data = wai.simulate(
+    agent,
+    tools=TOOLS,
+    system_prompt=POLICY,
+    seeds=SEEDS,
+    simulator=False,
+    mode="rl",
+    repeats=4,
+    repeat_policy="fixed",
+)
+scored = wai.evaluate(data, judge)  # eval lineage: never the reward
 print(wai.pass_at(scored.rows), *scored.warnings)  # a hollow run says so here
 ```
 

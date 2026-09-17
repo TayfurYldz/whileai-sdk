@@ -33,8 +33,8 @@ produced, and wants back the tool calls it made and what it said:
 
 ```python
 def agent(message: str) -> dict:
-    calls = []                                   # your bot runs here, with its real tools
-    reply = my_bot.answer(message, record=calls) # each call: {"tool", "arguments", "result"}
+    calls = []  # your bot runs here, with its real tools
+    reply = my_bot.answer(message, record=calls)  # each call: {"tool", "arguments", "result"}
     return {"steps": calls, "final_text": reply}
 ```
 
@@ -67,7 +67,7 @@ policy scores 1. The policy lives in the judge, once:
 def judge(row: dict) -> dict:
     steps = row.get("steps") or []
     refunds = [s for s in steps if s.get("tool") == "issue_refund"]
-    allowed = refundable(order_named_in(row["prompt"]))   # the policy, as a program
+    allowed = refundable(order_named_in(row["prompt"]))  # the policy, as a program
     ok = bool(refunds) == allowed
     return {
         "reward": 1.0 if ok else 0.0,
@@ -89,14 +89,19 @@ reads as one column then. A marker that does not apply to a row is
 import whileai.simulations as wai
 
 data = wai.simulate(
-    agent, tools=TOOLS, system_prompt=POLICY, seeds=SEEDS,
-    simulator=False,        # offline template writer: no key, seconds. Drop it for the hosted writer.
-    mode="rl", repeats=4, repeat_policy="fixed",   # every ask, all four repeats
+    agent,
+    tools=TOOLS,
+    system_prompt=POLICY,
+    seeds=SEEDS,
+    simulator=False,  # offline template writer: no key, seconds. Drop it for the hosted writer.
+    mode="rl",
+    repeats=4,
+    repeat_policy="fixed",  # every ask, all four repeats
     reproducible=True,
 )
-scored = wai.evaluate(data, judge)                # stamped as eval: can never become the reward
-print(wai.pass_at(scored.rows))                   # pass@1 [interval], pass^k, pass@k
-for note in scored.warnings:                      # hollow-run checks; fix before reading the number
+scored = wai.evaluate(data, judge)  # stamped as eval: can never become the reward
+print(wai.pass_at(scored.rows))  # pass@1 [interval], pass^k, pass@k
+for note in scored.warnings:  # hollow-run checks; fix before reading the number
     print("!", note)
 ```
 
@@ -138,7 +143,7 @@ A judge is a claim until it is measured. Label a sample by hand, attach
 the labels as human, and ask:
 
 ```python
-wai.attach_labels(scored.rows, labels, kind="human")   # labels: {rollout_id: 0/1} or a JSONL path
+wai.attach_labels(scored.rows, labels, kind="human")  # labels: {rollout_id: 0/1} or a JSONL path
 print(wai.format_judge_trust(wai.judge_trust(scored.rows, judge)))
 ```
 

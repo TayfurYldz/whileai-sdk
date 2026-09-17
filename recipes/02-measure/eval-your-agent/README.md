@@ -74,8 +74,10 @@ tools and is played single-turn.
 
 ```python
 def agent(message: str) -> dict:
-    return {"steps": [{"tool": "lookup_order", "arguments": {...}, "result": {...}}],
-            "final_text": "Done: $129.00 refunded for order A1001."}
+    return {
+        "steps": [{"tool": "lookup_order", "arguments": {...}, "result": {...}}],
+        "final_text": "Done: $129.00 refunded for order A1001.",
+    }
 ```
 
 **The seeds.** One per policy branch. The writer varies wording and
@@ -103,22 +105,26 @@ run concurrently.
 
 ```python
 import threading
-import bot                                  # your bot: bot.answer(message) -> str, tools in bot._run_tool
+import bot  # your bot: bot.answer(message) -> str, tools in bot._run_tool
 
 _local = threading.local()
 _real_run_tool = bot._run_tool
+
 
 def _recording_run_tool(name, args):
     result = _real_run_tool(name, args)
     getattr(_local, "calls", []).append({"tool": name, "arguments": args, "result": result})
     return result
 
+
 bot._run_tool = _recording_run_tool
+
 
 def my_agent(message: str) -> dict:
     _local.calls = []
     reply = bot.answer(message)
     return {"steps": list(_local.calls), "final_text": reply}
+
 
 AGENTS = {"mine": my_agent}
 ```
