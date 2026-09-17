@@ -333,6 +333,7 @@ def resolve(
     result_shapes: dict | None = None,
     timeout: float | None = None,
     max_tokens: int | None = None,
+    user_model: str | None = None,
 ) -> tuple[Any, str]:
     if isinstance(target, ConnectedAgent):
         return target.run, target.transport
@@ -351,6 +352,8 @@ def resolve(
         if max_tokens:
             # only local_model takes a reply budget; openai_http does not
             loop_kw["max_tokens"] = int(max_tokens)
+        if user_model:
+            loop_kw["user_model"] = user_model
         return local_model(
             url,
             spec_model,

@@ -97,6 +97,8 @@ _CARRY_ROLLOUT = (
     "token_logprobs",
     "sampling",
     "usage",
+    "writer_model",
+    "user_model",
 )
 
 #: Every key ``from_row`` consumes into a typed field. Anything else on the
@@ -832,6 +834,8 @@ def to_row(
         "logprob",
         "n_tokens",
         "usage",
+        "writer_model",
+        "user_model",
     ):
         if rollout.extra.get(key) is not None:
             row[key] = rollout.extra[key]
