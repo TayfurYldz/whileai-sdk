@@ -47,7 +47,59 @@ python run.py report           # re-print from saved rows
 
 ## Results
 
-**RESULTS_TABLE_PLACEHOLDER**
+**Noise floor first.** Three passes of the *same* base over the *same* 37 pinned tasks, uniformly
+regraded: 0.750 / 0.794 / 0.801. `run_std` **0.0275**, `noise_band` **0.055**,
+`stability: high_variance`, `tasks_in_every_run: 37`. Anything under ~5.5 points is nothing.
+
+**The before/after**, base → trained adapter, both arms through `local_model`, paired on 37 of 37
+tasks (`n_unpaired_tasks: 0`):
+
+| metric | base | trained | paired delta [95%] | verdict |
+|---|---|---|---|---|
+| **pass@1** | 0.750 | 0.818 | **+0.068 [−0.061 .. +0.196]** | `no_difference_detected` |
+| `no_invented_amount` | 0.577 | 0.833 | **+0.183 [+0.013 .. +0.367]** | `b_better` → **improved** |
+| `escalated_over_200` | 1.000 | 0.783 | **−0.123 [−0.254 .. −0.018]** | `a_better` → **slipped** |
+| `looked_up_before_amount` | 0.837 | 0.717 | −0.046 [−0.233 .. +0.125] | within noise |
+| `used_a_tool` | 1.000 | 1.000 | +0.000 | within noise |
+
+**Null A/B control** (base pass 2 → base pass 3, same policy resampled): every metric
+`no_difference_detected`, `regressions: []`, `replicated: True`. The eval does not cry wolf.
+
+### The answer to the question I asked
+
+**No — the fine-tune's headline win does not survive a clean measurement, and that is a real
+answer rather than a confounded one.** pass@1 moved +6.8 points, just above the 5.5-point noise
+band, but the paired interval covers zero on 37 tasks. With both arms through the same entry
+point there is no `<think>` asymmetry left to blame: the honest reading is "not detectable at
+this sample size", and 37 tasks is too few to resolve a 7-point effect.
+
+**But the headline was hiding a trade, in both directions.** The adapter genuinely learned the
+thing it was trained for — `no_invented_amount` **+0.183, interval clear of zero** — and paid for
+it somewhere nobody was looking: `escalated_over_200` **−0.123, interval clear of zero**. The base
+model never once issued a credit above $200; the trained model does it about 22% of the time.
+That is a policy violation the fine-tune *introduced*, and a single pass@1 number nets the two
+against each other and reports a shrug.
+
+`delta_report` caught it without being asked — `slipped: ['marker:escalated_over_200']` plus a
+warning naming the drop and its interval. It did **not** fail the run, because `ok: True` only
+reflects `must_not_regress=`, and I had guarded `no_invented_amount` — the marker that improved.
+**I guessed the wrong marker to protect.** The lesson for anyone copying this: `must_not_regress`
+should list the behaviours you are *not* training, not the one you are.
+
+It also volunteered `ceiling: True` — *"the before run already passes 19 of 37 paired tasks every
+time, so there is little room to measure improvement; use harder situations"* — which is the same
+warning the previous seat got and the reason to take item 2 under **Next** seriously.
+
+### The `<think>` sensitivity, measured on both arms
+
+| arm | rows with `<think>` | unclosed | pass@1 graded as-is | pass@1 stripped |
+|---|---|---|---|---|
+| base | 151 / 151 | 34 | 0.485 | 0.750 |
+| trained | 150 / 150 | 40 | 0.642 | 0.818 |
+
+Both arms shift by ~26 and ~18 points. Because the shift is large *and* unequal between arms, a
+before/after that strips on one side and not the other — which is what `hosted_model` vs
+`local_model` does for you — can manufacture or erase a result of this size at will.
 
 ## What did not work, and what to copy
 
@@ -63,11 +115,19 @@ you to worry about, and invisible unless you go looking.
 This is the whole reason the previous run's `-0.025` was uninterpretable: with one arm through
 `hosted_model` and one through `local_model`, that 26-point artefact is applied to **one side only**.
 
-**Do not trust a marker pinned at exactly 1.000.** `escalated_over_200` and `used_a_tool` both read
-1.000 with a zero-width interval. That is not a pass, it is a marker that never had a chance to
-fail: across 151 rows the model made **2** `issue_credit` calls and 63 `escalate_to_human` calls,
-so the branch the marker guards was barely exercised. The ledger has warned about this shape twice
-and I still built two of them. A marker is only evidence if both outcomes occur in the corpus.
+**Do not trust a marker pinned at exactly 1.000 — but do not delete it either.** On the base arm
+`escalated_over_200` and `used_a_tool` both read 1.000 with a zero-width interval. That is not a
+pass, it is a marker that never had a chance to fail: across 151 base rows the model made **2**
+`issue_credit` calls against 63 `escalate_to_human` calls, so the guarded branch was barely
+exercised. The ledger has warned about this shape twice and I still shipped two of them
+([#270](https://github.com/whilehq/whileai-sdk/issues/270)).
+
+The twist is that `escalated_over_200` turned out to be the most valuable marker in the run.
+Degenerate on the *before* side, it had plenty of variance on the *after* side — the adapter
+issues large credits the base never did — and that is exactly how the regression surfaced. So the
+rule is not "drop markers that pin at 1.000"; it is **"a marker pinned at 1.000 is not yet
+evidence of anything, and you will not know until something moves"**. Keep it, and do not report
+it as a pass.
 
 **`split_pseudo_production` does not give you a task-disjoint holdout**
 ([#268](https://github.com/whilehq/whileai-sdk/issues/268)). It is prompt-disjoint, which is what
