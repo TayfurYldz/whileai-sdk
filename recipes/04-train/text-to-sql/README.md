@@ -222,6 +222,7 @@ same paired number as the hosted ones.
 | Qwen3-4B, thinking on (base of the climb) | 0.58 (0.52..0.64) | 0.31 | 0.81 | 0.13 | 0.12 |
 | Nemotron-Nano-8B-v1, `detailed thinking off` | 0.26 (0.20..0.33) | 0.14 | 0.39 | 0.00 | 0.55 |
 | Nemotron-Nano-8B-v1, `detailed thinking on` | 0.26 (0.20..0.33) | 0.15 | 0.39 | 0.00 | 0.53 |
+| Nemotron-Nano-8B-v1 **r1**: GRPO 600 steps from the base, thinking off, lr 2e-5, beta 0.01, vLLM generation | 0.35 (0.28..0.42) | 0.27 | 0.45 | 0.00 | 0.35 |
 
 Nemotron-Nano-8B-v1 is half of Qwen3-4B here, and its two arms are the same
 number because its reasoning mode never engages on these prompts: with the
@@ -230,9 +231,30 @@ the one-query rule softened to "think first") every reply is a bare query,
 while the model card's own math example thinks for 3,000+ characters. Even a
 forced `<think>` prefill closes after one line. Its failures are real SQL
 errors (`WHERE NOT IN (...)` with no column, an alias used before its join,
-non-grouped columns), not format. Headroom is 0.12, the same as Qwen's, so a
-GRPO round on it (`text-to-sql-shop-nemotron-r1`, thinking off, 600 steps)
-is running; the row lands here when it is measured.
+non-grouped columns), not format. Headroom is 0.12, the same as Qwen's.
+
+One GRPO round on it (`text-to-sql-shop-nemotron-r1`: 600 steps, 44 min on
+an H100, `--steps-per-generation 8 --max-completion-length 512`) is the first
+climb on this task whose interval excludes zero: **+0.087 (95% +0.048..+0.130)**
+paired over the 140 tasks, medium +0.10 (+0.01..+0.18) and hard +0.12
+(+0.05..+0.20), easy flat. What it learned is mostly to write SQL that runs:
+`executes` 0.45 -> 0.65, SQL errors 0.55 -> 0.35, and the base was already at
+`has_sql` 1.00, so none of it is format. The SDK marks a single eval run per
+side `moved_unreplicated`, so each side was sampled three times (560 rows
+each): base 0.26 / 0.26 / 0.26, r1 0.35 / 0.36 / 0.37, paired deltas +0.087
+(+0.048..+0.130), +0.098 (+0.055..+0.148), +0.111 (+0.068..+0.155). Three of
+three above zero. The adapter is served the same way as the base
+(`serve_modal.py --adapter volume:run_f69e975a1571d445 --runs-volume
+zeroproof-train-runs`, model id `nvidia/Llama-3.1-Nemotron-Nano-8B-v1-adapter`);
+eval sets `ds_34f0fbd9337ab519` (base) and `ds_2fbd036dd8597150` (r1) on the
+platform.
+
+Read next to the Qwen table: the same reward, task set, and trainer moved a
+weaker base by nine points in one 44-minute round and a stronger base by
+three points in three rounds. The climb is real where the base leaves room
+below its own pass@4 and the failures are things a verifier can teach (SQL
+that does not run); it is slow where the base already writes valid SQL and
+the misses are semantics.
 
 ## The hill climb (thinking on, GRPO, execution reward)
 
