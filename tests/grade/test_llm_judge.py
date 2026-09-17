@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import simulate_offline
 from whileai.simulations.score.llm_judge import DEFAULT_JUDGE_SPEC, MISSING_JUDGE_KEY
 
@@ -75,7 +75,7 @@ def test_llm_grade_helper_and_unreachable(monkeypatch):
 
     monkeypatch.setattr("whileai.simulations.score.llm_judge.complete", blocked)
     data = _run(budget=4)
-    zps.llm_grade(data, api_key="sk-test")
+    wai.llm_grade(data, api_key="sk-test")
     assert all(t["llm_reward"] is None for t in data.trajectories)
     assert "llm_judge_unreachable" in data.degraded
 

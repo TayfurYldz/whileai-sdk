@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.connect.test_otel import BATCH
 from tests.helpers import FIXTURES, simulate_offline
 from whileai.simulations import schema
@@ -61,7 +61,7 @@ def test_detect_shape_and_version():
     assert schema.detect_shape(_load("engine")) == "engine"
     assert schema.detect_shape(_load("platform_pull_engine")) == "engine"
     assert schema.detect_shape(_load("platform_pull")) == "platform_pull"
-    otel = zps.rows_from_otel(BATCH)[0]
+    otel = wai.rows_from_otel(BATCH)[0]
     assert schema.detect_shape(otel) == "v1"
     otel.pop("schema_version")
     assert schema.detect_shape(otel) == "otel"
@@ -85,7 +85,7 @@ def test_engine_shaped_rows_round_trip_byte_for_byte(name):
 
 def test_platform_trace_pull_normalizes_like_load_traces():
     row = _load("platform_pull")
-    expected = zps.load_traces([row])[0]
+    expected = wai.load_traces([row])[0]
     expected.pop("tool_trace")  # load_traces carries it; to_row emits steps
     task, rollout, judgments, markers = schema.from_row(row)
     assert [s.tool for s in rollout.steps] == ["read_file", "write_file"]
@@ -99,7 +99,7 @@ def test_platform_trace_pull_normalizes_like_load_traces():
 
 
 def test_otel_rows_are_stamped_and_round_trip():
-    rows = zps.rows_from_otel(BATCH)
+    rows = wai.rows_from_otel(BATCH)
     assert rows and all(r["schema_version"] == "1" for r in rows)
     for row in rows:
         task, rollout, judgments, markers = schema.from_row(row)
@@ -114,7 +114,7 @@ def test_training_export_rows_derive_steps_instead_of_losing_them():
     row = _load("training")
     assert schema.detect_shape(row) == "training"
     task, rollout, judgments, markers = schema.from_row(row)
-    expected = zps.load_traces([row])[0]
+    expected = wai.load_traces([row])[0]
     back = schema.to_row(task, rollout, judgments, markers)
     assert back["steps"] == expected["steps"] and back["steps"]
     assert back["final_text"] == expected["final_text"]
@@ -265,7 +265,7 @@ def test_check_names_the_boundary_and_the_rows():
 
 def test_push_rows_validates_before_any_network_call():
     with pytest.raises(ValueError, match="schema_invalid in push_rows"):
-        zps.push_rows(["not a row"], "name", api_key="k")
+        wai.push_rows(["not a row"], "name", api_key="k")
 
 
 # ------------------------------------------------------------------ engine
@@ -288,6 +288,6 @@ def test_stamp_is_born_in_the_engine_and_stream_equals_save(tmp_path):
 
 def test_exports_are_stamped():
     data = simulate_offline(budget=6, concurrency=1)
-    rows = zps.training_rows(data)
+    rows = wai.training_rows(data)
     assert rows and all(r["schema_version"] == "1" for r in rows)
     assert schema.validate(rows[0], "training") == []

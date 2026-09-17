@@ -11,11 +11,11 @@ zeroproofai.com/platform/training.
 
 Three ways in for your own trainer:
 
-* Engineer, one line. ``trainer.add_callback(zps.TrainerCallback(run))``
+* Engineer, one line. ``trainer.add_callback(wai.TrainerCallback(run))``
   on a Transformers or TRL trainer logs every ``on_log`` (loss, learning
   rate, eval loss, epoch, grad norm), sets the step count from the
   trainer, and finishes the run when training ends or crashes.
-* Data scientist with a loop. ``run = zps.training_run("sft-v3",
+* Data scientist with a loop. ``run = wai.training_run("sft-v3",
   dataset="ds_...")``, then ``run.log(step, loss=...)`` wherever the loop
   has a number, ``run.finish()`` at the end. Points are buffered and sent
   in batches; logging never raises into the training loop.
@@ -524,7 +524,7 @@ def train(
     if base_model not in SERVED_BASES:
         which = f"base_model={base_model!r}" if base_model else "the trainer's default base"
         warnings.warn(
-            f"hosted {method} run on {dataset} uses {which}, which zps.serve cannot host "
+            f"hosted {method} run on {dataset} uses {which}, which wai.serve cannot host "
             f"(served bases: {', '.join(SERVED_BASES)}); pass base_model={SERVED_BASES[0]!r} "
             "if the goal is an endpoint",
             stacklevel=2,
@@ -620,7 +620,7 @@ class RewardModel:
     ):
         self.run_id = run.run_id if isinstance(run, TrainingRun) else str(run or "").strip()
         if not self.run_id:
-            raise ValueError("run: a finished reward-model run (zps.train(method='rm')) or its id")
+            raise ValueError("run: a finished reward-model run (wai.train(method='rm')) or its id")
         self.threshold = threshold
         self.__name__ = f"reward_model:{self.run_id}"
         self._api_key = api_key
@@ -671,12 +671,12 @@ def reward_model(
 ) -> RewardModel:
     """A judge backed by a finished reward-model run.
 
-    ``run = zps.train("ds_...", method="rm", wait=True)`` trains a
+    ``run = wai.train("ds_...", method="rm", wait=True)`` trains a
     sequence-classification head on the set's pass-vs-fail pairs and
     picks the score threshold that best separates the held-out pairs.
-    ``judge = zps.reward_model(run)`` then scores any rollout row:
-    ``data.grade(judge=judge)``, ``zps.evaluate(rollouts, judge)``,
-    ``zps.judge_trust(scored.rows, judge=judge)``. Pass ``threshold=`` to
+    ``judge = wai.reward_model(run)`` then scores any rollout row:
+    ``data.grade(judge=judge)``, ``wai.evaluate(rollouts, judge)``,
+    ``wai.judge_trust(scored.rows, judge=judge)``. Pass ``threshold=`` to
     override the run's own cut. The scores are the model's; a reward
     model trained on one agent's pairs says nothing about another agent.
     """
@@ -813,7 +813,7 @@ def attach_holdout(
     """Did it work? Put the held-out pass rate before and after on a run
     that has already finished — the two numbers its page opens with::
 
-        zps.attach_holdout("run_...", before=0.42, after=0.58)
+        wai.attach_holdout("run_...", before=0.42, after=0.58)
 
     Pass rates are 0 to 1. ``metric="loss"`` sends held-out loss instead
     (SFT), where lower is better. The summary is re-sent with the two keys
@@ -911,7 +911,7 @@ _LOG_KEYS = {
 
 class TrainerCallback(_callback_base()):  # type: ignore[misc]
     """One line on a Transformers or TRL trainer:
-    ``trainer.add_callback(zps.TrainerCallback(run))``.
+    ``trainer.add_callback(wai.TrainerCallback(run))``.
 
     Logs every ``on_log`` to the run (loss, lr, eval loss, epoch, grad
     norm, token accuracy), takes the step count from the trainer at

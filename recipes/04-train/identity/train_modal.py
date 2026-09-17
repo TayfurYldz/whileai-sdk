@@ -157,9 +157,9 @@ def train(
     # One line for the dashboard: loss curve and progress bar on the platform.
     run = None
     if os.environ.get("WHILEAI_API_KEY"):
-        import whileai.simulations as zps
+        import whileai.simulations as wai
 
-        run = zps.training_run(
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-sft-lora",
@@ -172,7 +172,7 @@ def train(
                 "gpu": "H100",
             },
         )
-        trainer.add_callback(zps.TrainerCallback(run))
+        trainer.add_callback(wai.TrainerCallback(run))
         print(f"dashboard: {run.url}")
 
     has_checkpoint = os.path.isdir(checkpoint_dir) and any(

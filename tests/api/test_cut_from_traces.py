@@ -1,10 +1,10 @@
-"""zps.cut / zps.cuts: the platform's "Make training data" button as one line."""
+"""wai.cut / wai.cuts: the platform's "Make training data" button as one line."""
 
 from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def calls(monkeypatch):
 
 
 def test_cut_posts_the_filter_and_names_both_sets(calls):
-    made = zps.cut(agent="My-Agent", kind="rl")
+    made = wai.cut(agent="My-Agent", kind="rl")
 
     assert calls[0]["method"] == "POST"
     assert calls[0]["path"] == "/datasets/cut"
@@ -43,7 +43,7 @@ def test_cut_posts_the_filter_and_names_both_sets(calls):
 
 
 def test_cut_passes_window_band_and_trace_filters(calls):
-    zps.cut(agent="a", kind="sft", since="7d", band=(0.1, 0.9), holdout=0.25, model="gpt-4.1")
+    wai.cut(agent="a", kind="sft", since="7d", band=(0.1, 0.9), holdout=0.25, model="gpt-4.1")
 
     body = calls[0]["body"]
     assert body["kind"] == "sft"
@@ -53,7 +53,7 @@ def test_cut_passes_window_band_and_trace_filters(calls):
 
 
 def test_cut_without_an_agent_covers_every_trace(calls):
-    zps.cut()
+    wai.cut()
 
     assert calls[0]["body"] == {"filter": {"from": "all"}, "kind": "rl"}
 
@@ -66,14 +66,14 @@ def test_a_cut_with_no_holdout_still_answers(calls, monkeypatch):
         "_call",
         lambda *a, **k: {"made": [{"role": "train", "datasetId": "ds_only", "rows": 9}]},
     )
-    made = zps.cut(agent="a")
+    made = wai.cut(agent="a")
 
     assert made["train"]["datasetId"] == "ds_only"
     assert made["holdout"] is None
 
 
 def test_cuts_reads_the_summary_without_making_anything(calls):
-    summary = zps.cuts(agent="a", since="24h")
+    summary = wai.cuts(agent="a", since="24h")
 
     assert calls[0]["method"] == "GET"
     assert calls[0]["path"] == "/traces/cuts?agent=a&from=24h"

@@ -112,6 +112,6 @@ def offline(**kwargs: Any) -> dict[str, Any]:
 
 
 def simulate_offline(agent: Any = None, **kwargs: Any):
-    import whileai.simulations as zps
+    import whileai.simulations as wai
 
-    return zps.simulate(scripted_agent if agent is None else agent, **offline(**kwargs))
+    return wai.simulate(scripted_agent if agent is None else agent, **offline(**kwargs))

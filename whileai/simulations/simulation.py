@@ -142,9 +142,9 @@ def simulate(
     ``pass_at`` reports the same k on both sides; pass ``repeats=`` to
     re-run at a different k on purpose::
 
-        base = zps.simulate(agent, tools=TOOLS, system_prompt=P,
+        base = wai.simulate(agent, tools=TOOLS, system_prompt=P,
                             mode="rl", repeats=4)
-        rerun = zps.simulate(agent, tools=TOOLS, system_prompt=EDITED,
+        rerun = wai.simulate(agent, tools=TOOLS, system_prompt=EDITED,
                              tasks=base, mode="rl")  # k=4, inherited
 
     A run

@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 TOOLS = [
     {
@@ -121,7 +121,7 @@ def simulate_rows(
     any concurrency; without it completion order steers later draws and
     the same seed prints different numbers run to run. ``seeds`` are asks
     kept as drawn, so a run can pin a situation the writer might not draw."""
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -159,8 +159,8 @@ def histogram(per_task: dict[str, float]) -> dict[str, int]:
 
 
 def report(rows: list[dict]) -> dict:
-    rates = zps.pass_at(rows)
-    signal = zps.group_signal(rows)
+    rates = wai.pass_at(rows)
+    signal = wai.group_signal(rows)
     out = {
         "summary": str(rates),  # the headline line, interval included
         "pass_at": rates.to_dict(),

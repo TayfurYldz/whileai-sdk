@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.export import export_preference
 from whileai.simulations.score.pairwise import judge_pairs, parse_pairwise
 
@@ -118,8 +118,8 @@ def test_export_preference_drops_ties_by_default(tmp_path):
 
 
 def test_public_surface():
-    assert "judge_pairs" in zps.__all__ and "pairwise_judge" in zps.__all__
-    judge = zps.pairwise_judge("vllm:phi@http://127.0.0.1:9/v1")
+    assert "judge_pairs" in wai.__all__ and "pairwise_judge" in wai.__all__
+    judge = wai.pairwise_judge("vllm:phi@http://127.0.0.1:9/v1")
     assert judge.__name__.startswith("phi@")
     # unreachable endpoint: a failed verdict, never a raise
     out = judge(_row("p", "a", 1), _row("p", "b", 0))

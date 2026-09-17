@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.hack_scan import (
     auto_terms,
     format_hack_scan,
@@ -177,7 +177,7 @@ def test_difficulty_confound_fools_pooled_but_not_within():
             rows.append(
                 _row(f"ask {p}", reward, text=text, tool="lookup_order" if uses_tool else None)
             )
-    pooled = zps.reward_correlations(rows)["correlations"]["reply_length"]
+    pooled = wai.reward_correlations(rows)["correlations"]["reply_length"]
     assert pooled < -0.3
     report = hack_scan(rows, endorsed=["lookup_order"], seed=0, top_features=None)
     length = next(x for x in report["features"] if x["name"] == "reply_length")
@@ -276,20 +276,20 @@ def test_select_for_rl_and_publish_gate_carry_the_scan():
     _picked, report = select_for_rl(rows, target=1000, endorsed=["lookup_order"])
     assert report["hack_scan"]["regime"] == "reward_hack"
     assert any("best explained by" in w for w in report["hygiene_warnings"])
-    _rows, opt_report = zps.optimize(rows, mode="rl", endorsed=["lookup_order"])
+    _rows, opt_report = wai.optimize(rows, mode="rl", endorsed=["lookup_order"])
     assert opt_report["hack_scan"]["regime"] == "reward_hack"
 
-    gate = zps.publish_gate(rows, mode="rl", endorsed=["lookup_order"])
+    gate = wai.publish_gate(rows, mode="rl", endorsed=["lookup_order"])
     assert gate["ok"] and gate["hack_scan"]["regime"] == "reward_hack"
     assert any("best explained by" in w for w in gate["warnings"])
-    with pytest.raises(zps.PublishGateError, match="reward_hack"):
-        zps.publish_gate(rows, mode="rl", endorsed=["lookup_order"], strict_hacks=True)
-    lenient = zps.publish_gate(
+    with pytest.raises(wai.PublishGateError, match="reward_hack"):
+        wai.publish_gate(rows, mode="rl", endorsed=["lookup_order"], strict_hacks=True)
+    lenient = wai.publish_gate(
         rows, mode="rl", endorsed=["lookup_order"], strict_hacks=True, strict=False
     )
     assert not lenient["ok"] and lenient["refusal"].startswith("reward_hack")
     # explore-shaped rows are not scanned: not RL data
-    assert zps.publish_gate([_row("a", 1, text="x")])["hack_scan"] is None
+    assert wai.publish_gate([_row("a", 1, text="x")])["hack_scan"] is None
 
 
 def test_two_distinct_trajectories_refuse_a_verdict_instead_of_naming_one():
@@ -327,7 +327,7 @@ def test_two_distinct_trajectories_refuse_a_verdict_instead_of_naming_one():
     assert any("too few distinct trajectories" in w for w in report["warnings"])
     assert format_hack_scan(report).startswith("DEGENERATE")
     # The publish gate must not turn a refusal into a hack verdict.
-    gate = zps.publish_gate(rows, mode="rl", endorsed=["lookup_order"], strict_hacks=True)
+    gate = wai.publish_gate(rows, mode="rl", endorsed=["lookup_order"], strict_hacks=True)
     assert gate["ok"] and gate["hack_scan"]["regime"] == "degenerate"
     assert any("too few distinct trajectories" in w for w in gate["warnings"])
 

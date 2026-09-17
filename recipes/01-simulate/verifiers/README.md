@@ -17,7 +17,7 @@ candidate and the gold, how to compose checks, and how a verifier's rows
 feed `optimize` and a gated `push` unchanged. The script shows math (`MathEqual`),
 an answer-and-format gate (`All([...])`), code execution against hidden tests
 (`CodeExec`), a JSON-schema check (`JSONSchema`), and then hands the math rows
-to `zps.optimize(mode="rl")` and `zps.training_rows` to show where the answer
+to `wai.optimize(mode="rl")` and `wai.training_rows` to show where the answer
 key stops travelling.
 
 ## The pieces
@@ -61,19 +61,19 @@ rows you bring that already carry `privileged.reference` (or
 RL gates (reward band, unanimous groups, duplicates), push:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.judging import run_judge
 from whileai.simulations.verify import MathEqual
 
 rows = [...]  # k rollouts per prompt, each with privileged.reference
 scored = run_judge(rows, MathEqual())  # the verifier IS the reward
-rows, _ = zps.optimize(scored, mode="rl")  # GRPO data, gradient checked
-zps.push_rows(rows, "math-rl-v1", gate=True, mode="rl")
+rows, _ = wai.optimize(scored, mode="rl")  # GRPO data, gradient checked
+wai.push_rows(rows, "math-rl-v1", gate=True, mode="rl")
 ```
 
 On a `SimulationData` the same step is `data.grade(judge=MathEqual())`. The
 optimized rows still carry `privileged` (they are SDK rows, and a verifier
-has to be able to re-score them); `zps.training_rows(rows)` is the export
+has to be able to re-score them); `wai.training_rows(rows)` is the export
 that never projects it, which is what `run.py` prints at the end.
 
 ## Code execution safety

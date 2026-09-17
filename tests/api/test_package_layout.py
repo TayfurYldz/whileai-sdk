@@ -5,14 +5,14 @@ from __future__ import annotations
 import pkgutil
 from pathlib import Path
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import FIXTURES, REPO_ROOT
 
 
 def test_sdk_package_excludes_tests_examples_and_specs():
-    root = Path(zps.__file__).resolve().parent
+    root = Path(wai.__file__).resolve().parent
     assert root.name == "simulations" and root.parent.name == "whileai"
-    names = {module.name for module in pkgutil.iter_modules(zps.__path__)}
+    names = {module.name for module in pkgutil.iter_modules(wai.__path__)}
     assert "tests" not in names
     assert "examples" not in names
     assert "specs" not in names

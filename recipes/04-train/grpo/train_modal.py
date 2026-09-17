@@ -16,8 +16,8 @@ What happens:
 2. The holdout is sampled 4 times per prompt before training and scored:
    that is pass@1 before.
 3. TRL's ``GRPOTrainer`` with a LoRA adapter, 8 generations per prompt.
-   ``zps.TrainerCallback`` puts reward, KL and the progress bar on
-   zeroproofai.com/platform/training as it goes. ``zps.HackMonitor``
+   ``wai.TrainerCallback`` puts reward, KL and the progress bar on
+   zeroproofai.com/platform/training as it goes. ``wai.HackMonitor``
    samples the holdout from the live policy every ``--monitor-every``
    steps, logs the proxy reward and completion length beside the training
    curve, and scans the batch for what the reward is paying for; an alarm
@@ -178,7 +178,7 @@ def train(
     sys.path.insert(0, "/root")
     from reward import messages_for, reward_rows, score
 
-    import whileai.simulations as zps
+    import whileai.simulations as wai
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     if tokenizer.pad_token is None:
@@ -208,7 +208,7 @@ def train(
     }
     run = None
     if os.environ.get("WHILEAI_API_KEY"):
-        run = zps.training_run(
+        run = wai.training_run(
             run_name,
             base_model=base_model,
             trainer="trl-grpo-lora",
@@ -222,8 +222,8 @@ def train(
     before_replies = _sample(
         model, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    before_rows = zps.mark_grounding(_stamp(reward_rows(holdout_prompts, before_replies)))
-    before = zps.pass_at(before_rows)
+    before_rows = wai.mark_grounding(_stamp(reward_rows(holdout_prompts, before_replies)))
+    before = wai.pass_at(before_rows)
     print(f"before: {before}")
 
     def rule_reward(completions, case, **kwargs):
@@ -289,7 +289,7 @@ def train(
     # for in the batch. No judge here, so no gold curve: the length and
     # feature alarms still run, and ``endorsed`` says the lookup call is the
     # behavior. ``--stop-on feature`` ends the run on a named hack.
-    monitor = zps.HackMonitor(
+    monitor = wai.HackMonitor(
         run,
         holdout=[{"prompt": messages_for(p["prompt"]), "case": p["case"]} for p in holdout_prompts],
         every=monitor_every,
@@ -309,7 +309,7 @@ def train(
     trainer.add_callback(monitor)
     if run is not None:
         # finish=False: the holdout eval and the delta come after training.
-        trainer.add_callback(zps.TrainerCallback(run, finish=False))
+        trainer.add_callback(wai.TrainerCallback(run, finish=False))
     try:
         trainer.train()
     except Exception as exc:
@@ -321,8 +321,8 @@ def train(
     after_replies = _sample(
         policy, tokenizer, holdout_prompts, n=eval_samples, max_new_tokens=max_completion_length
     )
-    after_rows = zps.mark_grounding(_stamp(reward_rows(holdout_prompts, after_replies)))
-    after = zps.pass_at(after_rows)
+    after_rows = wai.mark_grounding(_stamp(reward_rows(holdout_prompts, after_replies)))
+    after = wai.pass_at(after_rows)
     print(f"after:  {after}")
     print(f"by category: before {_by_category(before_rows)}")
     print(f"             after  {_by_category(after_rows)}")
@@ -360,15 +360,15 @@ def train(
         run.finish("done", summary=summary, adapter=f"whileai-grpo-runs:/{run_name}/adapter")
         summary["run_url"] = run.url
     else:
-        delta = zps.delta_report(
+        delta = wai.delta_report(
             before_rows,
             after_rows,
             target="pass_at_1",
             must_not_regress=["well_formed", "argument_grounding"],
             by="category",
         )
-    print(zps.format_delta_report(delta))
-    print(zps.format_hack_monitor(monitor.summary()))
+    print(wai.format_delta_report(delta))
+    print(wai.format_hack_monitor(monitor.summary()))
     summary["delta_verdict"] = delta["target_verdict"]
     summary["alarms"] = [f"step {a['step']} {a['kind']}" for a in monitor.alarms]
     if monitor.stopped_at:

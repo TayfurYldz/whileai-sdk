@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.training import METHODS, RewardModel, TrainingRun, reward_model, train
 
 ROW_PASS = {
@@ -67,7 +67,7 @@ def test_reward_model_honors_the_judge_contract():
 
 
 def test_reward_model_runs_through_run_judge():
-    scored = zps.run_judge(
+    scored = wai.run_judge(
         [ROW_PASS, ROW_FAIL], reward_model("run_rm1", transport=Host()), concurrency=1
     )
     rewards = [r["reward"] for r in scored.rows]

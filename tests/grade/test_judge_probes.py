@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.judge_trust import (
     PROBES,
     format_judge_trust,
@@ -165,4 +165,4 @@ def test_judge_trust_carries_the_probes():
     assert not plain["ok"] and plain["n_labeled"] == 0
     assert any("unmeasured" in w for w in plain["warnings"])
     assert format_judge_trust(plain).startswith("NOT MEASURED")
-    assert zps.judge_probes is judge_probes
+    assert wai.judge_probes is judge_probes

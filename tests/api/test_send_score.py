@@ -1,10 +1,10 @@
-"""zps.send_score: grading a run that already ran, which is what cut() filters on."""
+"""wai.send_score: grading a run that already ran, which is what cut() filters on."""
 
 from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.ingest.platform import PlatformError
 
 
@@ -30,7 +30,7 @@ def answer(monkeypatch, reply):
 
 
 def test_one_run_passed(calls):
-    zps.send_score("4bf92f3577b34da6", 1.0)
+    wai.send_score("4bf92f3577b34da6", 1.0)
 
     assert calls[0]["method"] == "POST"
     assert calls[0]["path"] == "/v1/scores"
@@ -40,8 +40,8 @@ def test_one_run_passed(calls):
 
 
 def test_true_and_false_are_the_pass_rule(calls):
-    zps.send_score("t1", True)
-    zps.send_score("t1", False)
+    wai.send_score("t1", True)
+    wai.send_score("t1", False)
 
     # 1.0, not "truthy": the cut's pass rule is reward >= 1.0.
     assert calls[0]["body"]["value"] == 1.0
@@ -49,7 +49,7 @@ def test_true_and_false_are_the_pass_rule(calls):
 
 
 def test_a_named_measurement_sits_beside_the_verdict(calls):
-    zps.send_score("t1", 0.82, name="helpfulness", description="judge, 0-1")
+    wai.send_score("t1", 0.82, name="helpfulness", description="judge, 0-1")
 
     assert calls[0]["body"] == {
         "traceId": "t1",
@@ -60,13 +60,13 @@ def test_a_named_measurement_sits_beside_the_verdict(calls):
 
 
 def test_a_word_needs_no_number(calls):
-    zps.send_score("t1", name="verdict", label="refused")
+    wai.send_score("t1", name="verdict", label="refused")
 
     assert calls[0]["body"] == {"traceId": "t1", "name": "verdict", "label": "refused"}
 
 
 def test_a_batch_across_runs(calls):
-    zps.send_score(scores=[{"traceId": " t1 ", "value": 1}, {"traceId": "t2", "value": 0}])
+    wai.send_score(scores=[{"traceId": " t1 ", "value": 1}, {"traceId": "t2", "value": 0}])
 
     assert calls[0]["body"] == {
         "scores": [
@@ -77,7 +77,7 @@ def test_a_batch_across_runs(calls):
 
 
 def test_several_measurements_about_one_run_share_its_id(calls):
-    zps.send_score(
+    wai.send_score(
         "t1", scores=[{"name": "helpfulness", "value": 0.8}, {"value": 1.0}], pass_at=1.0
     )
 
@@ -92,16 +92,16 @@ def test_several_measurements_about_one_run_share_its_id(calls):
 
 def test_no_trace_id_is_caught_before_the_round_trip(calls):
     with pytest.raises(PlatformError, match="trace id"):
-        zps.send_score(value=1.0)
+        wai.send_score(value=1.0)
     with pytest.raises(PlatformError, match="traceId"):
-        zps.send_score(scores=[{"value": 1.0}])
+        wai.send_score(scores=[{"value": 1.0}])
 
     assert calls == []
 
 
 def test_a_measurement_that_says_nothing_is_caught(calls):
     with pytest.raises(PlatformError, match="value"):
-        zps.send_score("t1")
+        wai.send_score("t1")
 
     assert calls == []
 
@@ -110,7 +110,7 @@ def test_a_trace_id_nobody_sent_raises_instead_of_looking_fine(monkeypatch):
     answer(monkeypatch, {"applied": [], "unknown": ["t9"]})
 
     with pytest.raises(PlatformError, match="No run on this account"):
-        zps.send_score("t9", 1.0)
+        wai.send_score("t9", 1.0)
 
 
 def test_a_partly_good_batch_comes_back_whole(monkeypatch):
@@ -119,7 +119,7 @@ def test_a_partly_good_batch_comes_back_whole(monkeypatch):
         {"applied": [{"traceId": "t1", "names": ["score"]}], "unknown": ["t9"]},
     )
 
-    out = zps.send_score(scores=[{"traceId": "t1", "value": 1}, {"traceId": "t9", "value": 1}])
+    out = wai.send_score(scores=[{"traceId": "t1", "value": 1}, {"traceId": "t9", "value": 1}])
 
     assert out["unknown"] == ["t9"]
 
@@ -134,4 +134,4 @@ def test_the_gates_own_complaint_is_what_the_caller_reads(monkeypatch):
     )
 
     with pytest.raises(PlatformError, match="direction must be higher or lower"):
-        zps.send_score("t1", 1.0, direction="sideways")
+        wai.send_score("t1", 1.0, direction="sideways")

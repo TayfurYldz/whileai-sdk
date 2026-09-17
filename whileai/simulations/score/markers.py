@@ -5,7 +5,7 @@ self-reference, hedging, refusal creep, sycophancy. These are qualitative and
 cheap to detect. ``behavioral_markers(rows)`` gives the *presence rate* of
 each: a fraction where higher means the tic shows up more, i.e. worse.
 
-    zps.behavioral_markers(scored.rows)   # {"refusal": 0.04, "boilerplate": 0.31, ...}
+    wai.behavioral_markers(scored.rows)   # {"refusal": 0.04, "boilerplate": 0.31, ...}
 
 Polarity, and which module to use with ``delta_report``: these markers are
 **presence** (1 = the signature appears, higher = worse). ``delta_report``

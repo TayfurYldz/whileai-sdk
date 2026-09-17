@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.grading import looks_finished
 from whileai.simulations.score.hygiene import (
     HACK_THRESHOLD,
@@ -174,7 +174,7 @@ def test_publish_gate_reports_hygiene_without_dropping():
         _row("a", 0, "Issue 1 is closed."),
         _row("a", 0, "Issue 1 was closed."),
     ]
-    report = zps.publish_gate(rows, mode="rl")
+    report = wai.publish_gate(rows, mode="rl")
     assert report["ok"]
     assert report["duplicates"]["n_dropped"] == 1
     assert any(

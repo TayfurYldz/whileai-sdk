@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations import schema
 from whileai.simulations.export import training_rows
 from whileai.simulations.generate import agents
@@ -161,7 +161,7 @@ def _simulate(monkeypatch, **kw):
     monkeypatch.setattr(
         "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
-    data = zps.simulate(
+    data = wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         extra_situations=["where is order 4412"],
@@ -259,4 +259,4 @@ def test_mean_kl_from_key_and_from_reference_rows_and_calibrate():
     assert rows[0]["calibration"]["mean_kl"] == 0.15
     assert rows[2]["calibration"]["mean_kl"] == 0.0
     assert rows[3]["calibration"]["mean_kl"] is None
-    assert zps.mean_kl is mean_kl and zps.logprob_report is logprob_report
+    assert wai.mean_kl is mean_kl and wai.logprob_report is logprob_report

@@ -19,10 +19,10 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 | `tasks.jsonl` | 417 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 81 are held out by a hash of the id, the same split in every script |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
 | `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
-| `rollout.py` | `zps.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `zps.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
+| `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
 | `build.py` | grades every rollout file, pass@1 / pass^k / pass@k, `optimize(mode="rl")`, `hack_scan`, pushes train / holdout / eval sets to your account |
 | `train_grpo_modal.py` | TRL `GRPOTrainer` + LoRA on Modal with Postgres inside the container (reward = `sql_verifier.shaped_reward`); `--from-run` chains rounds |
-| `train.py` | the hosted SFT alternative: `zps.train(method="sft")` on the gold demonstrations, then `zps.serve` |
+| `train.py` | the hosted SFT alternative: `wai.train(method="sft")` on the gold demonstrations, then `wai.serve` |
 | `delta.py` | `delta_report` before vs after by difficulty and archetype, attached to the run page |
 
 ## Numbers so far (81 held-out tasks, 4 samples each, temperature 0.7)
@@ -72,10 +72,10 @@ python build.py                                              # grades, prints th
 python build.py --push                                       # also pushes the sets to your account
 ```
 
-Rollouts go through `zps.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
+Rollouts go through `wai.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
 the SDK replays the task prompts on the agent and the gold SQL is attached
 to the rows afterwards. Thinking on for the base model: serve it under a
-name and sample that (`zps.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
+name and sample that (`wai.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
 then `--hosted qwen3-4b-think`). Any other model: `--agent openai:<model>`
 with `OPENAI_BASE_URL`, or add a callable to `MODELS`.
 
@@ -100,12 +100,12 @@ adapter and `summary.json` land on the `whileai-train-runs` volume under
 the run id.
 
 **4. Serve and measure.** The adapter is saved on the `whileai-train-runs`
-volume under the run id, which is what `zps.serve` hosts.
+volume under the run id, which is what `wai.serve` hosts.
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-zps.serve("t2s-r1", "run_...")  # the run id printed by step 3
+wai.serve("t2s-r1", "run_...")  # the run id printed by step 3
 ```
 
 ```bash
@@ -144,7 +144,7 @@ prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
 
 ## Why the tasks are authored, not simulated
 
-`zps.simulate` writes situations, rollouts and world state; it never writes
+`wai.simulate` writes situations, rollouts and world state; it never writes
 an answer key, so a verifiable task set is rows you bring that carry
 `privileged.reference` (the SDK README says the same under *Verifiers*).
 For SQL the reference has to be a query that is exactly right on the data,

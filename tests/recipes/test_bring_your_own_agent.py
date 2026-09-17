@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.score.judging import evaluate, run_judge
 
 REPO = Path(__file__).resolve().parents[2]
@@ -63,7 +63,7 @@ def test_contract_run_carries_every_repeat(contract_data):
 
 
 def test_broken_agent_is_reported_as_the_agent(example, capsys):
-    data = zps.simulate(
+    data = wai.simulate(
         example.agent_that_raises,
         tools=example.TOOLS,
         system_prompt=example.POLICY,

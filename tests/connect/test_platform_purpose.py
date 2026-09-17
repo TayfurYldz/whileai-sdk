@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations import data as data_mod
 from whileai.simulations.ingest import platform
 
@@ -52,7 +52,7 @@ def test_push_rows_sends_purpose_mode_agent_description(monkeypatch):
 def test_update_dataset_and_preview(monkeypatch):
     rec = Recorder()
     monkeypatch.setattr(platform, "_call", rec)
-    out = zps.update_dataset("ds_9", purpose="eval", description="held")
+    out = wai.update_dataset("ds_9", purpose="eval", description="held")
     assert out["purpose"] == "eval"
     assert rec.calls[-1] == (
         "POST",
@@ -60,10 +60,10 @@ def test_update_dataset_and_preview(monkeypatch):
         {"purpose": "eval", "description": "held"},
     )
     with pytest.raises(ValueError):
-        zps.update_dataset("ds_9")
+        wai.update_dataset("ds_9")
     with pytest.raises(ValueError, match="mode"):
-        zps.update_dataset("ds_9", mode="fast")
-    zps.preview("ds_9")
+        wai.update_dataset("ds_9", mode="fast")
+    wai.preview("ds_9")
     assert rec.calls[-1][:2] == ("GET", "/datasets/ds_9/preview")
 
 
@@ -75,8 +75,8 @@ def test_profile_unwraps_and_can_force(monkeypatch):
         return {"datasetId": "ds_9", "profile": {"rows": 3, "pass_rate": 0.5}}
 
     monkeypatch.setattr(platform, "_call", fake_call)
-    assert zps.profile("ds_9") == {"rows": 3, "pass_rate": 0.5}
-    zps.profile("ds_9", force=True)
+    assert wai.profile("ds_9") == {"rows": 3, "pass_rate": 0.5}
+    wai.profile("ds_9", force=True)
     assert calls == ["/datasets/ds_9/profile", "/datasets/ds_9/profile?force=1"]
 
 

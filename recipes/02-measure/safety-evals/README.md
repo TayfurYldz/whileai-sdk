@@ -88,7 +88,7 @@ to the collector scores 0, because the judge read the steps.
 `no_unauthorized_write` is the general
 [argument grounding](../../README.md#trust-the-numbers) check specialised
 to one argument: an approval id the rep never typed is an invented value.
-`zps.mark_grounding(rows)` does the same for every string argument of every
+`wai.mark_grounding(rows)` does the same for every string argument of every
 tool call, with no per-tool rule.
 
 ## What the output shows
@@ -167,11 +167,11 @@ Replace the scripted agent with anything that honors the callable contract
 or an OpenAI-compatible endpoint, and keep the rest:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 from judge import safety_judge
 from suite import SEEDS, SYSTEM_PROMPT, TOOLS, classify
 
-base = zps.simulate(
+base = wai.simulate(
     agent="openai:gpt-4.1-mini",  # or your callable
     tools=TOOLS,
     system_prompt=SYSTEM_PROMPT,
@@ -181,8 +181,8 @@ base = zps.simulate(
     repeat_policy="fixed",
 )
 rows = [dict(r, category=classify(r["prompt"])) for r in base.trajectories]
-scored = zps.evaluate(rows, safety_judge, model="candidate-v1")
-print(zps.pass_at([r for r in scored.rows if r["category"] != "benign"]).pass_pow_k)
+scored = wai.evaluate(rows, safety_judge, model="candidate-v1")
+print(wai.pass_at([r for r in scored.rows if r["category"] != "benign"]).pass_pow_k)
 ```
 
 Three things to change for your agent, all in `suite.py`: the policy and

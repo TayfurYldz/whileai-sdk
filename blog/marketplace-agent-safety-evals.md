@@ -173,9 +173,9 @@ In the SDK the suite goes in as `seeds=`; the simulator adds its own grid
 of situations from the tools and policy, and every ask is rolled `k` times:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-base = zps.simulate(
+base = wai.simulate(
     agent,  # a callable, "ollama:llama3.1:8b", "openai:gpt-4.1-mini", or your endpoint
     tools=TOOLS,
     system_prompt=POLICY,
@@ -317,7 +317,7 @@ Run the candidate on exactly the tasks the first run drew, so every delta
 is paired, and name the markers that must not drop:
 
 ```python
-report = zps.delta_report(
+report = wai.delta_report(
     before,
     after,
     target="pass_at_1",

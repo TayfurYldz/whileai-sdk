@@ -28,22 +28,22 @@ the end only.
 
 **On-policy (default).** The base policy is sampled 8 times per train
 prompt. Every reply is scored by the rule in `../grpo/reward.py`, and
-`zps.build_preference_pairs` pairs a higher-scoring reply with a lower one
+`wai.build_preference_pairs` pairs a higher-scoring reply with a lower one
 from the same prompt, taking the rejected reply closest in length to the
 chosen one. Both sides come from the policy being trained, which is where
 DPO works best; length matching keeps the trainer from learning "longer is
 better" before it learns the rule. Prompts the policy always passes or
 always fails give no pair; the run reports how many prompts had contrast.
 
-**Exported.** `--pairs` takes a file written by `zps.export_preference`
+**Exported.** `--pairs` takes a file written by `wai.export_preference`
 from any graded rows, for example a set pulled from the platform:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-rows = zps.pull("ds_...")
-pairs, report = zps.build_preference_pairs(rows)  # a pass vs a fail per prompt
-zps.export_preference(pairs, "pairs.jsonl")
+rows = wai.pull("ds_...")
+pairs, report = wai.build_preference_pairs(rows)  # a pass vs a fail per prompt
+wai.export_preference(pairs, "pairs.jsonl")
 ```
 
 `pairs.py` turns either supply into TRL's conversational shape: the prompt

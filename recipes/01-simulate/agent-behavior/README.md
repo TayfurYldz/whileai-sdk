@@ -223,9 +223,9 @@ needs. `recipes/03-select/prime-intellect-rl` picks the thread up from there.
 To read the rows back:
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-print(zps.datasets())
+print(wai.datasets())
 ```
 
 ## Pointing it at your own agent

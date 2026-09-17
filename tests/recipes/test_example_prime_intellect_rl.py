@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.generate.agents import current_rollout
 
 REPO = Path(__file__).resolve().parents[2]
@@ -104,7 +104,7 @@ def spec() -> dict:
 @pytest.fixture(scope="module")
 def rl_file(tmp_path_factory) -> Path:
     """What generate.py writes, from the same spec, with no model."""
-    data = zps.simulate(
+    data = wai.simulate(
         _coding_agent,
         spec=str(SPEC),
         mode="rl",

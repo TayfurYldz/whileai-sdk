@@ -11,7 +11,7 @@ import types
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.monitor import ALARMS, HackMonitor, format_hack_monitor
 from whileai.simulations.training import training_run
 
@@ -281,4 +281,4 @@ def test_run_note_carries_fields_into_finish():
     assert t.finish_body()["summary"] == {"hack_monitor": {"n_evals": 1}, "final": 1}
     run.note(late=True)
     assert t.finish_body()["summary"]["late"] is True
-    assert zps.HackMonitor is HackMonitor
+    assert wai.HackMonitor is HackMonitor

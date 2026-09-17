@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.ingest.otel import rows_from_otel
 
 
@@ -125,7 +125,7 @@ def test_rows_from_otel_assembles_conversations():
 
 def test_otel_rows_feed_trace_mining_directly():
     rows = rows_from_otel(BATCH)
-    mined = zps.mine_traces(rows)
+    mined = wai.mine_traces(rows)
     assert mined["n"] == 2
     assert mined["faults"] == {"not_found": 1}
     assert mined["tools"]["lookup_order"]["fault_n"] == 1

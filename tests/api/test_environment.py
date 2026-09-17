@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.environment import _ref_of, build_tasks, resolve_ref
 from whileai.simulations.score.grading import conduct_grade
 
@@ -151,7 +151,7 @@ def test_refs_round_trip_and_reject_locals():
 
 def test_export_environment_writes_an_installable_package(tmp_path):
     out = tmp_path / "refund-agent"
-    report = zps.export_environment(
+    report = wai.export_environment(
         _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
     )
     assert report["name"] == "refund_agent" and report["warnings"] == []
@@ -187,7 +187,7 @@ def test_export_without_reward_defaults_to_the_checklist_and_warns_without_metad
     rows = _rows()
     for r in rows:  # the writer's assignment names the target tool
         r["scenario_dimensions"] = {"tool": "lookup_order", "stance": "ordinary"}
-    report = zps.export_environment(rows, tmp_path / "env", tools=TOOLS, system_prompt=POLICY)
+    report = wai.export_environment(rows, tmp_path / "env", tools=TOOLS, system_prompt=POLICY)
     assert report["reward"].endswith(":task_checklist")
     assert report["outcome_checkable"] == report["tasks"] and report["warnings"] == []
     task = json.loads(
@@ -195,7 +195,7 @@ def test_export_without_reward_defaults_to_the_checklist_and_warns_without_metad
     )
     assert task["info"]["scenario_dimensions"]["tool"] == "lookup_order"
     bare = [{"prompt": f"p{i}", "steps": [], "final_text": ""} for i in range(4)]
-    report = zps.export_environment(
+    report = wai.export_environment(
         bare, tmp_path / "bare", tools=TOOLS, system_prompt=POLICY, holdout=0.5
     )
     assert report["outcome_checkable"] == 0
@@ -205,7 +205,7 @@ def test_export_without_reward_defaults_to_the_checklist_and_warns_without_metad
 
 def test_export_needs_tools(tmp_path):
     with pytest.raises(ValueError, match="tools"):
-        zps.export_environment(_rows(), tmp_path / "env", system_prompt=POLICY)
+        wai.export_environment(_rows(), tmp_path / "env", system_prompt=POLICY)
 
 
 def test_task_file_is_not_a_training_file():
@@ -243,10 +243,10 @@ def _fake_state(task: dict, spec: dict) -> dict:
 @needs_verifiers
 def test_load_environment_drives_a_rollout_through_the_mock_world(tmp_path):
     out = tmp_path / "refund-agent"
-    zps.export_environment(
+    wai.export_environment(
         _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
     )
-    env = zps.load_environment(out / "refund_agent" / "spec.json")
+    env = wai.load_environment(out / "refund_agent" / "spec.json")
     assert [t.name for t in env.tool_defs] == ["lookup_order", "create_refund"]
     assert len(env.dataset) >= 1
     spec = json.loads((out / "refund_agent" / "spec.json").read_text())
@@ -273,8 +273,8 @@ def test_load_environment_drives_a_rollout_through_the_mock_world(tmp_path):
 @needs_verifiers
 def test_load_environment_world_is_seeded_per_task(tmp_path):
     out = tmp_path / "env"
-    zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
-    env = zps.load_environment(out / "env" / "spec.json")
+    wai.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
+    env = wai.load_environment(out / "env" / "spec.json")
     spec = json.loads((out / "env" / "spec.json").read_text())
     assert env.reward.__name__ == "task_checklist"
     faulty = next(
@@ -301,8 +301,8 @@ def test_load_environment_with_a_live_world(tmp_path):
         return {"status": "ok", "order": arguments.get("order_id")}
 
     out = tmp_path / "env"
-    zps.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
-    env = zps.load_environment(out / "env" / "spec.json", execute=world, reward=outcome_reward)
+    wai.export_environment(_rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5)
+    env = wai.load_environment(out / "env" / "spec.json", execute=world, reward=outcome_reward)
     spec = json.loads((out / "env" / "spec.json").read_text())
     task = json.loads((out / "env" / "data" / "train.jsonl").read_text().splitlines()[0])
     state = asyncio.run(env.setup_state(_fake_state(task, spec)))
@@ -316,10 +316,10 @@ def test_load_environment_with_a_live_world(tmp_path):
 @needs_verifiers
 def test_truncated_rollouts_score_zero_and_trace_monitor_runs(tmp_path):
     out = tmp_path / "env"
-    zps.export_environment(
+    wai.export_environment(
         _rows(), out, tools=TOOLS, system_prompt=POLICY, holdout=0.5, reward=outcome_reward
     )
-    env = zps.load_environment(out / "env" / "spec.json")
+    env = wai.load_environment(out / "env" / "spec.json")
     spec = json.loads((out / "env" / "spec.json").read_text())
     task = json.loads((out / "env" / "data" / "train.jsonl").read_text().splitlines()[0])
     state = asyncio.run(env.setup_state(_fake_state(task, spec)))

@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations import schema
 from whileai.simulations.generate import agents
 
@@ -132,7 +132,7 @@ def _simulate(monkeypatch, with_usage: bool):
     monkeypatch.setattr(
         "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
-    return zps.simulate(
+    return wai.simulate(
         tools=TOOLS,
         policy="Look up before you answer.",
         extra_situations=["where is order 4412"],

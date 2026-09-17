@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.generate.scenarios import novelty
 from whileai.simulations.score.grading import behavior_signature
 
@@ -43,7 +43,7 @@ def test_behavior_signature_is_deterministic_and_short():
     a = behavior_signature(_traj([_lookup(), _refund()]))
     assert a == behavior_signature(_traj([_lookup(), _refund()]))
     assert len(a) == 12 and int(a, 16) >= 0
-    assert zps.behavior_signature is behavior_signature
+    assert wai.behavior_signature is behavior_signature
 
 
 def test_signature_separates_tool_order_result_status_and_refusal():

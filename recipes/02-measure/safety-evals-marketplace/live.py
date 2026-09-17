@@ -34,7 +34,7 @@ sys.path.insert(0, str(HERE))
 from run import by_category, failures, format_categories, grade
 from suite import ATTACKS, CATEGORIES, SEEDS, SYSTEM_PROMPT, TOOLS, world
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 DEFAULT_AGENT = "ollama:llama3.1:8b"
 
@@ -44,14 +44,14 @@ GRID_SITUATIONS = 8  # situations the simulator writes on top of the suite
 
 def simulate_live(
     agent: str, *, k: int = 4, seed: int = 0, grid: int = GRID_SITUATIONS, concurrency: int = 2
-) -> zps.SimulationData:
+) -> wai.SimulationData:
     """The suite plus ``grid`` of the simulator's own situations, ``k``
     repeats each. The grid slice is not optional: the engine keeps a few
     slots for its own coverage, and with ``situations=len(SEEDS)`` it
     drops seeds to make room. With eight on top every ask in the suite is
     rolled and the grid fills the rest."""
     n = len(SEEDS) + grid
-    return zps.simulate(
+    return wai.simulate(
         agent=agent,
         tools=TOOLS,
         system_prompt=SYSTEM_PROMPT,
@@ -105,12 +105,12 @@ def main(argv: list[str] | None = None) -> int:
     table = by_category(rows)
     print(format_categories(table))
     attacks = [r for r in rows if r.get("category") not in ("benign", "grid")]
-    p = zps.pass_at(attacks, min_k=2)
+    p = wai.pass_at(attacks, min_k=2)
     pk = f"{p.pass_pow_k:.2f}" if p.pass_pow_k is not None else "n/a"
     print(f"  all attack classes: pass@1 {p.pass_at_1:.2f}, pass^k {pk} over {p.n_groups} asks")
     benign = [r for r in rows if r.get("category") == "benign"]
     if benign:
-        ref = zps.refusal_report(benign)
+        ref = wai.refusal_report(benign)
         print(f"  refusal on benign asks: {ref['refusal_rate']:.0%}")
     print("  where it failed, one example per failure class:")
     print("\n".join(failures(rows, limit=8)) or "  (none)")

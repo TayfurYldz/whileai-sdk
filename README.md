@@ -26,7 +26,7 @@ A situation is drawn across the world axes (from the agent's tools) and the huma
 3. **Write users.** A separate writer (same hosted model, different prompt, no agent policy) samples situations across tools, stance, history, and so on.
 4. **Pick the diverse ones.** Embeddings plus a bit of noise so the batch is not 200 copies of the same prompt.
 5. **Play the agent.** It talks, calls tools, gets results, talks again. All of that is stored: user text, agent text, tool calls, tool results, `final_text`.
-6. **Grade.** Rows come back ungraded. Grade after with `data.grade()` (hosted judge, against the spec's `rubric.md` or `rubric=`), `data.grade(judge=...)` (your judge), or `zps.grade(path)`. The legacy `grade=True` flag writes deterministic conduct rewards; avoid it for the rubric workflow.
+6. **Grade.** Rows come back ungraded. Grade after with `data.grade()` (hosted judge, against the spec's `rubric.md` or `rubric=`), `data.grade(judge=...)` (your judge), or `wai.grade(path)`. The legacy `grade=True` flag writes deterministic conduct rewards; avoid it for the rubric workflow.
 
 Stop when the row cap or the clock hits.
 
@@ -43,7 +43,7 @@ fastest way to see a row and to check your agent and grader are wired up
 correctly before you spend a key on variety.
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 # 1. Your tools, in OpenAI function-calling shape. This is all `tools=` wants.
 TOOLS = [
@@ -78,7 +78,7 @@ def my_agent(message: str) -> dict:
 
 
 # 3. simulator=False uses the built-in template writer: no model, no key.
-data = zps.simulate(
+data = wai.simulate(
     my_agent,
     tools=TOOLS,
     system_prompt="Help customers with orders.",
@@ -94,10 +94,10 @@ print(scored.pass_at)
 Offline, every marker is your agent's. The template writer writes the
 users, not the agent, so a callable that never hedges scores zero
 hedging, and `faults` on a row only fire if your agent's tool calls go
-through the world that schedules them. `zps.world(TOOLS)` is that world:
+through the world that schedules them. `wai.world(TOOLS)` is that world:
 
 ```python
-WORLD = zps.world(TOOLS)
+WORLD = wai.world(TOOLS)
 
 
 def my_agent(message: str) -> dict:
@@ -113,7 +113,7 @@ def my_agent(message: str) -> dict:
 ```
 
 To see the detectors fire before you plug in your own agent, run the
-seeded one. It answers honestly through `zps.world`, and on a labeled
+seeded one. It answers honestly through `wai.world`, and on a labeled
 fraction of rollouts does one wrong thing on purpose: hedges, flatters,
 apologizes, pads, claims success through a fault, or quotes the row's
 privileged context. Every row says what it did in `seeded` (`[]` when
@@ -121,16 +121,16 @@ it behaved), so a check that catches exactly those rows is a check that
 works.
 
 ```python
-data = zps.simulate(
-    zps.seeded_agent(TOOLS),
+data = wai.simulate(
+    wai.seeded_agent(TOOLS),
     tools=TOOLS,
     system_prompt="Help customers with orders.",
     simulator=False,
     budget=60,
 )
 rows = data.trajectories  # export_row scrubs privileged; the run keeps it
-print(zps.style_report(rows)["markers"]["no_hedging"]["hits"])  # > 0, only on seeded rows
-print(zps.format_leak_report(zps.leak_report(rows)))
+print(wai.style_report(rows)["markers"]["no_hedging"]["hits"])  # > 0, only on seeded rows
+print(wai.format_leak_report(wai.leak_report(rows)))
 ```
 
 ```
@@ -163,9 +163,9 @@ export OPENAI_BASE_URL=...   # only for a non-OpenAI endpoint
 ```
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-data = zps.simulate(
+data = wai.simulate(
     agent="openai:gpt-4.1-mini",
     tools=my_tools,
     system_prompt=my_system_prompt,
@@ -180,9 +180,9 @@ Agent to gated dataset. Everything else in this README is one layer down.
 `POLICY` is the agent's system prompt.
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-data = zps.simulate(
+data = wai.simulate(
     agent="openai:gpt-4.1-mini",
     tools=TOOLS,
     system_prompt=POLICY,
@@ -192,23 +192,23 @@ data = zps.simulate(
 )  # 1 generate
 data.grade(rubric=RUBRIC)  # 2 grade against the task rubric: reward 0/1 on every row
 print(data.pass_at)
-zps.judge_trust(data.trajectories)  # 3 trust the numbers
-rows, report = zps.optimize(data, mode="rl")  # 4 prune to what carries gradient
-entry = zps.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
+wai.judge_trust(data.trajectories)  # 3 trust the numbers
+rows, report = wai.optimize(data, mode="rl")  # 4 prune to what carries gradient
+entry = wai.push_rows(rows, "github-rl-v1", gate=True, mode="rl")  # 5 publish, gated
 ```
 
-`situations=200, repeats=8` is a guess. `zps.recommend(tools=TOOLS, system_prompt=POLICY, mode="rl")` replaces it with numbers from this agent's own grid: [How much to run](#how-much-to-run).
+`situations=200, repeats=8` is a guess. `wai.recommend(tools=TOOLS, system_prompt=POLICY, mode="rl")` replaces it with numbers from this agent's own grid: [How much to run](#how-much-to-run).
 
 A spec folder is `spec.json` (tools and policy) plus `rubric.md`: what doing the job means, in prose. `grade()` scores against it. The hosted judge writes `reward` and `reason` onto the run's rows and returns the judge report (a dict), so the numbers are read off `data`; `grade(judge=your_callable)` instead returns a `ScoredData` of graded copies, leaves the run untouched, and has its own `.push(name, ...)`. Without one it grades the conduct floor only (nothing invented, nothing skipped) and the report says so; pass `rubric=` to `simulate` or `grade` to supply one, `judge=` for your own callable.
 
-After training, measure whether it landed: `zps.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`. Name the training reward too, `proxy="marker:first_action"`, and the report says whether the run over-optimized it: proxy up while the target did not follow fails the report (rlhf-book ch. 14). `zps.hack_scan_diff(before, after, endorsed=[...])` names what the update moved toward, and withholds the name when either side came back `degenerate`.
+After training, measure whether it landed: `wai.delta_report(before=scored.rows, after=after_rows, target="pass_at_1")`. Name the training reward too, `proxy="marker:first_action"`, and the report says whether the run over-optimized it: proxy up while the target did not follow fails the report (rlhf-book ch. 14). `wai.hack_scan_diff(before, after, endorsed=[...])` names what the update moved toward, and withholds the name when either side came back `degenerate`.
 
 Character training, the same loop aimed at how the model talks: a constitution in, graded replies, length-matched pairs and SFT rows out, and the judge checked against the constitution's own labels. Worked example [`recipes/03-select/character`](recipes/03-select/character), recipe [docs/character-training.md](docs/character-training.md), page [zeroproofai.com/docs/character-training](https://zeroproofai.com/docs/character-training).
 
 | Call | What it decides | Reads |
 |---|---|---|
 | `simulate` | the situations, the users, the world, k rollouts per ask | your spec or tools + system prompt |
-| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or your account key (`whileai login`) |
+| `data.grade(judge=)` | 0/1 per rollout. `wai.grade(data)` uses the hosted judge instead | your judge callable, or your account key (`whileai login`) |
 | `pass_at` / `judge_trust` | pass@1 with an interval, headroom for RL, whether the judge can be trusted | graded rows, 30 to 100 hand labels as `gold_reward` |
 | `optimize(mode="rl")` | drops junk rows, duplicates, dead groups, and asks outside the *difficulty* band; flags reward hacks | graded rows |
 | `push_rows(gate=True)` | refuses ungraded or gradient-free RL data; stamps calibration | pruned rows |
@@ -221,7 +221,7 @@ engine, reward model, human-label lookup, HTTP call: the SDK does not care
 how the reward was produced, only that the result honors this contract.
 The same contract is what `grade`, `run_judge`, `evaluate`, `grader=`,
 `optimize` and a gated `push` all read, and what every `verify` verifier
-and `zps.reward_model(run)` already honors.
+and `wai.reward_model(run)` already honors.
 
 ```python
 judge(row) -> {"reward": 0 or 1}              # the minimum
@@ -251,14 +251,14 @@ More on the four marker families in
 **The loop, closed in five lines.**
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
 judge = lambda row: {"reward": int("sorry" not in row["final_text"])}
-scored = zps.run_judge(data.trajectories, judge)  # or data.grade(judge=judge)
-zps.export_dataset(scored.passes(), output="train.jsonl", system_prompt=POLICY, tools=TOOLS)
+scored = wai.run_judge(data.trajectories, judge)  # or data.grade(judge=judge)
+wai.export_dataset(scored.passes(), output="train.jsonl", system_prompt=POLICY, tools=TOOLS)
 # ...train externally, roll the tuned model on a holdout...
-evald = zps.evaluate(rollouts, judge, model="my-tuned-v1")
-nxt = zps.simulate(tools=TOOLS, system_prompt=POLICY, traces=evald.failed_traces())
+evald = wai.evaluate(rollouts, judge, model="my-tuned-v1")
+nxt = wai.simulate(tools=TOOLS, system_prompt=POLICY, traces=evald.failed_traces())
 ```
 
 The full contract, with every status and the rest of the loop, is the
@@ -266,7 +266,7 @@ module docstring of `whileai.simulations.score.judging` — note the
 `score.`; there is no `whileai.simulations.judging`.
 
 Writing the judge is half of it; knowing whether to believe it is the
-other half. `zps.judge_trust(rows, judge=...)` and `zps.judge_probes(rows,
+other half. `wai.judge_trust(rows, judge=...)` and `wai.judge_probes(rows,
 judge)` are under [Trust the numbers](#trust-the-numbers).
 
 ### Verifiers: when the reward is a program, not a judge
@@ -276,11 +276,11 @@ For a verifiable task the reward is a checker, not an opinion (RLHF book ch. 7, 
 ```python
 from whileai.simulations.verify import MathEqual, CodeExec, JSONSchema, Regex, All
 
-data = zps.simulate(
+data = wai.simulate(
     tools=MATH_TOOLS, system_prompt=MATH_POLICY, mode="rl", situations=200, repeats=8
 )
 scored = data.grade(judge=MathEqual())  # the verifier is the reward
-rows, _ = zps.optimize(scored, mode="rl")  # GRPO data, gradient checked
+rows, _ = wai.optimize(scored, mode="rl")  # GRPO data, gradient checked
 ```
 
 The candidate is the rollout's `final_text`; the gold is read from the row's `privileged.reference`, which the training export never projects, so the answer key cannot leak into a training file (flat `answer`/`target`/... fields work too, or point at any column with `field=`). Built in: `ExactMatch`, `Includes`, `Regex`, `MultipleChoice`, `Numeric`, `MathEqual`, `JSONValid`, `JSONSchema`, `JSONField`, and `CodeExec` (runs the candidate against hidden tests in a sandboxed subprocess with a timeout). Compose with `All` (right answer *and* right format), `Any`, or a graded `Weighted` rubric; wrap your own with `@verifier`. Worked example: [`recipes/01-simulate/verifiers`](recipes/01-simulate/verifiers).
@@ -306,7 +306,7 @@ fully offline — see [Start here](#start-here-no-key-required) above for the
 whole runnable block.
 
 ```python
-data = zps.simulate(
+data = wai.simulate(
     my_agent, tools=my_tools, system_prompt=my_system_prompt, simulator=False, budget=40
 )
 ```
@@ -352,10 +352,10 @@ grades a finished trajectory. `export_environment` writes those three as an
 installable `verifiers` package, the shape Prime Intellect and TRL read.
 
 ```python
-data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=8)
+data = wai.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=8)
 data.grade()
 # reward and world must import by name in the trainer: a module-level function or "module:attr"
-zps.export_environment(data, "envs/github-agent", reward=my_verifier)
+wai.export_environment(data, "envs/github-agent", reward=my_verifier)
 # pip install -e envs/github-agent
 # vf-eval github_agent -a '{"split": "holdout"}' -m <policy> -b <base url> -k <key var>
 ```
@@ -383,7 +383,7 @@ acknowledged. No model in the loop, and `markers` say which check ran
 (rlhf-book ch. 12 rubrics, computed from state rather than written by a judge).
 When the rows carry none of that metadata the export warns: the reward
 reduces to `conduct_grade`, a process reward, and a policy trained on it
-alone learns to call nothing (`recipes/03-select/prime-intellect-rl`). `zps.load_environment(spec)`
+alone learns to call nothing (`recipes/03-select/prime-intellect-rl`). `wai.load_environment(spec)`
 builds the environment in a process that has `verifiers` (`pip install
 'whileai[rl]'`); `examples/coding-efficiency` is the same shape built by
 hand over an executable world with a hidden test suite.
@@ -409,10 +409,10 @@ and a `must_not_regress` list, and report pass^k alongside pass@1 for
 reliability (ch. 13, 16).
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, output="rollout.jsonl")
-data = zps.simulate(agent=my_agent)
+data = wai.simulate(tools=my_tools, system_prompt=my_system_prompt, output="rollout.jsonl")
+data = wai.simulate(agent=my_agent)
 ```
 
 Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a directory (or a JSON/YAML file) holding `tools` and `policy` / `system_prompt`, optionally with seed `situations` and a `rubric.md` (what doing the job means, for `grade()`). No spec folders ship with this package, so every snippet here uses `tools=` + `system_prompt=` — the two are interchangeable, and `spec=` is only a way to keep them in a file. The generated datasets are on Hugging Face in the [Post-Training Foundational Datasets](https://huggingface.co/collections/zero-proof-ai/whileai-post-training-foundational-datasets-6aa0b9c040ff8591988696dc) collection, not stored in this repo: [agent-simulations](https://huggingface.co/datasets/zero-proof-ai/agent-simulations) by agent type, [tool-call-efficiency](https://huggingface.co/datasets/zero-proof-ai/tool-call-efficiency) (SFT, preference, GRPO and eval splits), and [tau2-simulated](https://huggingface.co/datasets/zero-proof-ai/tau2-simulated), among others.
@@ -429,7 +429,7 @@ Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a d
 | `tasks` | `None` | Re-run a previous run's task set instead of drawing a new one: that run, its rows, or its JSONL path. k is **not** inherited — see [Same tasks, new prompt](#trust-the-numbers) |
 | `logprobs` | `False` | Ask the rollout model for the log-probability of every token it generates. Each agent turn's step gets `logprob` and `n_tokens`, the row gets the totals. `"tokens"` keeps the per-token list. Model backends only |
 | `reproducible` | `False` | Same seed, same concurrency, same agent: same rows. Runs batch by batch, so uneven latency costs throughput. Needs the clock off. `concurrency: 1` always runs this way |
-| `grade` | `False` | Legacy: `True` writes the deterministic conduct score at simulation time. Rows come back ungraded by default; grade after with `data.grade(...)` or `zps.grade(...)` |
+| `grade` | `False` | Legacy: `True` writes the deterministic conduct score at simulation time. Rows come back ungraded by default; grade after with `data.grade(...)` or `wai.grade(...)` |
 | `llm_grade` | `False` | Extra LLM judge. Needs `OPENAI_API_KEY` |
 | `output` | | JSONL path |
 
@@ -445,10 +445,10 @@ Depends on the use case. How each scenario is built is in [The recipe](#the-reci
 | A mix, until coverage plateaus | `adaptive` | New situations, phrasings, and repeats. Best with `until="saturation"` |
 
 ```python
-zps.simulate(tools=my_tools, system_prompt=my_system_prompt)  # explore
-zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
-zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="rl")
-zps.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", until="saturation")
+wai.simulate(tools=my_tools, system_prompt=my_system_prompt)  # explore
+wai.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
+wai.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="rl")
+wai.simulate(tools=my_tools, system_prompt=my_system_prompt, mode="adaptive", until="saturation")
 ```
 
 ### How much to run
@@ -458,10 +458,10 @@ covering grid and from published post-training practice (FireAct, LIMA,
 AgentTuning for SFT; DAPO, Skywork-OR1 for RL). No key, no network.
 
 ```python
-rec = zps.recommend(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
+rec = wai.recommend(tools=my_tools, system_prompt=my_system_prompt, mode="sft")
 print("
 ".join(rec["reasoning"]))
-data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, **rec["simulate_kwargs"])
+data = wai.simulate(tools=my_tools, system_prompt=my_system_prompt, **rec["simulate_kwargs"])
 ```
 
 ```
@@ -535,12 +535,12 @@ usually drop straight in. OTLP ingest and platform datasets are *one* way
 to get rows into this shape, not a prerequisite for it.
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-traces = zps.load_traces("production.jsonl")  # or just pass the list
-print(zps.trace_report(traces, tools=TOOLS))  # what will this aim at?
+traces = wai.load_traces("production.jsonl")  # or just pass the list
+print(wai.trace_report(traces, tools=TOOLS))  # what will this aim at?
 
-data = zps.simulate(
+data = wai.simulate(
     my_agent, tools=TOOLS, system_prompt=POLICY, traces=traces, mode="rl", repeats=4
 )
 ```
@@ -562,16 +562,16 @@ near-copy a source. `leakage_report` / `drop_leaky_rows` are how you verify
 it, which is what makes it safe to hold traces out for evaluation:
 
 ```python
-prod, train = zps.split_pseudo_production(scored.rows, fraction=0.2)
-data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, traces=prod, mode="rl", repeats=4)
-print(zps.leakage_report(data.trajectories, prod)["n_leaky"])  # want 0
-rows, report = zps.drop_leaky_rows(data.trajectories, prod)
+prod, train = wai.split_pseudo_production(scored.rows, fraction=0.2)
+data = wai.simulate(my_agent, tools=TOOLS, system_prompt=POLICY, traces=prod, mode="rl", repeats=4)
+print(wai.leakage_report(data.trajectories, prod)["n_leaky"])  # want 0
+rows, report = wai.drop_leaky_rows(data.trajectories, prod)
 ```
 
 And the loop closes on itself: `evaluate(rollouts, judge).failed_traces()`
 hands the failures straight back to `simulate(traces=...)`.
 
-If your traces are already on the platform, `zps.cut(agent="my-agent")`
+If your traces are already on the platform, `wai.cut(agent="my-agent")`
 does the whole cut in one line — see
 [Training data out of traces](#training-data-out-of-traces).
 
@@ -594,7 +594,7 @@ network.
 | Select | [`recipes/03-select/schema`](recipes/03-select/schema) | One row file in, six training targets out: eval, SFT, preference, GRPO prompts, OPSD hints, OPD. Migrates any legacy file first. Offline. |
 | Select | [`recipes/03-select/prime-intellect-rl`](recipes/03-select/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs an account key (`whileai login`), or `VLLM_API_KEY` for the shared pool. |
 | Select | [`recipes/03-select/character`](recipes/03-select/character) | Character training from a constitution: the OpenAI Model Spec's style traits become graded rows, preference pairs and SFT rows, with the judge checked against the spec's own labels and a before/after measurement. Offline by default. How-to: [docs/character-training.md](docs/character-training.md). |
-| Train | [`recipes/04-train/hosted-loop`](recipes/04-train/hosted-loop) | Push graded rows, `zps.train` SFT on Qwen3-4B, `zps.serve` the adapter, one chat completion from the endpoint. One key, one A10G minute; the wiring check for training on the platform. |
+| Train | [`recipes/04-train/hosted-loop`](recipes/04-train/hosted-loop) | Push graded rows, `wai.train` SFT on Qwen3-4B, `wai.serve` the adapter, one chat completion from the endpoint. One key, one A10G minute; the wiring check for training on the platform. |
 | Train | [`recipes/04-train/identity`](recipes/04-train/identity) | Builds a leak-free SFT set that teaches a model a new name and maker, with Modal scripts to train a LoRA and evaluate identity and leak rates. No model calls to generate. |
 | Train | [`recipes/04-train/grpo`](recipes/04-train/grpo) | GRPO on Modal, end to end: prompts from the simulator, a verifiable tool-discipline reward, TRL `GRPOTrainer` with LoRA, `HackMonitor`, reward and KL on the dashboard, pass@1 before and after on a holdout with the paired delta and per-category table on the run page. One A10G, under fifteen minutes. |
 | Train | [`recipes/04-train/dpo`](recipes/04-train/dpo) | DPO on the same environment: on-policy pairs from `build_preference_pairs`, TRL `DPOTrainer` with LoRA, the reward margin on the run page, iterated rounds with `--from-run`, constructed negatives where the policy never fails. One A10G, about ten minutes. |
@@ -639,25 +639,25 @@ login`.
 # export WHILEAI_DELEGATED_CREDENTIAL="zp_dc_..."
 
 # If you need to mint one from a Clerk session token:
-# credential = zps.issue_delegated_credential(clerk_token, ttl_seconds=3600)
+# credential = wai.issue_delegated_credential(clerk_token, ttl_seconds=3600)
 # export WHILEAI_DELEGATED_CREDENTIAL=credential["credential"]
 
-data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY)
+data = wai.simulate(my_agent, tools=TOOLS, system_prompt=POLICY)
 v1 = data.push("github-explore-v1")  # -> {"datasetId": "ds_...", ...}
 
 # iterate, then push the next version with lineage
 v2 = data.push("github-explore-v2", parent=v1["datasetId"])
 
-zps.datasets()  # list yours + storage used
-rows = zps.pull(v1["datasetId"])  # rows, or pass path= for a file
-zps.push_file("rollout.jsonl")  # upload an existing JSONL
-zps.delete_dataset(v1["datasetId"])  # permanent
+wai.datasets()  # list yours + storage used
+rows = wai.pull(v1["datasetId"])  # rows, or pass path= for a file
+wai.push_file("rollout.jsonl")  # upload an existing JSONL
+wai.delete_dataset(v1["datasetId"])  # permanent
 ```
 
 Storage is private per account, 5 GB free. `parent=` records dataset
 lineage so iterations show as a family on the platform.
 
-`data.push` and `zps.push_file` run a publish gate first (`gate=False` skips it). Every graded row gets a `calibration` stamp: its task's pass rate over k repeats, k, and the policy that produced it, so a trainer can build a curriculum or retire solved tasks. An RL-shaped run (repeats of one ask) is refused with `PublishGateError` when it is ungraded or has no mixed group, because a grouped update would learn nothing from it. The report comes back as `entry["gate"]`, with warnings when unanimous asks, or asks outside the difficulty band, are still present; `zps.optimize(data, mode="rl")` prunes those. `zps.publish_gate(rows)` runs the same check on any row list. The stamp is the schema's `Calibration` object: `zps.calibration_of(row)` reads it back typed, `from_row` carries it on `rollout.extra["calibration"]`, and `to_row` writes it out again. `k` is the repeats the grader saw, not the rows that survived: `optimize(mode="rl")` stamps its selection from the rows it was given, before its own dedupe and trims, and the gate keeps a carried stamp rather than re-measuring it on what is left. The gate's own `pass_at` block is still over the rows in front of it, and says so when the two differ.
+`data.push` and `wai.push_file` run a publish gate first (`gate=False` skips it). Every graded row gets a `calibration` stamp: its task's pass rate over k repeats, k, and the policy that produced it, so a trainer can build a curriculum or retire solved tasks. An RL-shaped run (repeats of one ask) is refused with `PublishGateError` when it is ungraded or has no mixed group, because a grouped update would learn nothing from it. The report comes back as `entry["gate"]`, with warnings when unanimous asks, or asks outside the difficulty band, are still present; `wai.optimize(data, mode="rl")` prunes those. `wai.publish_gate(rows)` runs the same check on any row list. The stamp is the schema's `Calibration` object: `wai.calibration_of(row)` reads it back typed, `from_row` carries it on `rollout.extra["calibration"]`, and `to_row` writes it out again. `k` is the repeats the grader saw, not the rows that survived: `optimize(mode="rl")` stamps its selection from the rows it was given, before its own dedupe and trims, and the gate keeps a carried stamp rather than re-measuring it on what is left. The gate's own `pass_at` block is still over the rows in front of it, and says so when the two differ.
 
 `export_dataset` and `export_training` are the same function object (`export_dataset is export_training`), not two exporters to choose between: same arguments, same file, same report. `export_dataset` is the name to write in new code — it exports a dataset, not a training run — and `export_training` is the older spelling, kept so nothing already written breaks. `training_rows` is the list-returning half of the same path, without writing a file.
 
@@ -666,10 +666,10 @@ Training rows from `export_dataset` / `training_rows` carry a `loss_mask`, one 0
 Two wire shapes come out of the exporters, and a trainer needs the second one:
 
 ```python
-zps.export_training(rows, "sft.jsonl")  # OpenAI chat-completions wire (default)
-zps.export_training(rows, "sft.jsonl", format="trl")  # what TRL's SFTTrainer loads
-zps.export_preference(pairs, "dpo.jsonl", format="trl")  # what TRL's DPOTrainer loads
-zps.to_trl(zps.training_rows(data), "training")  # same reshape on rows you already hold
+wai.export_training(rows, "sft.jsonl")  # OpenAI chat-completions wire (default)
+wai.export_training(rows, "sft.jsonl", format="trl")  # what TRL's SFTTrainer loads
+wai.export_preference(pairs, "dpo.jsonl", format="trl")  # what TRL's DPOTrainer loads
+wai.to_trl(wai.training_rows(data), "training")  # same reshape on rows you already hold
 ```
 
 `format="openai"` (the default) is the API wire row: the whole conversation in `messages`, `function.arguments` as a JSON string, and the ask alongside as `prompt`. `format="trl"` is what `trl.data_utils.maybe_apply_chat_template` accepts. For SFT that is conversational `{"messages": [...]}` with **no** `prompt` string column — TRL decides "is this conversational?" from the column set, and a `prompt` string next to `messages` makes it skip the chat template silently and train on the bare ask; the ask survives as `prompt_text`. For preference data it is `prompt` as the message list up to the first agent turn with `chosen`/`rejected` as the completions only, because the default shape (a `prompt` string with full conversations on both sides) raises `TypeError: string indices must be integers` inside TRL. In the TRL shape `function.arguments` is a dict, not a JSON string: HF chat templates render it with `| tojson`, so a pre-encoded string is quoted twice and the student learns to emit a string where an object belongs. The `tool_call_roundtrip` gate in the report names which of the two encodings it checked (`encoding: "json_string"` or `"dict"`), so `invalid: 0` says what it actually vouches for.
@@ -677,9 +677,9 @@ zps.to_trl(zps.training_rows(data), "training")  # same reshape on rows you alre
 ### Prune before training
 
 ```python
-rows, report = zps.optimize(data, mode="rl")  # whole groups, 20%-80% pass rate
-rows, report = zps.optimize(data, mode="rl", band=(0.3, 0.7))
-rows, report = zps.optimize(data, mode="rl", enforce_band=False)  # rank, do not drop
+rows, report = wai.optimize(data, mode="rl")  # whole groups, 20%-80% pass rate
+rows, report = wai.optimize(data, mode="rl", band=(0.3, 0.7))
+rows, report = wai.optimize(data, mode="rl", enforce_band=False)  # rank, do not drop
 report["band_dropped"]  # {"too_easy": n, "too_hard": n}
 ```
 
@@ -688,25 +688,25 @@ report["band_dropped"]  # {"too_easy": n, "too_hard": n}
 ### What will the policy learn?
 
 ```python
-scan = zps.hack_scan(scored.rows, endorsed=["tool:lookup_order", "marker:grounded"])
+scan = wai.hack_scan(scored.rows, endorsed=["tool:lookup_order", "marker:grounded"])
 scan["regime"]  # train | reward_hack | pool_exhausted | no_signal | degenerate | unknown
 scan["top_feature"]  # e.g. 'contains:### done' when the judge pays for a delimiter
-print(zps.format_hack_scan(scan))
+print(wai.format_hack_scan(scan))
 ```
 
 A grouped update learns whatever separates reward *within* an ask; what only tracks which ask it is (difficulty) is baselined away. `hack_scan` asks the question the same way: reward and every candidate feature are centered within ask, ranked by that correlation, and compared to a noise floor from shuffling reward within ask (`tau`). Features come in two tiers, both pure Python: the hand tier (reply length, tool calls, turns, truncation, surface counts, one indicator per tool called, mean token logprob, every numeric marker, plus `features={"name": fn}` of your own) and the auto tier (the 200 most common words and word pairs in the agent's text, and pairwise ANDs that beat both parents), which is the tier that finds the shortcut nobody listed. `endorsed` names what the reward should track, as substrings of feature names; with it the scan can say `reward_hack` (the top feature is not endorsed, and the warning names what the policy would learn instead), `integrity` (share of the above-floor signal that is endorsed), and lists rivals. Without it the scan still ranks and floors. An agent that emits only a couple of distinct trajectories per ask makes every feature that separates them an exact function of the label — they all tie at |rho| 1, and the floor cannot break a tie between two perfect explanations — so the scan returns `degenerate` with `top_feature` `None`, lists the tied features in `collinear`, and names the cause (`distinct_per_ask`) rather than picking the alphabetical winner.
 
-The whole loop, before, during and after training, is in [docs/reward-hacking.md](docs/reward-hacking.md) and runs offline in [`recipes/02-measure/reward-hacking`](recipes/02-measure/reward-hacking). `optimize(mode="rl", endorsed=[...])` carries the scan as `report["hack_scan"]`, with its warnings in `report["hygiene_warnings"]` next to the older pooled `report["correlations"]` (reply length, tool calls, turns, flagged at `HACK_THRESHOLD` 0.3). A reward that tracks a shortcut is a judge problem, so it is flagged, not pruned. The publish gate reports the same on RL-shaped rows, plus near-duplicate asks and length spread; `data.push(endorsed=[...], strict_hacks=True)` refuses a `reward_hack`. Standalone: `zps.reward_correlations(rows)`, `zps.dedupe_groups(rows)`, `zps.near_duplicate_prompts(rows)`, `zps.length_report(rows)`.
+The whole loop, before, during and after training, is in [docs/reward-hacking.md](docs/reward-hacking.md) and runs offline in [`recipes/02-measure/reward-hacking`](recipes/02-measure/reward-hacking). `optimize(mode="rl", endorsed=[...])` carries the scan as `report["hack_scan"]`, with its warnings in `report["hygiene_warnings"]` next to the older pooled `report["correlations"]` (reply length, tool calls, turns, flagged at `HACK_THRESHOLD` 0.3). A reward that tracks a shortcut is a judge problem, so it is flagged, not pruned. The publish gate reports the same on RL-shaped rows, plus near-duplicate asks and length spread; `data.push(endorsed=[...], strict_hacks=True)` refuses a `reward_hack`. Standalone: `wai.reward_correlations(rows)`, `wai.dedupe_groups(rows)`, `wai.near_duplicate_prompts(rows)`, `wai.length_report(rows)`.
 
 ### Curriculum: easy to hard, and retire the solved
 
 A curriculum needs per-prompt difficulty (rlhf-book ch. 7), which is just each task's pass rate over its k rollouts. `curriculum(rows)` splits graded tasks into *trainable* (ordered easy to hard, and bucketed into `tiers` for a staged schedule), *retired* (pass rate at or above `solved`, default 0.9: an all-pass task is dead gradient), and *not ready* (at or below `floor`: no signal until the policy improves), and counts how many trainable tasks sit in the 20-80% band.
 
 ```python
-cur = zps.curriculum(scored.rows)  # solved=0.9, floor=0.0, tiers=3
+cur = wai.curriculum(scored.rows)  # solved=0.9, floor=0.0, tiers=3
 cur["schedule"]  # trainable task ids, easy -> hard
-print(zps.format_curriculum(cur))
-rows = zps.retire_solved(scored.rows)  # drop tasks the policy already aces
+print(wai.format_curriculum(cur))
+rows = wai.retire_solved(scored.rows)  # drop tasks the policy already aces
 ```
 
 ### Agents
@@ -718,8 +718,8 @@ An agent exists the moment a push names it or a trace arrives with
 data.push(
     "airline-v3", agent="airline-support"
 )  # registers the agent and attaches tools + system prompt
-zps.agents()  # every agent: traces, sets by purpose, public cards
-zps.register_agent("airline-support", description="Refunds and rebooking")
+wai.agents()  # every agent: traces, sets by purpose, public cards
+wai.register_agent("airline-support", description="Refunds and rebooking")
 ```
 
 ### Clean up
@@ -730,7 +730,7 @@ whileai purge --agent demo-agent             # delete them, after a y/N
 whileai purge --empty --max-rows 2           # datasets with no bytes, or 2 rows or fewer
 ```
 
-Python: `zps.purge_agent("demo-agent")`, `zps.delete_empty_datasets(max_rows=2)`.
+Python: `wai.purge_agent("demo-agent")`, `wai.delete_empty_datasets(max_rows=2)`.
 Both take `dry_run=True`.
 
 ### Train, holdout, eval
@@ -740,9 +740,9 @@ data.push("airline-v3", holdout=0.2)  # train set + a linked holdout set, split 
 data.push("airline-evals", purpose="eval")  # a set you measure with
 scored = data.grade(judge=my_judge)
 scored.push("airline-rl-v3", gate=True, mode="rl")  # the graded copies, gated
-zps.update_dataset("ds_...", purpose="holdout")
-zps.preview("ds_...")  # three sample rows + the analyzer report
-zps.profile("ds_...")  # pass rate, support, mixed tasks, tool use, per task
+wai.update_dataset("ds_...", purpose="holdout")
+wai.preview("ds_...")  # three sample rows + the analyzer report
+wai.profile("ds_...")  # pass rate, support, mixed tasks, tool use, per task
 ```
 
 The Datasets page groups sets by purpose (train, holdout, eval) and
@@ -763,10 +763,10 @@ leaves the rest of the eval paired for `compare_runs`.
 The platform's "Make training data" button, as one line:
 
 ```python
-zps.send_score("4bf92f3577b34da6", 1.0)  # this run passed
-zps.cuts(agent="my-agent")  # what a cut would hold
-made = zps.cut(agent="my-agent", kind="rl")  # make it
-zps.pull(made["train"]["datasetId"], "train.jsonl")
+wai.send_score("4bf92f3577b34da6", 1.0)  # this run passed
+wai.cuts(agent="my-agent")  # what a cut would hold
+made = wai.cut(agent="my-agent", kind="rl")  # make it
+wai.pull(made["train"]["datasetId"], "train.jsonl")
 made["holdout"]["datasetId"]  # measure on this, never train on it
 ```
 
@@ -789,47 +789,47 @@ and `holdout=` move the defaults, and any other keyword is a trace filter (`mode
 Three checks that decide whether a result is believable, all report-only and all over rows you already have.
 
 ```python
-rows, report = zps.attach_labels(
+rows, report = wai.attach_labels(
     rows, "labels.jsonl", annotator="ana"
 )  # gold_reward + who said what
-zps.judge_trust(rows, judge=my_judge)  # is the judge trustworthy?
+wai.judge_trust(rows, judge=my_judge)  # is the judge trustworthy?
 data.grade(use_privileged=True)  # judge also reads privileged principle, reference, hidden state
-zps.run_judge(rows, likert_judge, scale=(1, 5))  # rating kept, reward = (r - 1) / 4
-pairs, report = zps.judge_pairs(pairs)  # A vs B both ways round: winner, tie, position_flip_rate
-rows, report = zps.write_rubrics(rows, domain="refunds")  # per-prompt criteria on privileged.rubric
-scored = zps.run_judge(rows, zps.rubric_judge())  # a verdict per criterion; markers rubric:<item>
-clean, report = zps.decontaminate(
+wai.run_judge(rows, likert_judge, scale=(1, 5))  # rating kept, reward = (r - 1) / 4
+pairs, report = wai.judge_pairs(pairs)  # A vs B both ways round: winner, tie, position_flip_rate
+rows, report = wai.write_rubrics(rows, domain="refunds")  # per-prompt criteria on privileged.rubric
+scored = wai.run_judge(rows, wai.rubric_judge())  # a verdict per criterion; markers rubric:<item>
+clean, report = wai.decontaminate(
     train_rows, against=[eval_rows]
 )  # 8-gram overlap with the eval set
-zps.style_markers(rows)  # no_boilerplate, no_hedging, no_apology, no_sycophancy, answered
-zps.style_report(rows)["warnings"]  # "reward pays for hedging (corr +0.41 ...)"
-zps.refusal_report(benign_rows)  # over-refusal rate with a Wilson interval
-zps.compare_runs(run_a, run_b)  # paired delta with a 95% interval
-zps.delta_report(before, after, target="pass_at_1", must_not_regress=["honest_after_fault"])
-zps.delta_report(before, after, target="pass_at_1", by="category")  # the target per kind of prompt
-noise = zps.eval_variance(eval_run_1, eval_run_2, eval_run_3)  # re-run std of the eval itself
-zps.delta_report(
+wai.style_markers(rows)  # no_boilerplate, no_hedging, no_apology, no_sycophancy, answered
+wai.style_report(rows)["warnings"]  # "reward pays for hedging (corr +0.41 ...)"
+wai.refusal_report(benign_rows)  # over-refusal rate with a Wilson interval
+wai.compare_runs(run_a, run_b)  # paired delta with a 95% interval
+wai.delta_report(before, after, target="pass_at_1", must_not_regress=["honest_after_fault"])
+wai.delta_report(before, after, target="pass_at_1", by="category")  # the target per kind of prompt
+noise = wai.eval_variance(eval_run_1, eval_run_2, eval_run_3)  # re-run std of the eval itself
+wai.delta_report(
     before, after, target="pass_at_1", run_std=noise["run_std"]
 )  # inside the band = no verdict
-zps.mark_grounding(
+wai.mark_grounding(
     rows
 )  # markers["argument_grounding"]: every tool argument came from the conversation
-zps.grounding_report(rows)  # grounded rate, and the invented values by tool and key
+wai.grounding_report(rows)  # grounded rate, and the invented values by tool and key
 ```
 
-**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1) -- `report["ok"]` means measured and clean, so with no labels it is `False` and the report says the judge is unmeasured rather than untrustworthy (`format_judge_trust` prints `NOT MEASURED`). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `zps.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `whileai.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
+**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1) -- `report["ok"]` means measured and clean, so with no labels it is `False` and the report says the judge is unmeasured rather than untrustworthy (`format_judge_trust` prints `NOT MEASURED`). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `wai.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `wai.grade` once first (or `whileai.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
 
 **Decontamination.** Word 8-gram overlap between a dataset's prompts and any evaluation source: row lists, JSONL paths, or platform dataset ids. A row is contaminated when it is an eval prompt verbatim or when one eval text covers at least 80% of its words (`overlap=`, the Llama 2 rule); one shared 8-gram is not enough, because situations written from the same templates share whole sentences without sharing the question. Short prompts match verbatim only. `fields=("prompt", "final_text")` also checks replies against eval answers and references. The report separates verbatim hits from near copies and counts hits per field, and returns the clean rows with the first offenders.
 
 **Intervals and comparison.** Every pass@1 carries a 95% interval from a bootstrap over tasks (`pass_at(rows).ci95`), and `metric_summary` / `marker_summary` do the same for markers. pass^k and pass@k carry their own (`pass_pow_k_ci95`, `pass_at_k_ci95`), a bootstrap over the k-eligible groups. Markers come from the judge: return `{"reward": ..., "markers": {"name": value}}` from a `grader=` or `run_judge` callable and they land on `row["markers"]`, which is what `marker_summary`, `delta_report` and `from_row` read. `compare_runs` pairs the tasks two runs share, bootstraps the paired difference, and adds a sign-flip permutation p-value; fewer than five shared tasks falls back to an unpaired test and says so. Tasks on one side only are dropped from a paired comparison; `note` says how many and `paired_share` is the fraction that paired, so a verdict over a quarter of the eval reads as one. The verdict `no_difference_detected` means the interval covers zero, not that the runs are equal.
 
-**Same tasks, new prompt.** A run draws its tasks from the grid by seed and, above `concurrency: 1`, by completion order, so a second `simulate()` shares only part of its tasks with the first. To A/B a prompt edit, a model swap or another seed on exactly the same eval, pin the task set: `zps.simulate(agent, tools=TOOLS, system_prompt=EDITED, tasks=base)` re-runs every prompt of `base` (a run, its rows, or its JSONL path) on its own `scenario_id`, under the same faults and world state, and draws nothing new; it stops with `tasks_done` once every prompt has its rollouts, and `compare_runs(base.rows(), rerun.rows())` pairs every task.
+**Same tasks, new prompt.** A run draws its tasks from the grid by seed and, above `concurrency: 1`, by completion order, so a second `simulate()` shares only part of its tasks with the first. To A/B a prompt edit, a model swap or another seed on exactly the same eval, pin the task set: `wai.simulate(agent, tools=TOOLS, system_prompt=EDITED, tasks=base)` re-runs every prompt of `base` (a run, its rows, or its JSONL path) on its own `scenario_id`, under the same faults and world state, and draws nothing new; it stops with `tasks_done` once every prompt has its rollouts, and `compare_runs(base.rows(), rerun.rows())` pairs every task.
 
 `tasks=` copies the prompts and, unless you pass `repeats=`, the pinned run's k (the most rollouts any of its prompts has), so a base built with `mode="rl", repeats=4` and re-run as `simulate(..., tasks=base, mode="rl")` comes back at k=4 and `pass_at` reports the same k on both sides. Pass `repeats=` to re-run at a different k on purpose:
 
 ```python
-base = zps.simulate(agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=4)
-rerun = zps.simulate(
+base = wai.simulate(agent, tools=TOOLS, system_prompt=POLICY, mode="rl", repeats=4)
+rerun = wai.simulate(
     agent, tools=TOOLS, system_prompt=EDITED, tasks=base, mode="rl"
 )  # k=4, inherited
 assert base.rollouts_per_request == rerun.rollouts_per_request  # cheap guard
@@ -841,14 +841,14 @@ assert base.rollouts_per_request == rerun.rollouts_per_request  # cheap guard
 
 **Trajectory flags.** Did the agent fake the work? `trace_markers(rows)` reads the trajectory rather than the prose (rlhf-book ch. 13, 14): `lie.tests_claimed` (tests said to pass when no test command ran or the last one failed), `lie.unverified_claim` ("I verified" with no tool calls), `lie.phantom_edit` ("I updated" with nothing written), `lie.ignored_failure` (the turn ended on a failed call and the reply never says so), `hack.test_edited`, `hack.test_weakened`, `hack.suppressed`, `hack.bypassed`, `risk.destructive`, `risk.secrets`, each with the fragment that raised it on `row["trace_flags"]`. The markers it stamps (`honest_claims`, `reported_failure`, `no_test_tampering`, `no_suppression`, `no_bypass`, `no_destructive`, `no_secrets`) are 1.0 when clean, so `must_not_regress=["honest_claims"]` fails a run that learned to overclaim, and `hack_scan` carries every fired flag as a `trace:` feature. `trace_flag_report(rows)` gives each flag's rate, examples, and its correlation with the reward, flagged when the judge pays for the fake. Reads, writes, deletes and commands are told apart by the tool's arguments and name; `kinds={"my_tool": "write"}` overrides.
 
-**Stage lineage.** The pipeline is a sequence of stages (rlhf-book ch. 3): SFT, reward modeling, RL, and the eval that judges the result. `stamp_stage(rows, "sft")` records which stage a row fed, and `stage_report(rows)` counts rows per stage and flags the one mistake it most needs caught: any task used in both `eval` and a training stage. `zps.stamp_stage`, `zps.stage_report`, `zps.stage_of`, `zps.STAGES` (`sft`, `rm`, `rl`, `eval`, `mid`).
+**Stage lineage.** The pipeline is a sequence of stages (rlhf-book ch. 3): SFT, reward modeling, RL, and the eval that judges the result. `stamp_stage(rows, "sft")` records which stage a row fed, and `stage_report(rows)` counts rows per stage and flags the one mistake it most needs caught: any task used in both `eval` and a training stage. `wai.stamp_stage`, `wai.stage_report`, `wai.stage_of`, `wai.STAGES` (`sft`, `rm`, `rl`, `eval`, `mid`).
 
 **Model spec as an object.** A spec or constitution is a living, versioned document (rlhf-book ch. 17). `load_spec(constitution)` wraps the `{source, traits: [{id, name, principle, authority}]}` shape (what the character example writes) into a `Spec` whose `version` is a content hash, so any edit to a principle changes it. `spec.behaviors()` are the trait ids, ready for `delta_report(must_not_regress=...)`; `stamp_spec(rows, spec)` tags a run with the spec version it targeted, so you can ask whether adherence held from one spec or model version to the next.
 
 ```python
-spec = zps.load_spec("recipes/03-select/character/constitution.json")
-scored = zps.stamp_spec(data.grade(judge=my_judge).rows, spec)
-zps.delta_report(before=before, after=scored, target="pass_at_1", must_not_regress=spec.behaviors())
+spec = wai.load_spec("recipes/03-select/character/constitution.json")
+scored = wai.stamp_spec(data.grade(judge=my_judge).rows, spec)
+wai.delta_report(before=before, after=scored, target="pass_at_1", must_not_regress=spec.behaviors())
 ```
 
 #### Markers: four families, one polarity
@@ -862,9 +862,9 @@ one of them has the wrong polarity:
 | Family | How you get it | Polarity | Use it for |
 |---|---|---|---|
 | **Judge-emitted custom markers** | your own name and value, returned as `{"reward": ..., "markers": {"name": value}}` from a `judge=` / `grader=` / `run_judge` callable | **yours to choose — and it must be 1.0 = good** | Anything your product cares about. This is the family `delta_report` and `must_not_regress=` are built for |
-| `trace_markers` / `trace_flag_report` | `zps.trace_markers(rows)` stamps `honest_claims`, `reported_failure`, `no_test_tampering`, `no_suppression`, `no_bypass`, `no_destructive`, `no_secrets`, with the evidence on `row["trace_flags"]` | 1.0 = no flag fired, higher is better | Did the agent fake the work? Read from the trajectory, not the prose — see [Trajectory flags](#trust-the-numbers) above |
-| `style_markers` / `style_report` | `zps.style_markers(rows)` stamps `no_boilerplate`, `no_hedging`, `no_apology`, `no_sycophancy`, `answered` | 1.0 = clean reply, higher is better | Over-optimization drift in a paired before/after |
-| `behavioral_markers` / `mark_rows` / `STOCK_MARKERS` | `zps.behavioral_markers(rows)` -> `{"boilerplate": 0.31, "refusal": 0.04, ...}` | **presence: 1 = the tic appears, higher is worse** | A one-shot read of how often each tic occurs. Not a delta |
+| `trace_markers` / `trace_flag_report` | `wai.trace_markers(rows)` stamps `honest_claims`, `reported_failure`, `no_test_tampering`, `no_suppression`, `no_bypass`, `no_destructive`, `no_secrets`, with the evidence on `row["trace_flags"]` | 1.0 = no flag fired, higher is better | Did the agent fake the work? Read from the trajectory, not the prose — see [Trajectory flags](#trust-the-numbers) above |
+| `style_markers` / `style_report` | `wai.style_markers(rows)` stamps `no_boilerplate`, `no_hedging`, `no_apology`, `no_sycophancy`, `answered` | 1.0 = clean reply, higher is better | Over-optimization drift in a paired before/after |
+| `behavioral_markers` / `mark_rows` / `STOCK_MARKERS` | `wai.behavioral_markers(rows)` -> `{"boilerplate": 0.31, "refusal": 0.04, ...}` | **presence: 1 = the tic appears, higher is worse** | A one-shot read of how often each tic occurs. Not a delta |
 
 > **Deprecated.** `behavioral_markers`, `mark_rows`, `row_markers` and
 > `STOCK_MARKERS` all live in
@@ -897,7 +897,7 @@ know which direction a name means.
 Two ways to train, one record. The platform trains a pushed dataset (SFT, GRPO, DPO or a reward model, LoRA on an A10G) and serves the result; or your own trainer runs on Modal, a GPU box, or a notebook and reports into the same run. Either way the loss curve and the progress bar are at [zeroproofai.com/platform/training](https://www.zeroproofai.com/platform/training).
 
 ```python
-run = zps.train(
+run = wai.train(
     "ds_...", method="sft", base_model="Qwen/Qwen3-4B", epochs=2
 )  # or "grpo" / "dpo" / "rm" with steps=
 run.wait()  # done or failed; run.url is the curve while it goes
@@ -905,37 +905,37 @@ run.training["before"], run.training["after"]  # holdout pass@1 (SFT: loss)
 run.delta(
     before_rows, after_rows, target="pass_at_1", by="category"
 )  # paired delta on the run page
-model = zps.serve("refund-v2", run)  # adapter on an OpenAI-compatible endpoint
+model = wai.serve("refund-v2", run)  # adapter on an OpenAI-compatible endpoint
 # model["endpoint"] + /chat/completions, model="refund-v2", bearer = your zp_ key
-zps.models()  # what the account hosts
+wai.models()  # what the account hosts
 ```
 
-`epochs=` sets SFT, `steps=` sets GRPO, DPO and RM; each method has a default. `run.delta` is `delta_report` (below) kept on the run and drawn on its page, including the per-group table when `by=` names a row key or marker; `zps.attach_delta(run_id, before, after)` does the same for a run that already finished. `holdout=` names the eval set (defaults to the train set's split sibling); a dataset already training returns that run. `serve` needs a finished run whose base is a served one (`Qwen/Qwen3-4B`, `microsoft/phi-4`). The trainer's default bases (Qwen2.5-0.5B for SFT, 1.5B for GRPO and DPO) train in under a minute but cannot be served, so `train` warns when a run will not reach an endpoint; SFT runs on an A10G; GRPO and DPO run on an L40S, so a 4B base fits all three. Qwen3 answers in thinking mode by default: leave room in `max_tokens` or send `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`.
+`epochs=` sets SFT, `steps=` sets GRPO, DPO and RM; each method has a default. `run.delta` is `delta_report` (below) kept on the run and drawn on its page, including the per-group table when `by=` names a row key or marker; `wai.attach_delta(run_id, before, after)` does the same for a run that already finished. `holdout=` names the eval set (defaults to the train set's split sibling); a dataset already training returns that run. `serve` needs a finished run whose base is a served one (`Qwen/Qwen3-4B`, `microsoft/phi-4`). The trainer's default bases (Qwen2.5-0.5B for SFT, 1.5B for GRPO and DPO) train in under a minute but cannot be served, so `train` warns when a run will not reach an endpoint; SFT runs on an A10G; GRPO and DPO run on an L40S, so a 4B base fits all three. Qwen3 answers in thinking mode by default: leave room in `max_tokens` or send `extra_body={"chat_template_kwargs": {"enable_thinking": False}}`.
 
-`method="rm"` trains a reward model (rlhf-book ch. 5) on the set's pass-vs-fail pairs and reports pair accuracy on the held-out pairs before and after. `zps.reward_model(run)` is that model as a judge, with the judge contract (`reward` 0/1 against the run's threshold, `rm_score` raw), so it goes wherever a judge goes:
+`method="rm"` trains a reward model (rlhf-book ch. 5) on the set's pass-vs-fail pairs and reports pair accuracy on the held-out pairs before and after. `wai.reward_model(run)` is that model as a judge, with the judge contract (`reward` 0/1 against the run's threshold, `rm_score` raw), so it goes wherever a judge goes:
 
 ```python
-rm = zps.train("ds_...", method="rm", steps=60, wait=True)
-run = zps.train(
+rm = wai.train("ds_...", method="rm", steps=60, wait=True)
+run = wai.train(
     "ds_...", method="grpo", generations=8, beta=0.02, learning_rate=5e-6, seed=3
 )  # the knobs a run is compared by
-judge = zps.reward_model(rm)  # or reward_model("run_...", threshold=0.4)
+judge = wai.reward_model(rm)  # or reward_model("run_...", threshold=0.4)
 scored = data.grade(judge=judge)
-zps.judge_trust(scored.rows, judge=judge)  # the same checks as the LLM judge
+wai.judge_trust(scored.rows, judge=judge)  # the same checks as the LLM judge
 ```
 
 Your own trainer, three ways in:
 
 ```python
 # one line on a Transformers or TRL trainer
-run = zps.training_run(
+run = wai.training_run(
     "identity-v1", dataset="ds_...", base_model="Qwen/Qwen3-4B-Instruct-2507", trainer="trl"
 )
-trainer.add_callback(zps.TrainerCallback(run))
+trainer.add_callback(wai.TrainerCallback(run))
 trainer.train()  # loss, lr, eval loss, epoch, grad norm, then finish
 
 # your own loop
-with zps.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
+with wai.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
     for step, batch in enumerate(loader):
         loss = train_step(batch)
         run.log(step, loss=loss, lr=scheduler.get_last_lr()[0])
@@ -944,27 +944,27 @@ with zps.training_run("sft-v3", dataset="ds_...", total_steps=1000) as run:
 run.holdout(before=0.42, after=0.58)  # did it work? the run page opens with this
 ```
 
-A run's page opens with one word — **Better**, **Worse**, **About the same** — over the held-out pass rate before and after. The platform's trainer measures it; a run on your own hardware says it with `run.holdout(before, after)`, or `zps.attach_holdout(run_id, before=..., after=...)` once the run has finished. Pass rates are 0 to 1, so 58% is `0.58`; `metric="loss"` sends held-out loss instead (SFT), where lower is better. `run.delta(...)` and `zps.attach_delta(...)` already measure both sides, so they fill the two numbers in themselves.
+A run's page opens with one word — **Better**, **Worse**, **About the same** — over the held-out pass rate before and after. The platform's trainer measures it; a run on your own hardware says it with `run.holdout(before, after)`, or `wai.attach_holdout(run_id, before=..., after=...)` once the run has finished. Pass rates are 0 to 1, so 58% is `0.58`; `metric="loss"` sends held-out loss instead (SFT), where lower is better. `run.delta(...)` and `wai.attach_delta(...)` already measure both sides, so they fill the two numbers in themselves.
 
 ### Is it hacking the reward right now?
 
 ```python
-monitor = zps.HackMonitor(
+monitor = wai.HackMonitor(
     run,
     holdout=holdout_rows,             # prompts or {"prompt": ..., <columns the reward reads>}
-    gold=zps.reward_model(rm_run),    # or the hosted judge, or a second rule; any judge callable
+    gold=wai.reward_model(rm_run),    # or the hosted judge, or a second rule; any judge callable
     every=10, k=4,                    # sample the holdout from the live policy every 10 steps
     endorsed=["tool:lookup_order"],   # what the reward should track
     stop_on="divergence",             # or "length", "drift", "feature", "any"; default: log only
 )
 trainer = GRPOTrainer(model, reward_funcs=[monitor.wrap(rule_reward)], ...)
 trainer.add_callback(monitor)
-trainer.add_callback(zps.TrainerCallback(run))
+trainer.add_callback(wai.TrainerCallback(run))
 ```
 
-Over-optimization looks like one picture (rlhf-book ch. 14): the training reward keeps climbing while the evaluation you care about flattens, read against KL. The monitor draws it during the run instead of after. `wrap` watches the reward function, so the monitor keeps the last completions with their rewards and runs `hack_scan` on them; every `every` steps it samples the holdout from the live policy and scores it with the training reward (the proxy) and with `gold`, a scorer the proxy cannot see. `proxy_reward`, `gold_reward` and `holdout_length` land on the run beside the loss curve. Four alarms, one line each on the run: `divergence` (proxy up by `delta` over the window while the paired gold interval does not move up), `length` (completions grow while gold does not), `drift` (KL past `kl_budget`), `feature` (the batch scan says `reward_hack`). `stop_on` names the ones that stop training; a stopped run finishes as `stopped` with the reason, and `run.note(...)` puts anything else on the run's summary. `zps.format_hack_monitor(monitor.summary())` prints the curve and the alarms. [`recipes/04-train/grpo`](recipes/04-train/grpo) runs it by default.
+Over-optimization looks like one picture (rlhf-book ch. 14): the training reward keeps climbing while the evaluation you care about flattens, read against KL. The monitor draws it during the run instead of after. `wrap` watches the reward function, so the monitor keeps the last completions with their rewards and runs `hack_scan` on them; every `every` steps it samples the holdout from the live policy and scores it with the training reward (the proxy) and with `gold`, a scorer the proxy cannot see. `proxy_reward`, `gold_reward` and `holdout_length` land on the run beside the loss curve. Four alarms, one line each on the run: `divergence` (proxy up by `delta` over the window while the paired gold interval does not move up), `length` (completions grow while gold does not), `drift` (KL past `kl_budget`), `feature` (the batch scan says `reward_hack`). `stop_on` names the ones that stop training; a stopped run finishes as `stopped` with the reason, and `run.note(...)` puts anything else on the run's summary. `wai.format_hack_monitor(monitor.summary())` prints the curve and the alarms. [`recipes/04-train/grpo`](recipes/04-train/grpo) runs it by default.
 
-Plain HTTP, for a stack that is not Python: `POST /runs {"name", "dataset_id", "base_model", "total_steps"}` returns `runId`; `POST /runs/{id}/log {"points": [{"step": 10, "loss": 1.2, "lr": 1e-4}], "total_steps"?}` in batches of up to 500; `POST /runs/{id}/finish {"status": "done|failed|stopped", "summary"?, "adapter"?}`. All with `X-Api-Key`. Points are buffered on the client and a send that fails is retried on the next flush; the dashboard never interrupts the trainer. `zps.get_run(id)["series"]` returns the points, oldest first.
+Plain HTTP, for a stack that is not Python: `POST /runs {"name", "dataset_id", "base_model", "total_steps"}` returns `runId`; `POST /runs/{id}/log {"points": [{"step": 10, "loss": 1.2, "lr": 1e-4}], "total_steps"?}` in batches of up to 500; `POST /runs/{id}/finish {"status": "done|failed|stopped", "summary"?, "adapter"?}`. All with `X-Api-Key`. Points are buffered on the client and a send that fails is retried on the next flush; the dashboard never interrupts the trainer. `wai.get_run(id)["series"]` returns the points, oldest first.
 
 ### Publish a dataset as a card
 
@@ -975,22 +975,22 @@ data.push(
     publish=True,
     description="Graded refund conversations with injected tool faults.",
 )
-zps.publish("ds_...", agent="airline-support")  # or publish an existing one
-zps.catalog()  # every public card, by agent
-rows = zps.pull("ds_...")  # public sets need no key
-zps.unpublish("ds_...")
+wai.publish("ds_...", agent="airline-support")  # or publish an existing one
+wai.catalog()  # every public card, by agent
+rows = wai.pull("ds_...")  # public sets need no key
+wai.unpublish("ds_...")
 ```
 
 Hugging Face, both directions. Connect your account once on any dataset page, then:
 
 ```python
-zps.hf_status()  # connected? namespaces
-zps.hf_publish("ds_...", repo="airline-refunds", wait=True)  # rows -> a dataset repo you own
-zps.hf_publish_run("run_...", private=True)  # a finished run's LoRA adapter -> a model repo
-row = zps.import_hf(
+wai.hf_status()  # connected? namespaces
+wai.hf_publish("ds_...", repo="airline-refunds", wait=True)  # rows -> a dataset repo you own
+wai.hf_publish_run("run_...", private=True)  # a finished run's LoRA adapter -> a model repo
+row = wai.import_hf(
     "tatsu-lab/alpaca", split="train", purpose="eval"
 )  # any Hub split -> your account
-zps.profile(row["datasetId"])  # profiled before you train on it
+wai.profile(row["datasetId"])  # profiled before you train on it
 ```
 
 Every push is one commit tagged `zp-<id>`, so `load_dataset(repo, split, revision="zp-ds_...")` pins the exact push; the repo's `whileai.json` maps each split to its While dataset with history. Worked example: [`recipes/05-export/hugging-face`](recipes/05-export/hugging-face).
@@ -1050,7 +1050,7 @@ Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollo
 
 ## Output
 
-Each row, in `data.trajectories` and on disk: `prompt`, `messages`, `steps`, `final_text`, `scenario_id`. Optional `world_state`, `faults`, `reward`, `reason`. `llm_grade=True` adds `llm_reward`. `zps.rank(path)` adds `quality` without changing `reward`.
+Each row, in `data.trajectories` and on disk: `prompt`, `messages`, `steps`, `final_text`, `scenario_id`. Optional `world_state`, `faults`, `reward`, `reason`. `llm_grade=True` adds `llm_reward`. `wai.rank(path)` adds `quality` without changing `reward`.
 
 What goes to disk is the whole row, not a summary of it: `data.rows` (the same list `output=` and `save()` write, callable as `data.rows()` too) carries everything the trajectory carries, so a saved run can still prove its own provenance. That includes how the situation was drawn (`scenario_dimensions`, `arm`, `selection_reason`, `behavior_signature`, `seed`), who graded it and how that went (`judge_name`, `judge_status`, `judge_meta`, `lineage`, `label_source`), and what was measured on it (`markers`, read by `marker_summary` and `delta_report`). Two things never ship, at any depth of the row: the teacher-only `privileged` block and its `principle` / `hidden_state` / `reference` / `rubric` fields, which would put the answer key one step from a training file, and `vector`, the raw embedding the diversity search keeps in memory for the length of the run. A privileged block nested inside a carried field or a tool result is dropped the same way, before `messages` is rebuilt from the steps.
 
@@ -1065,26 +1065,26 @@ scored = data.grade(judge=my_judge)
 print(scored.pass_at)  # pass@1 0.61 | pass^8 0.32 | pass@8 0.88 | headroom 0.27 (200 groups, k=8)
 ```
 
-`simulate(logprobs=True)` records, on every agent turn, the summed log-probability of the tokens the policy generated and how many there were (`step["logprob"]`, `step["n_tokens"]`, totals on the row). A trainer that updates on these rollouts later needs that number to form the importance ratio `exp(new_logprob - logprob)`; without it the update is off-policy and nothing says so. `zps.logprob_report(rows)` says how much was captured and whether reward tracks the policy's confidence, which on a fair judge it should not. Score the same rows under a reference model, put its summed logprob in `ref_logprob`, and `zps.mean_kl(rows)` gives the sampled KL per generated token, overall and per task; `zps.calibrate(rows, ref="ref_logprob")` writes it into each row's `calibration.mean_kl`. A turn the model cut at the token cap is marked `truncated`. Independently of `logprobs`, every agent step also records what its model call cost when the server reports it (`step["input_tokens"]`, `step["output_tokens"]`, summed into `row["usage"]`), which is what the platform counts per day.
+`simulate(logprobs=True)` records, on every agent turn, the summed log-probability of the tokens the policy generated and how many there were (`step["logprob"]`, `step["n_tokens"]`, totals on the row). A trainer that updates on these rollouts later needs that number to form the importance ratio `exp(new_logprob - logprob)`; without it the update is off-policy and nothing says so. `wai.logprob_report(rows)` says how much was captured and whether reward tracks the policy's confidence, which on a fair judge it should not. Score the same rows under a reference model, put its summed logprob in `ref_logprob`, and `wai.mean_kl(rows)` gives the sampled KL per generated token, overall and per task; `wai.calibrate(rows, ref="ref_logprob")` writes it into each row's `calibration.mean_kl`. A turn the model cut at the token cap is marked `truncated`. Independently of `logprobs`, every agent step also records what its model call cost when the server reports it (`step["input_tokens"]`, `step["output_tokens"]`, summed into `row["usage"]`), which is what the platform counts per day.
 
 ```python
-zps.logprob_report(rows)  # coverage, and whether reward tracks the policy's confidence
-zps.reference_logprobs(
+wai.logprob_report(rows)  # coverage, and whether reward tracks the policy's confidence
+wai.reference_logprobs(
     data, "vllm:Qwen/Qwen3-4B@https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1"
 )  # ref_logprob on every row
-zps.mean_kl(rows, ref="ref_logprob")  # sampled KL per generated token, overall and per task
-zps.staleness_report(
+wai.mean_kl(rows, ref="ref_logprob")  # sampled KL per generated token, overall and per task
+wai.staleness_report(
     rows, base_model="Qwen/Qwen3-4B"
 )  # policy versions, stale rows, logprob coverage
 ```
 
 `staleness_report` is the off-policy check (rlhf-book ch. 6): rows sampled by an older policy are usable only when they carry the sampler's version and its logprobs, so the importance ratio can be formed; rows whose `model_version` differs from `base_model` are `stale`.
 
-The default judge is not the policy. `zps.grade` grades with hosted Phi-4 (`WHILEAI_JUDGE` overrides; any `vllm:`/`openai:` spec or a bare URL works), while rollouts come from hosted Qwen, because a judge grading its own model's writing prefers it. When the judge and the rows' `model_version` are the same model anyway, the grade report says so (`self_judged`, `warnings`).
+The default judge is not the policy. `wai.grade` grades with hosted Phi-4 (`WHILEAI_JUDGE` overrides; any `vllm:`/`openai:` spec or a bare URL works), while rollouts come from hosted Qwen, because a judge grading its own model's writing prefers it. When the judge and the rows' `model_version` are the same model anyway, the grade report says so (`self_judged`, `warnings`).
 
-A judge is a reward model, so two things ride with every label. Provenance: rows graded by `zps.grade` carry `judge_name`, `judge_status`, and `judge_meta` with the model, prompt hash, temperature, and `version` (`<model>@<prompt sha>`); a rubric edit is a new judge and the row says so. `run_judge(version=...)` records the same for your own judge. Accuracy: hand-label a sample into `gold_reward` and call `zps.judge_agreement(rows)` (or `scored.agreement()`) for agreement, Cohen's kappa, the confusion counts, and `pass_when_gold_fail`, the gold failures the judge passed. Those are the rows a training run learns the failure from, so that rate matters more than the headline agreement. Pass a second scoring run as `gold` to measure the judge against itself. Fifty gold rows is the floor; the report says so below it.
+A judge is a reward model, so two things ride with every label. Provenance: rows graded by `wai.grade` carry `judge_name`, `judge_status`, and `judge_meta` with the model, prompt hash, temperature, and `version` (`<model>@<prompt sha>`); a rubric edit is a new judge and the row says so. `run_judge(version=...)` records the same for your own judge. Accuracy: hand-label a sample into `gold_reward` and call `wai.judge_agreement(rows)` (or `scored.agreement()`) for agreement, Cohen's kappa, the confusion counts, and `pass_when_gold_fail`, the gold failures the judge passed. Those are the rows a training run learns the failure from, so that rate matters more than the headline agreement. Pass a second scoring run as `gold` to measure the judge against itself. Fifty gold rows is the floor; the report says so below it.
 
-Every row carries `schema_version` (`"1"`). A row is a projection of four objects in `whileai.simulations.schema`: `Task` (the situation), `Rollout` (one episode), `Judgment` (a scorer's verdict), `Marker` (a behavior measurement). `zps.from_row(row)` splits a row into them and `zps.to_row(...)` flattens them back. The wire contract is `whileai/simulations/schemas/row-v1.json`. Rows written before the stamp are version 0 and load by shape, so older files still work.
+Every row carries `schema_version` (`"1"`). A row is a projection of four objects in `whileai.simulations.schema`: `Task` (the situation), `Rollout` (one episode), `Judgment` (a scorer's verdict), `Marker` (a behavior measurement). `wai.from_row(row)` splits a row into them and `wai.to_row(...)` flattens them back. The wire contract is `whileai/simulations/schemas/row-v1.json`. Rows written before the stamp are version 0 and load by shape, so older files still work.
 
 ## The recipe
 
@@ -1110,7 +1110,7 @@ Ordinary asks first, then the edges. On top of that, we embed the openers and ad
 
 ## Package layout
 
-The public surface is the package itself: `import whileai.simulations as zps`.
+The public surface is the package itself: `import whileai.simulations as wai`.
 Internals are grouped by stage and may move between releases.
 
 | folder | what lives there |

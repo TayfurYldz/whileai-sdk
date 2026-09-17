@@ -47,9 +47,9 @@ Use what the developer has:
 If traces exist, normalize and inspect them before spending generation budget:
 
 ```python
-traces = zps.load_traces(trace_source)
-report = zps.trace_report(traces, tools=tools, policy=policy)
-print(zps.format_trace_report(report))
+traces = wai.load_traces(trace_source)
+report = wai.trace_report(traces, tools=tools, policy=policy)
+print(wai.format_trace_report(report))
 ```
 
 Traces guide generation; they do not replace the authoritative tool schemas or
@@ -66,7 +66,7 @@ When traces are the starting point, follow this sequence:
 
    ```python
    import whileai
-   import whileai.simulations as zps
+   import whileai.simulations as wai
 
    # the key resolves like every platform call: WHILEAI_API_KEY, else
    # the key `whileai login` or `whileai signup` saved
@@ -75,15 +75,15 @@ When traces are the starting point, follow this sequence:
    if len(matches) != 1:
        raise RuntimeError(f"select one trace dataset explicitly: {matches}")
    selected = matches[0]
-   traces = zps.pull(selected["datasetId"])
+   traces = wai.pull(selected["datasetId"])
    ```
 
-2. Load local inputs with `zps.load_traces(...)`. JSONL paths and common message,
+2. Load local inputs with `wai.load_traces(...)`. JSONL paths and common message,
    rollout, tool-trace, and platform-export shapes are accepted. Use
-   `zps.rows_from_otel(...)` first for raw OTLP/GenAI spans. Store the result as
+   `wai.rows_from_otel(...)` first for raw OTLP/GenAI spans. Store the result as
    `normalized_traces` and use that same list for reporting, simulation, and
    leakage checks.
-3. Print `zps.trace_report(...)` before generation. Record rows dropped during
+3. Print `wai.trace_report(...)` before generation. Record rows dropped during
    normalization, graded/pass/fail/ungraded counts, observed tools, call-level
    faults, world states, distinct behaviors, foreign tools, and proposed grid
    emphasis.
@@ -110,7 +110,7 @@ When traces are the starting point, follow this sequence:
    evidence that ordinary trace-guided generation failed.
 8. Compare the trace-guided run with a same-budget policy-only run. Report the
    share aimed at observed failures, not merely total row count.
-9. Check `zps.leakage_report(data.trajectories, normalized_traces)` and keep
+9. Check `wai.leakage_report(data.trajectories, normalized_traces)` and keep
    source-trace copies out of generated data.
 10. Grade the new rows with the developer-provided judge. Do not copy rewards from
    source traces onto newly generated situations.
@@ -130,9 +130,9 @@ Find the exact system prompt the agent receives and obtain tool schemas from
 the implementation or harness rather than hand-transcribing them.
 
 ```python
-import whileai.simulations as zps
+import whileai.simulations as wai
 
-pre = zps.preflight(tools, policy)
+pre = wai.preflight(tools, policy)
 print(pre)
 ```
 
@@ -160,7 +160,7 @@ runs. The difference is whether `traces=` is supplied:
 # (`whileai login`), or on VLLM_API_KEY for the shared pool when set.
 agent = "openai:gpt-4.1-mini"
 
-repair = zps.simulate(
+repair = wai.simulate(
     agent=agent,
     tools=tools,
     system_prompt=policy,
@@ -172,7 +172,7 @@ repair = zps.simulate(
     output="simulations/trace_guided.jsonl",
 )
 
-discovery = zps.simulate(
+discovery = wai.simulate(
     agent=agent,
     tools=tools,
     system_prompt=policy,
@@ -226,7 +226,7 @@ print(scored.report(tools=tools, system_prompt=policy))
 ```
 
 Pass `version=` so every scored row names the judge that labeled it (the
-hosted `zps.grade` stamps its model and rubric hash itself). When the developer
+hosted `wai.grade` stamps its model and rubric hash itself). When the developer
 has hand-labeled rows, write the label into `gold_reward` and report
 `scored.agreement()`: agreement, kappa, and `pass_when_gold_fail`, the gold
 failures the judge passed. Below 50 gold rows the estimate is coarse; say so.
@@ -270,7 +270,7 @@ report = data.training_set("train.jsonl", target=1000, validate=True)
 
 This selects diverse passing demonstrations and applies the tool-call
 round-trip export gate. For a judge-contract result returned as `ScoredData`,
-use `scored.select_for_sft()` and `zps.export_dataset(...)` with the run's
+use `scored.select_for_sft()` and `wai.export_dataset(...)` with the run's
 policy and tools. For preference training, `scored.select_for_preference()`
 pairs a passing and a failing rollout of the same prompt; read
 `report["warnings"]` before exporting, it flags pairs where chosen is
@@ -279,7 +279,7 @@ For RL, use repeated groups and `select_for_rl`; keep groups whole and
 require meaningful within-group reward variation. Run with `logprobs=True`
 when the rows will feed a trainer that corrects for off-policy sampling or
 measures KL: each agent step then carries `logprob` and `n_tokens`, and
-`zps.logprob_report(rows)` says what was captured.
+`wai.logprob_report(rows)` says what was captured.
 
 ## Deliverable
 

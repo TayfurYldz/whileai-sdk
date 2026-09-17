@@ -73,13 +73,13 @@ jobs:
           /tmp/fresh/bin/pip install --quiet dist/whileai-*.whl
           /tmp/fresh/bin/pip install --quiet --no-deps dist/zeroproof-*.whl
           cd /tmp && /tmp/fresh/bin/python -c "
-          import whileai.simulations as zps
+          import whileai.simulations as wai
           import zeroproof.simulations as old
           import zeroproof_simulations as legacy
-          assert old is zps and legacy is zps, 'compatibility shim must alias the real package'
+          assert old is wai and legacy is wai, 'compatibility shim must alias the real package'
           from whileai.simulations.score.grading import conduct_grade
           from whileai.simulations.world.sandbox import MockEnvironment
-          assert callable(zps.simulate)
+          assert callable(wai.simulate)
           t = {'prompt': 'x', 'final_text': 'Fixed it, all tests pass.',
                'steps': [{'tool': 'run_tests', 'arguments': {},
                           'result': {'exit_code': 1, 'status': 'error'}}]}

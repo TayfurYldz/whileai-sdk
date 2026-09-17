@@ -7,7 +7,7 @@ import subprocess
 
 import pytest
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations.generate.agents import USER_TURN_MARK
 
 TOOL_CALL = {
@@ -50,7 +50,7 @@ def _capture_run(monkeypatch, proc):
 
 def test_prompt_and_flags_reach_the_cli(monkeypatch):
     seen = _capture_run(monkeypatch, Proc(_stream(FINAL)))
-    agent = zps.claude_code(["--model", "sonnet"], cwd="/repo", max_turns=3, timeout=7)
+    agent = wai.claude_code(["--model", "sonnet"], cwd="/repo", max_turns=3, timeout=7)
     out = agent("summarize the README")
     assert seen["command"][:3] == ["claude", "-p", "summarize the README"]
     assert seen["command"][3:6] == ["--output-format", "stream-json", "--verbose"]
@@ -63,13 +63,13 @@ def test_prompt_and_flags_reach_the_cli(monkeypatch):
 
 def test_no_max_turns_means_no_flag(monkeypatch):
     seen = _capture_run(monkeypatch, Proc(_stream(FINAL)))
-    zps.claude_code()("hi")
+    wai.claude_code()("hi")
     assert "--max-turns" not in seen["command"]
 
 
 def test_tool_use_and_results_pair_into_steps(monkeypatch):
     _capture_run(monkeypatch, Proc(_stream(TOOL_CALL, TOOL_RESULT, FINAL)))
-    out = zps.claude_code()("read it")
+    out = wai.claude_code()("read it")
     assert out["steps"] == [
         {"tool": "Read", "arguments": {"file_path": "README.md"}, "result": "# title"}
     ]
@@ -78,19 +78,19 @@ def test_tool_use_and_results_pair_into_steps(monkeypatch):
 
 def test_multi_turn_situations_are_joined_into_one_prompt(monkeypatch):
     seen = _capture_run(monkeypatch, Proc(_stream(FINAL)))
-    zps.claude_code()(f"first ask{USER_TURN_MARK}second ask")
+    wai.claude_code()(f"first ask{USER_TURN_MARK}second ask")
     assert seen["command"][2] == "first ask\n\nsecond ask"
 
 
 def test_a_crash_with_no_output_raises_with_the_stderr(monkeypatch):
     _capture_run(monkeypatch, Proc("", returncode=1, stderr="not logged in"))
     with pytest.raises(RuntimeError, match="claude exited 1: not logged in"):
-        zps.claude_code()("hi")
+        wai.claude_code()("hi")
 
 
 def test_a_nonzero_exit_that_still_wrote_a_result_is_parsed(monkeypatch):
     _capture_run(monkeypatch, Proc(_stream(TOOL_CALL, FINAL), returncode=1))
-    out = zps.claude_code()("hi")
+    out = wai.claude_code()("hi")
     assert out["final_text"] == FINAL["result"]
     # a call the CLI never answered is kept as a step with an empty result
     assert out["steps"] == [{"tool": "Read", "arguments": {"file_path": "README.md"}, "result": ""}]

@@ -18,7 +18,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import whileai.simulations as zps
+import whileai.simulations as wai
 from whileai.simulations import schema
 
 TOOLS = [
@@ -106,7 +106,7 @@ def scripted_agent(message: str) -> dict:
 
 
 def simulate_rows(n: int = 24, seed: int = 0) -> list[dict]:
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,

@@ -8,6 +8,7 @@ branch and refuses to run twice (there is no ``zeroproof/`` directory left
 afterwards).
 
     python scripts/rebrand.py && uv lock && uv sync --extra dev
+    python scripts/rebrand.py --alias   # on a branch renamed before zps became wai
     uv run ruff check --fix --select I,F401 . && uv run ruff format .
 
 What it does, in order:
@@ -49,6 +50,9 @@ SPAN_KEYS = r"scenario_id|scores|describe|evidence|persona|task|model_version"
 MODAL_APPS = r"judge|serve|embed|studio"
 SPAN = re.compile(rf"zeroproof(?=\.(?:(?:{SPAN_KEYS})\b|[^\w])|-(?:{MODAL_APPS})\b)")
 PLACEHOLDER = "\x00SPAN\x00"
+# The conventional import alias. ``zps`` spelled out the old name; ``wai``
+# is While AI. Also covers helpers named after it (``zps_write``).
+ALIAS = re.compile(r"\bzps(?![A-Za-z0-9])")
 
 
 def sh(*args: str) -> str:
@@ -65,10 +69,11 @@ def fix_line(line: str) -> str:
     line = line.replace("Zero-Proof-AI", "whilehq")
     line = re.sub(r"Zero Proof (?:AI|Labs)", "While", line)
     line = line.replace("Zero Proof", "While").replace("ZeroProof", "While")
+    line = ALIAS.sub("wai", line)
     return line.replace(PLACEHOLDER, "zeroproof")
 
 
-def rewrite_tree() -> int:
+def rewrite_tree(fix=fix_line) -> int:
     changed = 0
     for rel in sh("git", "ls-files").split("\n"):
         if not rel or rel in SKIP_FILES:
@@ -80,7 +85,7 @@ def rewrite_tree() -> int:
         if b"\x00" in raw:
             continue
         text = raw.decode("utf-8")
-        new = "".join(fix_line(ln) for ln in text.splitlines(keepends=True))
+        new = "".join(fix(ln) for ln in text.splitlines(keepends=True))
         if new != text:
             path.write_bytes(new.encode("utf-8"))
             changed += 1
@@ -340,7 +345,7 @@ pip install whileai
 
 ```python
 import whileai
-import whileai.simulations as zps
+import whileai.simulations as wai
 ```
 
 This package is the old name. Installing it installs `whileai` and keeps
@@ -539,13 +544,13 @@ def patch_workflows() -> None:
     )
     must_replace(
         ".github/workflows/ci.yml",
-        "          import whileai.simulations as zps\n"
+        "          import whileai.simulations as wai\n"
         "          import whileai.simulations as legacy\n"
         "          assert legacy is zps, 'compatibility shim must alias the real package'\n",
-        "          import whileai.simulations as zps\n"
+        "          import whileai.simulations as wai\n"
         "          import zeroproof.simulations as old\n"
         "          import zeroproof_simulations as legacy\n"
-        "          assert old is zps and legacy is zps, 'compatibility shim must alias the real package'\n",
+        "          assert old is wai and legacy is wai, 'compatibility shim must alias the real package'\n",
     )
 
 
@@ -643,7 +648,7 @@ def patch_docs(version: str) -> None:
     text = changelog.read_text(encoding="utf-8")
     entry = (
         "- **Renamed to `whileai`.** ZeroProof is now While, and the package follows:\n"
-        "  `pip install whileai`, `import whileai`, `import whileai.simulations as zps`,\n"
+        "  `pip install whileai`, `import whileai`, `import whileai.simulations as wai`,\n"
         "  the `whileai` command, `WHILEAI_*` environment variables, `~/.whileai` for\n"
         "  the saved login, and `whileai.WhileIngestError`. Nothing old breaks: the\n"
         "  `zeroproof` distribution keeps releasing as a shim (`compat/zeroproof`) that\n"
@@ -673,6 +678,12 @@ def patch_docs(version: str) -> None:
 
 
 def main() -> int:
+    if "--alias" in sys.argv[1:]:
+        # For a branch that renamed before the alias changed: only the
+        # ``zps`` -> ``wai`` step, idempotent.
+        changed = rewrite_tree(lambda ln: ALIAS.sub("wai", ln))
+        print(f"alias: rewrote {changed} files")
+        return 0
     if not (ROOT / "zeroproof").is_dir():
         sys.exit("no zeroproof/ directory: the rename already ran on this branch")
     if sh("git", "status", "--porcelain").strip():

@@ -47,7 +47,7 @@ class _CurrentRollout(threading.local):
     rollout_index: int | None = None
     seed: int | None = None
     # the row's scheduled faults and world, so a callable agent's world
-    # (``zps.world``) answers the way the hosted agent's would
+    # (``wai.world``) answers the way the hosted agent's would
     faults: dict | None = None
     world_state: str = ""
     tools: list | None = None

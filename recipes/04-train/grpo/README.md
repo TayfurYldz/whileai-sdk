@@ -6,7 +6,7 @@ simulator, a reward that is a function rather than a judge, TRL's
 runs, and a before/after on a holdout when it is done.
 
 What you will learn: a reward that is a function of the first reply, how a
-run reports into the platform through `zps.TrainerCallback` and
+run reports into the platform through `wai.TrainerCallback` and
 `HackMonitor`, a paired pass@1 delta with an interval, why the holdout has
 to be stratified by prompt category, and how loss variants and prompt
 balance change the result. You need a Modal account and one A10G (under
@@ -68,7 +68,7 @@ Yes, in the ways any rule is, and the run watches for them:
   characters scores 0.3), so a length drift is the monitor's job, not the
   reward's.
 
-`zps.HackMonitor` samples the holdout from the live policy every
+`wai.HackMonitor` samples the holdout from the live policy every
 `--monitor-every` steps, logs the proxy reward and completion length beside
 the training curve, and runs `hack_scan` on the last training batch: which
 feature of a reply the reward is paying for, within prompt, against a
@@ -79,7 +79,7 @@ alarm; the `length` and `feature` alarms run, `--stop-on feature` (or
 the over-optimization chapter's picture (rlhf-book ch. 14), drawn during
 the run instead of after it.
 
-Prompts come from `zps.simulate(simulator=False, ...)`: the template writer
+Prompts come from `wai.simulate(simulator=False, ...)`: the template writer
 needs no model and no key, and every prompt carries its `case` (the order
 id it names, whether it is about orders at all) so the reward has ground
 truth.
@@ -88,7 +88,7 @@ truth.
 
 - **During:** `reward`, `reward_std`, `kl`, `completion_length` and the
   progress bar at zeroproofai.com/platform/training, from
-  `zps.TrainerCallback`.
+  `wai.TrainerCallback`.
 - **After:** pass@1 before and after on the same holdout prompts, four
   samples each, with intervals; `run.delta` puts the paired comparison on
   the run page (a bootstrap over prompts, rlhf-book ch. 16) and names
