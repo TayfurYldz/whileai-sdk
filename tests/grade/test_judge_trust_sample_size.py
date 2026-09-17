@@ -37,5 +37,7 @@ def test_enough_perfect_labels_pass():
 def test_judge_under_the_floor_is_still_told_to_change():
     # 6 of 14 wrong: agreement 0.57, under the floor on its own merits.
     report = wai.judge_trust(_labeled(14, wrong=6))
-    notes = [w for w in report["warnings"] if "floor" in w and "agreement with human labels is" in w]
+    notes = [
+        w for w in report["warnings"] if "floor" in w and "agreement with human labels is" in w
+    ]
     assert notes and "Change the judge prompt or the judge model" in notes[0]
