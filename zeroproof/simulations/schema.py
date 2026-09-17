@@ -277,15 +277,19 @@ class Dataset:
 @dataclass(frozen=True)
 class Calibration:
     """Measured difficulty of one task for one student. Optional; only
-    ``calibrate`` produces it. ``mean_kl`` is the sampled KL to a reference
-    policy per generated token; ``simulate(logprobs=True)`` captures the
-    student side and ``calibrate(rows, ref=...)`` fills it in."""
+    ``calibrate`` produces it. ``pass_rate_ci95`` is the Wilson 95%
+    interval on ``pass_rate`` from ``n`` rollouts (about +/-0.3 wide at
+    n=8), so a band assignment can be read with its uncertainty. ``mean_kl``
+    is the sampled KL to a reference policy per generated token;
+    ``simulate(logprobs=True)`` captures the student side and
+    ``calibrate(rows, ref=...)`` fills it in."""
 
     task_id: str
     student: PolicyRef
     n: int
     pass_rate: float
     mean_kl: float | None = None
+    pass_rate_ci95: tuple[float, float] | None = None
 
 
 # ------------------------------------------------------------------ stamp
@@ -713,12 +717,19 @@ def calibration_of(row: dict) -> Calibration | None:
     else:
         ref = PolicyRef()
     mean_kl = _number(raw.get("mean_kl"))
+    ci = raw.get("pass_rate_ci95")
+    ci95: tuple[float, float] | None = None
+    if isinstance(ci, (list, tuple)) and len(ci) == 2:
+        lo, hi = _number(ci[0]), _number(ci[1])
+        if lo is not None and hi is not None:
+            ci95 = (float(lo), float(hi))
     return Calibration(
         task_id=str(raw.get("task_id") or row.get("scenario_id") or row.get("prompt") or ""),
         student=ref,
         n=int(n),
         pass_rate=float(pass_rate),
         mean_kl=float(mean_kl) if mean_kl is not None else None,
+        pass_rate_ci95=ci95,
     )
 
 

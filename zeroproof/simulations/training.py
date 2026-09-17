@@ -460,6 +460,27 @@ METHODS = ("sft", "grpo", "dpo", "rm")
 SERVED_BASES = ("Qwen/Qwen3-4B", "microsoft/phi-4")
 
 
+def _measured_temperature(
+    dataset: str, api_key: str | None, call: Callable[..., Any]
+) -> float | None:
+    """The temperature the pushed dataset's rows were sampled at, read from
+    the platform's preview rows (``sampling.temperature``), or ``None`` when
+    the rows do not say or the preview is unavailable. Never blocks a run."""
+    try:
+        out = call("GET", f"/datasets/{dataset}/preview", api_key)
+    except Exception:
+        return None
+    if not isinstance(out, dict):
+        return None
+    rows = out.get("rows") or out.get("sample") or out.get("samples") or []
+    for row in rows if isinstance(rows, list) else []:
+        sampling = row.get("sampling") if isinstance(row, dict) else None
+        value = sampling.get("temperature") if isinstance(sampling, dict) else None
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
 def train(
     dataset: str,
     *,
@@ -474,6 +495,7 @@ def train(
     seed: int | None = None,
     max_completion_length: int | None = None,
     loss_type: str | None = None,
+    temperature: float | None = None,
     config: Mapping[str, Any] | None = None,
     wait: bool = False,
     timeout: float | None = None,
@@ -509,8 +531,13 @@ def train(
     the optimizer step for every method, ``seed`` the sampling and data
     order seed, ``max_completion_length`` the token cap on a sampled reply
     (GRPO, DPO), ``loss_type`` the objective variant (GRPO: ``bnpo``,
-    ``grpo``, ``dr_grpo``; DPO: any TRL loss). Each has a trainer default
-    when left ``None``. ``config`` passes further host keys as given
+    ``grpo``, ``dr_grpo``; DPO: any TRL loss). ``temperature`` is the
+    sampling temperature the trainer rolls out at (GRPO); the dataset's
+    rows say what they were measured at under ``sampling.temperature``,
+    and ``train`` says so when the two differ, since a before/after
+    comparison across temperatures is not like for like. Each has a
+    trainer default when left ``None``. ``config`` passes further host
+    keys as given
     (``epsilonHigh``, ``scaleRewards``, ``maskTruncated``, ``balance``).
     Every knob lands on the run's ``config`` so the run page shows it.
 
@@ -570,11 +597,28 @@ def train(
         if method not in ("grpo", "dpo"):
             raise ValueError("loss_type picks the grpo or dpo objective variant")
         body["lossType"] = str(loss_type)
+    if temperature is not None:
+        if method != "grpo":
+            raise ValueError(
+                "temperature is the GRPO rollout temperature; other methods do not sample"
+            )
+        if not 0 < float(temperature) <= 2:
+            raise ValueError("temperature: above 0 and at most 2")
+        body["temperature"] = float(temperature)
     for key, value in dict(config or {}).items():
         if key in body:
             raise ValueError(f"config[{key!r}] collides with a named argument")
         body[str(key)] = value
     call = transport or _call
+    if temperature is not None:
+        measured = _measured_temperature(dataset, api_key, call)
+        if measured is not None and abs(measured - float(temperature)) > 1e-9:
+            warnings.warn(
+                f"Training samples at {float(temperature):g} but the dataset was measured at "
+                f"{measured:g}; keep them the same or the before/after comparison is not "
+                "like for like.",
+                stacklevel=2,
+            )
     out = call("POST", f"/datasets/{dataset}/train", api_key, body)
     state = dict((out or {}).get("training") or {}) if isinstance(out, dict) else {}
     run_id = str(state.get("runId") or "")

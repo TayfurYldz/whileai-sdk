@@ -156,6 +156,56 @@ def test_select_for_rl_keeps_whole_groups():
     assert dedup_report["collapsed_groups_dropped"] >= 1
 
 
+def _asks(spec):
+    """``{prompt: [labels]}`` to rows; distinct replies so dedupe keeps them."""
+    rows = []
+    for prompt, labels in spec.items():
+        rows += [_graded(prompt, r, suffix=f" reply {i}") for i, r in enumerate(labels)]
+    return rows
+
+
+def test_select_for_rl_spreads_across_pass_rates_by_default():
+    import pytest
+
+    from zeroproof.simulations.score.optimize import select_for_rl
+
+    # Three asks each at 25%, 50% and 75%: the band has no favourite.
+    spec = {}
+    for i in range(3):
+        spec[f"low {i}"] = [1, 0, 0, 0]
+        spec[f"mid {i}"] = [1, 1, 0, 0]
+        spec[f"high {i}"] = [1, 1, 1, 0]
+    picked, report = select_for_rl(_asks(spec), target=12)
+    first_three = list(dict.fromkeys(row["prompt"] for row in picked))
+    assert [p.split()[0] for p in first_three] == ["low", "mid", "high"]
+    assert report["groups_selected"] == 3
+
+    # The older ranking is still there under a plain name.
+    picked, _ = select_for_rl(_asks(spec), target=12, order="middle")
+    assert all(row["prompt"].startswith("mid") for row in picked)
+    with pytest.raises(ValueError, match="order must be one of"):
+        select_for_rl(_asks(spec), order="nearest")
+
+
+def test_select_for_rl_reports_the_interval_and_small_k():
+    from zeroproof.simulations import calibration_of
+    from zeroproof.simulations.score.optimize import select_for_rl
+
+    picked, report = select_for_rl(_asks({"a": [1, 0, 1, 0], "b": [1, 1, 0, 0]}), target=8)
+    tasks = report["calibration"]["tasks"]
+    assert {t["task_id"] for t in tasks} == {"a", "b"} and all(t["n"] == 4 for t in tasks)
+    lo, hi = tasks[0]["pass_rate_ci95"]
+    assert lo < 0.5 < hi
+    stamp = calibration_of(picked[0])
+    assert stamp is not None and stamp.pass_rate_ci95 == (lo, hi)
+    note = [w for w in report["hygiene_warnings"] if "Difficulty was measured from 4" in w]
+    assert note and "±" in note[0] and "repeats=16" in note[0]
+
+    # Sixteen rollouts per task is the firmer band; no note.
+    picked, report = select_for_rl(_asks({"a": [1, 0] * 8, "b": [1, 1, 0, 0] * 4}), target=32)
+    assert not any("Difficulty was measured" in w for w in report["hygiene_warnings"])
+
+
 def test_select_for_sft_takes_only_passes_and_spreads_behaviors():
     from zeroproof.simulations.score.optimize import select_for_sft
 

@@ -69,6 +69,25 @@ def test_retire_solved_drops_rows():
     assert any(r["prompt"] == "thin" for r in out)
 
 
+def test_default_edges_are_the_band_and_inclusive():
+    from zeroproof.simulations.score.optimize import DEFAULT_BAND
+
+    rows = []
+    rows += rows_for("one of eight", [1] + [0] * 7)  # 0.125: below the band
+    rows += rows_for("one of five", [1] + [0] * 4)  # 0.2: on the edge, trainable
+    rows += rows_for("four of five", [1] * 4 + [0])  # 0.8: on the edge, trainable
+    rows += rows_for("seven of eight", [1] * 7 + [0])  # 0.875: above the band
+    c = curriculum(rows)
+    assert c["thresholds"]["floor"] == DEFAULT_BAND[0] == 0.2
+    assert c["thresholds"]["solved"] == DEFAULT_BAND[1] == 0.8
+    assert [s["task_id"] for s in c["not_ready"]] == ["one of eight"]
+    assert [s["task_id"] for s in c["retired"]] == ["seven of eight"]
+    assert c["schedule"] == ["four of five", "one of five"]
+    assert c["n_in_band"] == c["n_trainable"] == 2
+    kept = {r["prompt"] for r in retire_solved(rows)}
+    assert kept == {"one of eight", "one of five", "four of five"}
+
+
 def test_format_runs():
     assert "trainable" in format_curriculum(curriculum(make()))
 

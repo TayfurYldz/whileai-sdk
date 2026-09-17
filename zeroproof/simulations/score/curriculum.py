@@ -20,10 +20,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from .optimize import _group_label_lists
+from .optimize import DEFAULT_BAND, _group_label_lists
 
-DEFAULT_SOLVED = 0.9
-DEFAULT_FLOOR = 0.0
+# The same edges select_for_rl keeps: below the floor a task is not ready,
+# above solved it is retired, between them it is trainable.
+DEFAULT_SOLVED = DEFAULT_BAND[1]
+DEFAULT_FLOOR = DEFAULT_BAND[0]
 
 
 def _task_stats(rows: Sequence[dict]) -> dict[str, dict[str, Any]]:
@@ -47,19 +49,23 @@ def curriculum(
     *,
     solved: float = DEFAULT_SOLVED,
     floor: float = DEFAULT_FLOOR,
-    band: tuple[float, float] = (0.2, 0.8),
+    band: tuple[float, float] = DEFAULT_BAND,
     tiers: int = 3,
     min_rollouts: int = 2,
 ) -> dict[str, Any]:
     """Split graded tasks into a training curriculum by measured difficulty.
 
-    A task is *solved* when its pass rate is at or above ``solved`` (retire
-    it: an all-pass task is dead gradient). It is *not ready* when its pass
-    rate is at or below ``floor`` (hold it: no signal until the policy can
-    sometimes solve it). Everything between is *trainable*, ordered easy to
-    hard (highest pass rate first) and split into ``tiers`` difficulty
-    buckets for a staged schedule. Tasks with fewer than ``min_rollouts``
-    graded rollouts cannot have a difficulty and are reported separately.
+    A task is *solved* when its pass rate is above ``solved`` (retire it:
+    an all-pass task is dead gradient). It is *not ready* when its pass
+    rate is below ``floor`` (hold it: no signal until the policy can
+    sometimes solve it). Everything from ``floor`` to ``solved`` inclusive
+    is *trainable*, ordered easy to hard (highest pass rate first) and
+    split into ``tiers`` difficulty buckets for a staged schedule. The
+    defaults are the two edges of ``DEFAULT_BAND`` (20% and 80%), the
+    same band ``select_for_rl`` keeps, so a task at 1 of 8 is not ready
+    here and out of band there for the same reason. Tasks with fewer than
+    ``min_rollouts`` graded rollouts cannot have a difficulty and are
+    reported separately.
 
     Returns a report; nothing is mutated. ``band`` is recorded and used only
     to count how many trainable tasks sit in the reasoning-recipe 20-80%
@@ -72,9 +78,9 @@ def curriculum(
             thin.append(s)
             continue
         p = s["pass_rate"]
-        if p >= solved:
+        if p > solved:
             solved_t.append(s)
-        elif p <= floor:
+        elif p < floor:
             not_ready.append(s)
         else:
             trainable.append(s)
@@ -114,12 +120,12 @@ def curriculum(
 def retire_solved(
     rows: Sequence[dict], *, solved: float = DEFAULT_SOLVED, min_rollouts: int = 2
 ) -> list[dict]:
-    """Return the rows with every solved task removed. A task at or above the
+    """Return the rows with every solved task removed. A task above the
     ``solved`` pass rate teaches nothing, so its rollouts are dropped; tasks
     with too few rollouts to judge are kept."""
     stats = _task_stats(rows)
     drop = {
-        s["task_id"] for s in stats.values() if s["n"] >= min_rollouts and s["pass_rate"] >= solved
+        s["task_id"] for s in stats.values() if s["n"] >= min_rollouts and s["pass_rate"] > solved
     }
     return [r for r in rows if str((r or {}).get("prompt") or "") not in drop]
 

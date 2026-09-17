@@ -21,6 +21,7 @@ import hashlib
 import math
 import random
 import re
+import statistics
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,11 @@ from .quality import _IDISH, _QUESTION_END, _STRONG_ACTION, load_jsonl, write_js
 # ORZ, Phi-4, INTELLECT-2, MiMo, Skywork-OR1 all report a form of it).
 # A heuristic with no published ablation, so it stays configurable.
 DEFAULT_BAND: tuple[float, float] = (0.2, 0.8)
+
+# How asks inside the band are ordered within a fault kind: ``"spread"``
+# takes them round-robin across pass rates, ``"middle"`` ranks the ones
+# nearest a 50% pass rate first.
+RL_ORDERS = ("spread", "middle")
 
 DO_NOTHING = "do_nothing"
 INCOMPLETE_JUNK = "incomplete_junk"
@@ -591,6 +597,23 @@ def trim_out_of_band(
     }
 
 
+def _spread_by(prompts: list[str], key) -> list[str]:
+    """Round-robin over the distinct values of ``key`` (ascending), keeping
+    the input order within each value: one ask per pass rate in turn."""
+    levels: dict[float, list[str]] = {}
+    for prompt in prompts:
+        levels.setdefault(round(float(key(prompt)), 4), []).append(prompt)
+    queues = [levels[value] for value in sorted(levels)]
+    out: list[str] = []
+    depth = 0
+    while len(out) < len(prompts):
+        for queue in queues:
+            if depth < len(queue):
+                out.append(queue[depth])
+        depth += 1
+    return out
+
+
 def select_for_rl(
     rows: Sequence[dict],
     *,
@@ -603,6 +626,7 @@ def select_for_rl(
     drop_truncated: bool = True,
     endorsed: Sequence[str] = (),
     truncated: str = "drop",
+    order: str = "spread",
 ) -> tuple[list[dict], dict[str, Any]]:
     """Whole mixed groups up to roughly ``target`` rows. Groups never split.
 
@@ -622,13 +646,18 @@ def select_for_rl(
 
     After the row gates, duplicate and truncated rollouts (``dedupe``,
     ``truncated``), the unanimous trim, and (``enforce_band``) the
-    difficulty band, remaining asks are ranked by distance from p = 0.5
-    and taken round-robin across observed fault kinds, so the dataset
-    keeps a grounded spread of no-fault, miss, timeout, and already-done
-    situations rather than one over-represented failure. The last group
-    may overshoot ``target``; an RL update wants the complete group or
-    none of it. ``enforce_band=False`` keeps out-of-band asks and only
-    ranks them last. The report's ``hack_scan`` block is the reward-hack
+    difficulty band, remaining asks are taken round-robin across observed
+    fault kinds, so the dataset keeps a grounded spread of no-fault, miss,
+    timeout, and already-done situations rather than one over-represented
+    failure. Within a fault kind, ``order="spread"`` (the default) takes
+    asks round-robin across their pass rates, so a 25% ask, a 50% ask
+    and a 75% ask are picked in turn with no preference for the middle
+    (rlhf-book ch. 7 filters to the 20-80% band and stops there; nothing
+    in it says 50% is better than 30%). ``order="middle"`` is the older
+    ranking by closeness to a 50% pass rate. The last group may overshoot
+    ``target``; an RL update wants the complete group or none of it.
+    ``enforce_band=False`` keeps out-of-band asks and only ranks them
+    last. The report's ``hack_scan`` block is the reward-hack
     scan over the selection (``hack_scan``: what separates reward within
     an ask, against a permutation floor; ``endorsed`` names what it
     should be), ``correlations`` the older pooled scan. Reward tracking
@@ -658,6 +687,8 @@ def select_for_rl(
         raise ValueError(
             f"truncated must be one of {', '.join(TRUNCATED_POLICIES)}; got {truncated!r}"
         )
+    if order not in RL_ORDERS:
+        raise ValueError(f"order must be one of {', '.join(RL_ORDERS)}; got {order!r}")
     if not drop_truncated and truncated == "drop":
         truncated = "keep"
     penalized = kept_overlong = 0
@@ -746,7 +777,7 @@ def select_for_rl(
             groups[prompt].extend(rows_)
             kept.extend(rows_)
 
-    def _score(prompt: str) -> tuple:
+    def _pass_rate(prompt: str) -> float:
         labels = [
             lbl
             for lbl in (
@@ -754,9 +785,13 @@ def select_for_rl(
             )
             if lbl is not None
         ]
-        p = sum(labels) / len(labels) if labels else 0.0
+        return sum(labels) / len(labels) if labels else 0.0
+
+    def _score(prompt: str) -> tuple:
+        p = _pass_rate(prompt)
         in_band = lo <= p <= hi
-        return (0 if in_band else 1, abs(p - 0.5), _stable_key(prompt))
+        middle = abs(p - 0.5) if order == "middle" else 0.0
+        return (0 if in_band else 1, middle, _stable_key(prompt))
 
     fault_buckets: dict[str, list[str]] = {}
     for prompt, members in groups.items():
@@ -764,6 +799,13 @@ def select_for_rl(
         fault_buckets.setdefault(fault, []).append(prompt)
     for fault in fault_buckets:
         fault_buckets[fault].sort(key=_score)
+        if order == "spread":
+            # In-band asks stay ahead of out-of-band ones; inside each
+            # block, one ask per pass rate in turn so no rate dominates.
+            ranked = fault_buckets[fault]
+            in_band = [p for p in ranked if lo <= _pass_rate(p) <= hi]
+            outside = [p for p in ranked if not lo <= _pass_rate(p) <= hi]
+            fault_buckets[fault] = _spread_by(in_band, _pass_rate) + _spread_by(outside, _pass_rate)
     fault_order = sorted(fault_buckets, key=lambda f: (-len(fault_buckets[f]), f))
     selected: list[dict] = []
     picked_groups = 0
@@ -816,6 +858,21 @@ def select_for_rl(
         correlations=report["correlations"],
         scan=report["hack_scan"],
     )
+    # The band is assigned from a handful of rollouts per task, and a
+    # Wilson interval on k=8 is about +/-0.3 wide: a task measured at 0.25
+    # may really sit at 0.1 or 0.5. Say so once, with the measured width.
+    tasks = report["calibration"].get("tasks") or []
+    halves = [
+        (ci[1] - ci[0]) / 2 for ci in (t.get("pass_rate_ci95") for t in tasks) if ci is not None
+    ]
+    if tasks and halves:
+        median_n = statistics.median(t["n"] for t in tasks)
+        if median_n < 16:
+            report["hygiene_warnings"].append(
+                f"Difficulty was measured from {median_n:g} rollouts per task, so a task's "
+                f"band assignment can be off by about ±{statistics.median(halves):.1f}. "
+                "Use repeats=16 for a firmer band."
+            )
     if report["eval_sourced"]:
         report["hygiene_warnings"].append(
             _eval_sourced_warning(report["eval_sourced"], "selected row(s)")
@@ -1032,6 +1089,7 @@ def optimize(
     min_reward: float = 1.0,
     endorsed: Sequence[str] = (),
     truncated: str = "drop",
+    order: str = "spread",
 ) -> tuple[list[dict], dict[str, Any]]:
     """One call after grading: concentrate for the post-training target.
 
@@ -1040,7 +1098,9 @@ def optimize(
     correct demonstrations (``select`` and ``min_reward`` as in
     ``select_for_sft``), anything else keeps whole mixed RL groups
     inside the difficulty ``band`` (default 20%-80% pass rate;
-    ``enforce_band=False`` only ranks out-of-band asks last).
+    ``enforce_band=False`` only ranks out-of-band asks last; ``order``
+    is ``"spread"`` across pass rates or ``"middle"`` first, see
+    ``select_for_rl``).
     ``endorsed`` names what the reward should track (feature-name
     substrings such as ``"tool:lookup_order"``), so the RL report's
     ``hack_scan`` can call a shortcut a hack.
@@ -1075,6 +1135,7 @@ def optimize(
             has_tools=has_tools,
             endorsed=endorsed,
             truncated=truncated,
+            order=order,
         )
     report["mode"] = resolved
     dest = output

@@ -93,6 +93,37 @@ def test_calibrate_stamps_pass_rate_k_and_policy():
     assert report["pass_at"]["pass_at_1"] == pytest.approx(0.5)
 
 
+def test_calibration_carries_an_interval_and_the_rows_policy():
+    from zeroproof.simulations.score.publish_gate import carry_calibration
+    from zeroproof.simulations.score.stats import wilson_interval
+
+    rows = _rows({"a": [1, 0, 1, 1, 0, 1, 0, 1], "b": [0, 0, 0, 1]})
+    for row in rows:
+        row["policy_version"] = "qwen3-4b@abc123"
+    calibrate(rows)  # no policy= given: the row's own version is the student
+    a = zps.calibration_of(next(r for r in rows if r["prompt"] == "a"))
+    assert a is not None and a.n == 8 and a.pass_rate == 0.625
+    lo, hi = wilson_interval(5, 8)
+    assert a.pass_rate_ci95 == (round(lo, 4), round(hi, 4))
+    assert hi - lo == pytest.approx(0.55, abs=0.05)  # about +/-0.3 at k=8
+    assert a.student.version == "qwen3-4b@abc123"
+
+    # The carried stamp (what optimize writes) says the same things.
+    kept = [r for r in rows if r["prompt"] == "b"][:2]
+    for row in kept:
+        row.pop("calibration")
+    report = carry_calibration(rows, kept)
+    b = zps.calibration_of(kept[0])
+    assert b is not None and b.n == 4 and b.pass_rate_ci95 is not None
+    assert b.student.version == "qwen3-4b@abc123"
+    assert report["tasks"] == [
+        {"task_id": "b", "n": 4, "pass_rate": 0.25, "pass_rate_ci95": b.pass_rate_ci95}
+    ]
+    # An explicit policy still wins over the row's version.
+    calibrate(rows, policy={"name": "v2", "version": "v2"})
+    assert zps.calibration_of(rows[0]).student.version == "v2"
+
+
 def test_is_rl_shaped_by_mode_or_repeats():
     assert is_rl_shaped([], mode="rl")
     assert not is_rl_shaped(_rows({"a": [1], "b": [0]}))
