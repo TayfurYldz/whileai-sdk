@@ -3,7 +3,8 @@
 rlhf-book ch. 10 and 11: the trusted label a judge is checked against is
 a person's, several people disagree, and the disagreement is signal, not
 noise to average away. ``judge_trust`` and ``judge_agreement`` read
-``gold_reward``; until now nothing wrote it with any record of who did.
+``gold_reward`` and ``gold_kind``, and only a person's labels count as
+a measurement of the judge; a model's labels are marked as such.
 
 ``attach_labels`` takes labels from a file or a list (each with a row
 identity, a 0/1 label, and optionally an annotator, a note and a time),
@@ -21,7 +22,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .agreement import _kappa, _label, row_key
+from .agreement import GOLD_KIND_KEY, _kappa, _label, gold_kind_of, row_key
 
 GOLD_KEY = "gold_reward"
 LABELS_KEY = "gold_labels"
@@ -68,12 +69,15 @@ def attach_labels(
     and carries ``label`` (or ``reward`` / ``gold_reward``: 0 or 1), and
     optionally ``annotator``, ``note``, ``ts``. ``annotator`` here is the
     default for labels that name none. ``kind`` is recorded on each label
-    (``"human"``; use another word for a stronger model's labels).
+    (``"human"``; ``"model"`` for a stronger model's labels).
 
     Each row gains ``gold_labels`` (every label, appended unless
-    ``replace``) and ``gold_reward``, the majority of its labels; a tie
-    leaves ``gold_reward`` unset. Labels that name no row, or carry no
-    0/1 value, are counted and listed.
+    ``replace``), ``gold_reward``, the majority of its labels, and
+    ``gold_kind``: ``"human"`` when every label on the row is a person's,
+    else the other kind. ``judge_trust`` and ``judge_agreement`` only
+    count human gold as a measurement of the judge. A tie leaves both
+    unset. Labels that name no row, or carry no 0/1 value, are counted
+    and listed.
     """
     # every identity a label may use points at the row
     index: dict[str, dict] = {}
@@ -122,7 +126,8 @@ def attach_labels(
         matched += 1
     ties = 0
     for row in touched.values():
-        votes = [int(r["label"]) for r in row[LABELS_KEY] if _label(r.get("label")) is not None]
+        records = [r for r in row[LABELS_KEY] if _label(r.get("label")) is not None]
+        votes = [int(r["label"]) for r in records]
         ones = sum(votes)
         zeros = len(votes) - ones
         if ones > zeros:
@@ -131,7 +136,10 @@ def attach_labels(
             row[GOLD_KEY] = 0
         else:
             row.pop(GOLD_KEY, None)
+            row.pop(GOLD_KIND_KEY, None)
             ties += 1
+            continue
+        row[GOLD_KIND_KEY] = gold_kind_of(r.get("kind") for r in records)
     report: dict[str, Any] = {
         "labels": len(items),
         "matched": matched,
@@ -224,4 +232,4 @@ def annotator_agreement(rows: Sequence[dict]) -> dict[str, Any]:
     }
 
 
-__all__ = ["GOLD_KEY", "LABELS_KEY", "annotator_agreement", "attach_labels"]
+__all__ = ["GOLD_KEY", "GOLD_KIND_KEY", "LABELS_KEY", "annotator_agreement", "attach_labels"]

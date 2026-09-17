@@ -220,7 +220,8 @@ def publish_gate(
     group, or when ``strict_hacks`` and ``hack_scan`` (with ``endorsed``
     naming what the reward should track) finds the reward best explained
     by something else. Never mutates anything except the ``calibration``
-    stamp.
+    stamp. ``judge_trust`` in the report is the summary ``grade`` stamped
+    on the rows when they carried human labels, else ``None``.
     """
     lo, hi = float(band[0]), float(band[1])
     rl = is_rl_shaped(rows, mode=mode)
@@ -285,8 +286,20 @@ def publish_gate(
     if duplicates["n_dropped"]:
         hygiene[0] = hygiene[0].replace(" dropped", " present; optimize(mode='rl') drops them", 1)
     warnings.extend(hygiene)
+    # The judge check grade ran on these rows, when any carried human gold.
+    trust = next(
+        (
+            r["judge_meta"]["trust"]
+            for r in rows
+            if isinstance(r, dict)
+            and isinstance(r.get("judge_meta"), dict)
+            and r["judge_meta"].get("trust")
+        ),
+        None,
+    )
     report = {
         "ok": refusal is None,
+        "judge_trust": trust,
         "rl_shaped": rl,
         "mode": mode,
         "band": [lo, hi],

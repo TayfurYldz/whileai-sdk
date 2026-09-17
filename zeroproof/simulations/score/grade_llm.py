@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from collections.abc import Sequence
@@ -11,12 +12,20 @@ from typing import Any
 
 from ..generate.agents import (
     complete,
+    default_agent_spec,
     default_judge_spec,
     missing_hosted_key,
     parse_backend_spec,
 )
+from .judge_trust import trust_after_grade
+
+log = logging.getLogger("zeroproof.simulations")
 
 MISSING_QWEN_KEY = "Hosted Qwen needs VLLM_API_KEY set in the environment."
+SAME_MODEL_AUDIT = (
+    "The auditor is the same model as the grader, so it cannot check it. "
+    "Pass backend_spec= for a different model."
+)
 
 # Why-before-score. 4B needs room for a one-sentence reason.
 JUDGE_MAX_TOKENS = 120
@@ -575,6 +584,7 @@ def apply_grade_llm(
     degraded: list[str] | None = None,
     warmup_timeout: float = JUDGE_WARMUP_TIMEOUT,
     use_privileged: bool = False,
+    trust: str = "warn",
 ) -> dict[str, Any]:
     """Write ``reward`` 0/1 and a one-sentence ``reason``. Search does not read this.
 
@@ -582,6 +592,12 @@ def apply_grade_llm(
     carries ``warmup`` with how long that took. ``use_privileged`` shows the
     judge each row's ``privileged`` block (principle, reference, hidden
     state; rlhf-book ch. 12) and folds that into the judge version.
+
+    After grading, the judge is checked against any human gold on the rows
+    (``trust_after_grade``): the summary lands on every graded row's
+    ``judge_meta["trust"]`` and in the report's ``trust``. ``trust="warn"``
+    (default) logs one line when the check failed or could not run,
+    ``"require"`` raises instead, ``"off"`` skips it.
     """
     import concurrent.futures
 
@@ -607,6 +623,7 @@ def apply_grade_llm(
             "self_judged": False,
             "warnings": [],
             "warmup": None,
+            "trust": None,
         }
     cap = len(rows) if limit is None else max(0, min(len(rows), int(limit)))
     # A rollout the loop stamped as cut by the length cap keeps that
@@ -702,6 +719,10 @@ def apply_grade_llm(
             "(self-preference); set ZEROPROOF_JUDGE or pass spec= to grade with "
             "another model"
         )
+    checked = trust_after_grade(targets, mode=trust)
+    if checked["note"]:
+        log.warning(checked["note"])
+        warnings.append(checked["note"])
     return {
         "status": "judged" if graded else "unreachable",
         "skipped_truncated": len(skipped_cut),
@@ -715,9 +736,35 @@ def apply_grade_llm(
         "self_judged": judge_model in policies,
         "warnings": warnings,
         "warmup": warmup,
+        "trust": checked["trust"],
         "seconds": round(elapsed, 3),
         "seconds_per_row": round(elapsed / n_called, 3) if n_called else None,
     }
+
+
+def _grader_model(rows: Sequence[dict]) -> str | None:
+    """The model that wrote the rows' labels: ``judge_meta.model`` from
+    ``grade``, else the ``judge_name`` a custom judge was given."""
+    for row in rows:
+        meta = row.get("judge_meta") if isinstance(row, dict) else None
+        if isinstance(meta, dict) and meta.get("model"):
+            return str(meta["model"])
+    for row in rows:
+        if isinstance(row, dict) and row.get("judge_name"):
+            return str(row["judge_name"])
+    return None
+
+
+def _other_hosted_spec(grader: str) -> str | None:
+    """The hosted model that is not ``grader``: the agent endpoint when the
+    grader is the hosted judge, the judge when the grader is the hosted
+    agent, ``None`` when neither matches."""
+    judge, agent = default_judge_spec(), default_agent_spec()
+    if grader == parse_backend_spec(judge)[1]:
+        return agent
+    if grader == parse_backend_spec(agent)[1]:
+        return judge
+    return None
 
 
 def audit_grades(
@@ -741,11 +788,32 @@ def audit_grades(
     (one reason accounting for most of the disagreements is a rule that is
     firing where it should not, or missing where it should). Counting
     agreement alone cannot say what to fix (rlhf-book ch. 5, ch. 12).
+
+    The auditor is never the grader (rlhf-book ch. 14: a separate model
+    is what detects over-optimization of the first). When the resolved
+    spec names the model that wrote the rows' labels, the other hosted
+    model audits instead (the hosted agent for the hosted judge and the
+    reverse), and the report's ``grader`` and ``auditor`` say which; when
+    no different model is available it raises ``ValueError``.
     """
     import concurrent.futures
 
     spec = require_judge_key(api_key, spec=backend_spec, base_url=base_url, model=model)
     rows = list(trajectories)
+    grader = _grader_model(rows)
+    _, auditor = parse_backend_spec(spec)
+    if grader and auditor == grader:
+        other = _other_hosted_spec(grader)
+        if other is None:
+            raise ValueError(SAME_MODEL_AUDIT)
+        spec = require_judge_key(api_key, spec=other)
+        _, auditor = parse_backend_spec(spec)
+        if auditor == grader:
+            raise ValueError(SAME_MODEL_AUDIT)
+        log.warning(
+            f"The auditor was the same model as the grader ({grader}), so the audit uses "
+            f"{auditor} instead."
+        )
     if not rows:
         return {
             "status": "empty",
@@ -754,6 +822,8 @@ def audit_grades(
             "agreed": 0,
             "disagreed": 0,
             "backend": spec,
+            "grader": grader,
+            "auditor": auditor,
             "seconds": 0.0,
             "seconds_per_row": None,
         }
@@ -851,6 +921,8 @@ def audit_grades(
         "false_fail": len(false_fail),
         "errors": errors[:5],
         "backend": spec,
+        "grader": grader,
+        "auditor": auditor,
         "warmup": warmup,
         "seconds": round(elapsed, 3),
         "seconds_per_row": round(elapsed / n_called, 3) if n_called else None,

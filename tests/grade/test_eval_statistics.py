@@ -41,6 +41,7 @@ def _row(prompt, reward=1, final="Issue 1 is open.", *, markers=None, gold=None)
         row["markers"] = markers
     if gold is not None:
         row["gold_reward"] = gold
+        row["gold_kind"] = "human"
     return row
 
 
@@ -292,7 +293,7 @@ def test_an_unmeasured_judge_is_not_a_trusted_one():
     # label the same rows and the judge is measurable again -- and the
     # report is a finding this time, not an absence of one
     labeled = judge_trust(
-        [{**r, "gold_reward": i % 2} for i, r in enumerate(rows)],
+        [{**r, "gold_reward": i % 2, "gold_kind": "human"} for i, r in enumerate(rows)],
         passes_everything,
         sample=12,
         concurrency=1,
@@ -315,9 +316,12 @@ def test_judge_trust_says_when_gold_has_one_class_only():
     report = judge_trust(rows)
     assert report["gold_degenerate"] is True
     assert any("gold labels are all 1" in w for w in report["warnings"])
-    assert not any(w.startswith("kappa") for w in report["warnings"])
+    assert not any(w.startswith("Judge kappa") for w in report["warnings"])
     assert not any("length bias" in w for w in report["warnings"])
-    assert report["ok"] is True  # nothing the labels can support was flagged
+    # the one thing the labels do support: the judge matched half of them,
+    # which is under the agreement floor whatever the class balance
+    assert report["ok"] is False
+    assert any(w.startswith("Judge agreement with human labels") for w in report["warnings"])
     mixed = rows + [_row(f"u{i}", 0, "Short.", gold=0) for i in range(6)]
     assert judge_trust(mixed)["gold_degenerate"] is False
 
