@@ -16,7 +16,7 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 |---|---|
 | `schema.sql`, `seed.sql`, `gen_seed.py` | the database (Postgres 16). `seed.sql` is canonical: the tasks were checked against it. `gen_seed.py` is how it was made (its reviews block was not deterministic when the shipped file was generated, so a regeneration differs there; regenerate only together with re-authoring tasks) |
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
-| `tasks.jsonl` | 741 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 140 are held out by a hash of the id, the same split in every script (the first 417 tasks and their 81-task holdout are the "first cut" below) |
+| `tasks.jsonl` | 2,223 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 459 are held out by a hash of the id, the same split in every script. The ledger rows below say which holdout they were measured on: the first 417 tasks (81 held out), the 741-task set (140 held out), or the full set |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
 | `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
 | `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
