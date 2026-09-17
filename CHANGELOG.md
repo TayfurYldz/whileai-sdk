@@ -5,6 +5,17 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## 0.52 (2026-09-17)
 
+- `rubric_judge` warms the hosted judge once before the rows fan out, the
+  same `warm_judge` call and 600s budget `grade_llm` already used. A serve
+  container that had scaled to zero took longer to load its weights than the
+  120s per-call timeout, so all eight of `run_judge`'s concurrent calls timed
+  out together and every row came back `invalid_result` with `reward: None`.
+  A failed warm-up is not fatal: the rows are judged anyway and report the
+  real error.
+- `pass_at` on a set where every row failed judging says so, naming the
+  status and the judge's own error, instead of `no binary rewards; grade
+  first` -- which pointed at the step that had just run. Sets that were
+  never judged, and partly graded sets, keep the old wording.
 - `simulate(tasks=base, runs=3)`: the same task set replayed three times in
   one call, every row stamped `lineage.eval_run` (0, 1, 2), one
   `SimulationData` back (`search["eval_runs"]` has the rows and stop reason

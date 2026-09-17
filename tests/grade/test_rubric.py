@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 
@@ -262,3 +263,69 @@ def test_public_surface():
     ):
         assert name in wai.__all__
     assert wai.Rubric is R.Rubric
+
+
+def test_rubric_judge_warms_the_hosted_judge_once_before_the_fan_out(monkeypatch):
+    """A cold serve container answers its first request in minutes, not
+    seconds. Without a warm-up every one of run_judge's concurrent calls
+    raced it and the whole set came back invalid_result (#224)."""
+    order: list[str] = []
+    gate = threading.Event()
+
+    def fake_warm(spec, **_kw):
+        order.append("warm")
+        gate.set()
+        return {"ok": True, "seconds": 1.0}
+
+    def fake_complete(_url, _model, messages, **kwargs):
+        # no row may reach the judge before the warm-up has returned
+        assert gate.is_set(), "judged a row against a cold judge"
+        order.append("judge")
+        user = json.loads(messages[-1]["content"])
+        met = user["reply"]["situation"] == "where is order 4412"
+        return {
+            "content": json.dumps(
+                {"criteria": dict.fromkeys((c["title"] for c in CRITERIA), met), "reason": "r"}
+            )
+        }
+
+    monkeypatch.setattr(R, "warm_judge", fake_warm)
+    monkeypatch.setattr(R, "complete", fake_complete)
+    rows = R.attach_rubric(
+        [_row(), _row(prompt="cancel order 9"), _row(prompt="ship order 5")],
+        R.Rubric.from_dict(CRITERIA),
+    )
+    scored = run_judge(rows, R.rubric_judge(spec="vllm:phi@http://127.0.0.1:9/v1"), concurrency=8)
+    assert [r["judge_status"] for r in scored.rows] == ["ok"] * 3
+    # warmed exactly once, and first
+    assert order[0] == "warm"
+    assert order.count("warm") == 1
+    assert order.count("judge") == 3
+
+
+def test_rubric_judge_still_judges_when_the_warm_up_fails(monkeypatch):
+    monkeypatch.setattr(
+        R,
+        "warm_judge",
+        lambda spec, **kw: {"ok": False, "seconds": 600.0, "error": "TimeoutError: read timed out"},
+    )
+    monkeypatch.setattr(
+        R,
+        "complete",
+        lambda _u, _m, messages, **kw: {
+            "content": json.dumps(
+                {"criteria": dict.fromkeys((c["title"] for c in CRITERIA), True), "reason": "r"}
+            )
+        },
+    )
+    rows = R.attach_rubric([_row()], R.Rubric.from_dict(CRITERIA))
+    scored = run_judge(rows, R.rubric_judge(spec="vllm:phi@http://127.0.0.1:9/v1"))
+    assert scored.rows[0]["judge_status"] == "ok"
+
+
+def test_rubric_judge_does_not_warm_for_a_row_with_no_rubric(monkeypatch):
+    warmed: list[str] = []
+    monkeypatch.setattr(R, "warm_judge", lambda spec, **kw: warmed.append(spec) or {"ok": True})
+    judge = R.rubric_judge(spec="vllm:phi@http://127.0.0.1:9/v1")
+    assert judge(_row())["reward"] is None  # no rubric on the row
+    assert warmed == []
