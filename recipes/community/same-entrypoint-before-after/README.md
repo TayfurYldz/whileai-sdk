@@ -56,7 +56,9 @@ Every one of 151 rows came back with `<think>` still in `final_text`, and 34 of 
 before `</think>` — so `final_text` was reasoning and nothing else. Markers that read prose then
 score the model's *hypotheticals* ("if the invoice were $500…") as claims it made. Stripping the
 reasoning moved `no_invented_amount` from 0.310 to 0.577 and pass@1 from 0.485 to 0.750. The
-noise band from three re-runs is a couple of points. The artefact is ~10× the noise.
+noise band from three re-runs of the same model on the same pinned tasks is 0.055, so the
+artefact is about **4.8× the noise band** — much larger than the thing the SDK correctly tells
+you to worry about, and invisible unless you go looking.
 
 This is the whole reason the previous run's `-0.025` was uninterpretable: with one arm through
 `hosted_model` and one through `local_model`, that 26-point artefact is applied to **one side only**.
