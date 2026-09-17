@@ -13,7 +13,7 @@ import collections
 import hashlib
 import time
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import offline, scripted_agent
 
 

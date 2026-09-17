@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof
+import whileai
 from tests.helpers import simulate_offline
-from zeroproof.simulations.score import judging
+from whileai.simulations.score import judging
 
 
 def test_scored_data_push_is_push_rows_on_the_graded_copies(monkeypatch):
@@ -18,7 +18,7 @@ def test_scored_data_push_is_push_rows_on_the_graded_copies(monkeypatch):
         seen["rows"], seen["name"], seen["kwargs"] = rows, name, kwargs
         return {"datasetId": "ds_test"}
 
-    monkeypatch.setattr("zeroproof.simulations.ingest.platform.push_rows", fake_push_rows)
+    monkeypatch.setattr("whileai.simulations.ingest.platform.push_rows", fake_push_rows)
     out = scored.push("demo-rl", gate=True, mode="rl", agent="demo")
     assert out == {"datasetId": "ds_test"}
     assert seen["rows"] is scored.rows
@@ -28,8 +28,8 @@ def test_scored_data_push_is_push_rows_on_the_graded_copies(monkeypatch):
 
 
 def test_list_traces_reads_the_saved_key(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: "zp_saved")
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: "zp_saved")
     seen = {}
 
     class _Res:
@@ -44,14 +44,14 @@ def test_list_traces_reads_the_saved_key(monkeypatch):
         seen["url"], seen["headers"] = url, headers
         return _Res()
 
-    monkeypatch.setattr("zeroproof.ingest.requests.get", fake_get)
-    assert zeroproof.list_traces() == {"traces": []}
+    monkeypatch.setattr("whileai.ingest.requests.get", fake_get)
+    assert whileai.list_traces() == {"traces": []}
     assert seen["headers"] == {"X-Api-Key": "zp_saved"}
     assert seen["url"].endswith("/traces")
 
 
 def test_list_traces_without_any_key_says_how_to_get_one(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: None)
-    with pytest.raises(zeroproof.ZeroProofIngestError, match="zeroproof login"):
-        zeroproof.list_traces()
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: None)
+    with pytest.raises(whileai.WhileIngestError, match="whileai login"):
+        whileai.list_traces()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 
 def _writer(_dataset=None, index=0):
@@ -10,9 +10,9 @@ def _writer(_dataset=None, index=0):
 
 
 def test_failed_tool_draft_is_a_degraded_note(monkeypatch):
-    monkeypatch.setattr("zeroproof.simulations.run.engine.draft_tools", lambda *a, **k: [])
+    monkeypatch.setattr("whileai.simulations.run.engine.draft_tools", lambda *a, **k: [])
     monkeypatch.setattr(
-        "zeroproof.simulations.run.engine.hosted_model",
+        "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
     data = zps.simulate(
@@ -44,9 +44,9 @@ def test_successful_tool_draft_is_not_flagged(monkeypatch):
             },
         }
     ]
-    monkeypatch.setattr("zeroproof.simulations.run.engine.draft_tools", lambda *a, **k: drafted)
+    monkeypatch.setattr("whileai.simulations.run.engine.draft_tools", lambda *a, **k: drafted)
     monkeypatch.setattr(
-        "zeroproof.simulations.run.engine.hosted_model",
+        "whileai.simulations.run.engine.hosted_model",
         lambda tools, system="", **kw: lambda m: {"steps": [], "final_text": "ok"},
     )
     data = zps.simulate(

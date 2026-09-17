@@ -16,9 +16,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.schema import Judgment, Marker, PolicyRef, Rollout, Task
+import whileai.simulations as zps
+from whileai.simulations import schema
+from whileai.simulations.schema import Judgment, Marker, PolicyRef, Rollout, Task
 
 
 # The eval markers. String rules over the rollout, never a judge, and never

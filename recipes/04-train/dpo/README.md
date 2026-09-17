@@ -11,9 +11,9 @@ before/after on a holdout when it is done.
 ## Run it
 
 ```bash
-pip install zeroproof modal
+pip install whileai modal
 modal profile activate <your workspace>
-export ZEROPROOF_API_KEY=...          # for the dashboard; optional
+export WHILEAI_API_KEY=...          # for the dashboard; optional
 modal run recipes/04-train/dpo/train_modal.py
 modal run recipes/04-train/dpo/train_modal.py --pairs pairs.jsonl        # your own pairs
 modal run recipes/04-train/dpo/train_modal.py --loss-type ipo --beta 0.1  # another DPO loss
@@ -39,7 +39,7 @@ always fails give no pair; the run reports how many prompts had contrast.
 from any graded rows, for example a set pulled from the platform:
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 rows = zps.pull("ds_...")
 pairs, report = zps.build_preference_pairs(rows)  # a pass vs a fail per prompt

@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.ingest.traces import exemplar_result_shapes, mine_result_exemplars
-from zeroproof.simulations.world.sandbox import MockEnvironment
+from whileai.simulations.ingest.traces import exemplar_result_shapes, mine_result_exemplars
+from whileai.simulations.world.sandbox import MockEnvironment
 
 TRACES = [
     {
@@ -124,7 +124,7 @@ def _capture_hosted(seen):
 
 def test_simulate_seeds_runner_shapes_from_traces(monkeypatch):
     seen: dict = {}
-    monkeypatch.setattr("zeroproof.simulations.run.engine.hosted_model", _capture_hosted(seen))
+    monkeypatch.setattr("whileai.simulations.run.engine.hosted_model", _capture_hosted(seen))
     data = zps.simulate(
         None,
         tools=TOOLS,
@@ -146,7 +146,7 @@ def test_simulate_seeds_runner_shapes_from_traces(monkeypatch):
 
 def test_no_trace_run_gets_no_shapes_and_no_report(monkeypatch):
     seen: dict = {}
-    monkeypatch.setattr("zeroproof.simulations.run.engine.hosted_model", _capture_hosted(seen))
+    monkeypatch.setattr("whileai.simulations.run.engine.hosted_model", _capture_hosted(seen))
     data = zps.simulate(
         None,
         tools=TOOLS,

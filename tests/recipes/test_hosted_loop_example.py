@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from example_helpers import EXAMPLES, load_script
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 README = EXAMPLES / "04-train/hosted-loop" / "README.md"
 
@@ -110,7 +110,7 @@ def test_without_a_key_it_names_login_and_the_env_var(hl, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         hl.main(["models"])
     message = str(exc.value.code)
-    assert "zeroproof login" in message and "ZEROPROOF_API_KEY" in message and "http" in message
+    assert "whileai login" in message and "WHILEAI_API_KEY" in message and "http" in message
 
 
 # ------------------------------------------------------------ state file
@@ -178,7 +178,7 @@ class _FakeRun:
         self.run_id = "run_1"
         self.url = "https://www.zeroproofai.com/platform/training/run_1"
         self.method = "sft"
-        self.adapter = "volume zeroproof-train-runs:/run_1/adapter"
+        self.adapter = "volume whileai-train-runs:/run_1/adapter"
         self.training = {"before": 5.0, "after": 4.1, "holdoutRows": 72}
         self.error = error
         self._status = status

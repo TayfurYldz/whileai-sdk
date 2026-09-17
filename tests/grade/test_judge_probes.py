@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judge_trust import (
+import whileai.simulations as zps
+from whileai.simulations.score.judge_trust import (
     PROBES,
     format_judge_trust,
     judge_probes,

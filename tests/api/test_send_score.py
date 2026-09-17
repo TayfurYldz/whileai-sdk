@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.ingest.platform import PlatformError
+import whileai.simulations as zps
+from whileai.simulations.ingest.platform import PlatformError
 
 
 @pytest.fixture
@@ -17,14 +17,14 @@ def calls(monkeypatch):
         seen.append({"method": method, "path": path, "body": body, "kw": kw})
         return {"applied": [{"traceId": "t1", "names": ["score"]}]}
 
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     monkeypatch.setattr(platform, "_call", fake_call)
     return seen
 
 
 def answer(monkeypatch, reply):
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     monkeypatch.setattr(platform, "_call", lambda *a, **k: reply)
 

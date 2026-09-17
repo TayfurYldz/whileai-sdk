@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.delta import delta_report
-from zeroproof.simulations.score.grounding import (
+from whileai.simulations.score.delta import delta_report
+from whileai.simulations.score.grounding import (
     argument_grounding,
     grounding_report,
     mark_grounding,

@@ -5,9 +5,9 @@ Offline: hash embedder, template generator, scripted agent. No GPU.
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.ingest.traces import (
+from whileai.simulations.ingest.traces import (
     dimensions_from_traces,
     drop_leaky_rows,
     leakage_report,
@@ -78,7 +78,7 @@ def test_split_pseudo_production_holds_out_each_unique_flaw():
     rem_prompts = {row["prompt"] for row in remainder}
     assert not (prod_prompts & rem_prompts)
     # Both distinct flaw kinds are represented on the production side.
-    from zeroproof.simulations.score.grading import trace_fault
+    from whileai.simulations.score.grading import trace_fault
 
     faults = {trace_fault(row) for row in production}
     assert "not_found" in faults
@@ -185,7 +185,7 @@ def test_simulate_from_traces_offline_end_to_end():
 
 
 def test_flaw_rows_returns_next_round_seeds():
-    from zeroproof.simulations.ingest.traces import flaw_rows
+    from whileai.simulations.ingest.traces import flaw_rows
 
     flawed = flaw_rows(TRACES)
     prompts = {row["prompt"] for row in flawed}
@@ -195,7 +195,7 @@ def test_flaw_rows_returns_next_round_seeds():
 
 
 def test_rl_retarget_lets_behavior_gap_lead():
-    from zeroproof.simulations.generate.scenarios import retarget_regions, scenario_regions
+    from whileai.simulations.generate.scenarios import retarget_regions, scenario_regions
 
     regions = scenario_regions(TOOLS, POLICY, mode="rl")[:6]
     gappy = {regions[0]["id"]}
@@ -219,7 +219,7 @@ def test_rl_retarget_lets_behavior_gap_lead():
 
 
 def test_mine_traces_attributes_faults_to_the_faulted_call():
-    from zeroproof.simulations.ingest.traces import format_trace_report, trace_report
+    from whileai.simulations.ingest.traces import format_trace_report, trace_report
 
     row = {
         "prompt": "fix the failing test",

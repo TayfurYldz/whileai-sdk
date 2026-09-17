@@ -16,7 +16,7 @@ import argparse
 import os
 import sys
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 
 def main() -> int:

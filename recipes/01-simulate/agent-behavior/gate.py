@@ -1,9 +1,9 @@
 """OTLP/HTTP JSON out, named measurements out. Stdlib only, no OTel SDK.
 
-Two endpoints on the Zero Proof gate, and this file is the whole client:
+Two endpoints on the While gate, and this file is the whole client:
 
-    POST $ZEROPROOF_API_URL/v1/traces    the run: spans, prompts, tool calls, tokens
-    POST $ZEROPROOF_API_URL/v1/scores    opinions about a run already sent
+    POST $WHILEAI_API_URL/v1/traces    the run: spans, prompts, tool calls, tokens
+    POST $WHILEAI_API_URL/v1/scores    opinions about a run already sent
 
 The split matters. A judge answers after the turn it is judging has closed:
 scoring costs a model call, nobody wants it in the request path, and a human
@@ -38,10 +38,10 @@ import urllib.request
 #: The public gate. This used to have no default, on the grounds that the API
 #: base was infrastructure that could move; it is now a hostname we own, which
 #: is the whole point of naming it, so the example asks for one less thing.
-#: Override with ``ZEROPROOF_API_URL`` or ``--gate`` for a staging gate.
+#: Override with ``WHILEAI_API_URL`` or ``--gate`` for a staging gate.
 DEFAULT_API_URL = "https://api.zeroproofai.com"
-API_URL_ENV = "ZEROPROOF_API_URL"
-API_KEY_ENV = "ZEROPROOF_API_KEY"
+API_URL_ENV = "WHILEAI_API_URL"
+API_KEY_ENV = "WHILEAI_API_KEY"
 
 #: One attribute, clipped. Keeps a batch under the store's 8 MB limit.
 MAX_ATTR_BYTES = 8000
@@ -247,7 +247,7 @@ class Trace:
             # learn from.
             attrs.append(_attr("zeroproof.scenario_id", self.scenario_id))
         if reward is not None:
-            attrs.append(_attr("zeroproof.reward", reward))
+            attrs.append(_attr("whileai.reward", reward))
         for key, value in self.attributes.items():
             attrs.append(_attr(key, value))
 
@@ -282,7 +282,7 @@ class Trace:
                     "resource": {"attributes": [_attr(k, v) for k, v in resource.items()]},
                     "scopeSpans": [
                         {
-                            "scope": {"name": "zeroproof-agent-behavior"},
+                            "scope": {"name": "whileai-agent-behavior"},
                             "spans": [root, *self.spans],
                         }
                     ],

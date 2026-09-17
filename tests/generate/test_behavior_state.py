@@ -3,7 +3,7 @@ behavioral predicates (markers, fault-response, capability fallback),
 never coordinate tuples; history buckets by model version; targeting
 memory distinguishes solved from lucky and flags coordinate rotation."""
 
-from zeroproof.simulations.ingest.traces import behavior_state
+from whileai.simulations.ingest.traces import behavior_state
 
 
 def _mrow(marker, ok, version, tool="edit_file", dims=None):
@@ -112,7 +112,7 @@ def test_empty_history():
 
 def test_behavior_state_rides_trace_fed_simulate():
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations.ingest.traces import simulate_from_traces
+    from whileai.simulations.ingest.traces import simulate_from_traces
 
     traces = [
         {
@@ -164,7 +164,7 @@ def test_behavior_state_rides_trace_fed_simulate():
 
 def test_rows_carry_dims_and_model_version_everywhere():
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     data = simulate(
         agent=scripted_agent,
@@ -189,7 +189,7 @@ def test_rows_carry_dims_and_model_version_everywhere():
 
 
 def test_otel_reads_model_version():
-    from zeroproof.simulations import rows_from_otel
+    from whileai.simulations import rows_from_otel
 
     spans = [
         {
@@ -212,8 +212,8 @@ def test_allocation_actually_shifts_generation():
     """The missing link, closed: region budget shares must change what
     the simulator generates, not just be reported."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
-    from zeroproof.simulations.ingest.traces import simulate_from_traces
+    from whileai.simulations import simulate
+    from whileai.simulations.ingest.traces import simulate_from_traces
 
     hot = [
         {
@@ -266,7 +266,7 @@ def test_region_progress_same_rules_both_sides():
     """Trace regions re-measured on generated graded rows: the
     hill-climb readout speaks one vocabulary."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations.ingest.traces import simulate_from_traces
+    from whileai.simulations.ingest.traces import simulate_from_traces
 
     traces = [
         {
@@ -312,7 +312,7 @@ def test_region_progress_same_rules_both_sides():
 def test_applied_is_false_when_no_cell_ever_boosted():
     """applied discloses that a weight changed, not that regions exist."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations.ingest.traces import simulate_from_traces
+    from whileai.simulations.ingest.traces import simulate_from_traces
 
     hot = [
         {
@@ -345,7 +345,7 @@ def test_applied_is_false_when_no_cell_ever_boosted():
 
 def test_ungraded_fault_rows_are_unknown_not_failed():
     """reward=None with a fault is support, never a failure count."""
-    from zeroproof.simulations.ingest.traces import behavior_state
+    from whileai.simulations.ingest.traces import behavior_state
 
     rows = [
         {
@@ -366,7 +366,7 @@ def test_ungraded_fault_rows_are_unknown_not_failed():
 def test_region_progress_measured_after_grading():
     """The readout describes graded, shipping rows, not raw rollouts."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations.ingest.traces import simulate_from_traces
+    from whileai.simulations.ingest.traces import simulate_from_traces
 
     hot = [
         {
@@ -406,7 +406,7 @@ def test_region_progress_measured_after_grading():
 
 def test_targeted_regions_without_traces_is_harmless():
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     data = simulate(
         agent=scripted_agent,
@@ -428,7 +428,7 @@ def test_targeted_regions_without_traces_is_harmless():
 
 
 def test_otel_zeroproof_model_version_beats_earlier_generic_span():
-    from zeroproof.simulations.ingest.otel import rows_from_otel
+    from whileai.simulations.ingest.otel import rows_from_otel
 
     spans = [
         {
@@ -459,7 +459,7 @@ def test_otel_zeroproof_model_version_beats_earlier_generic_span():
 def test_newest_first_history_with_ts_still_orders_by_time():
     """Chronology comes from ts, never from row order: a newest-first
     export must not read the oldest round as latest."""
-    from zeroproof.simulations.ingest.traces import behavior_state
+    from whileai.simulations.ingest.traces import behavior_state
 
     newest_first = [dict(_mrow("edits_before_reading", True, "v1"), ts=2000)] * 4 + [
         dict(_mrow("edits_before_reading", False, "v0"), ts=1000)
@@ -472,7 +472,7 @@ def test_newest_first_history_with_ts_still_orders_by_time():
 
 
 def test_otel_rows_carry_ts_from_earliest_span():
-    from zeroproof.simulations.ingest.otel import rows_from_otel
+    from whileai.simulations.ingest.otel import rows_from_otel
 
     spans = [
         {

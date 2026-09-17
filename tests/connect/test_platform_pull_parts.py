@@ -8,9 +8,9 @@ passed them because `{}` is valid JSON.
 
 import json
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import export
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as zps
+from whileai.simulations import export
+from whileai.simulations.ingest import platform
 
 
 def test_pull_reads_every_part(monkeypatch):
@@ -113,7 +113,7 @@ def test_ingested_traces_export_with_real_tool_arguments():
 
 
 def test_infer_harness_drafts_schemas_from_tool_traces():
-    from zeroproof.simulations.ingest.traces import infer_harness
+    from whileai.simulations.ingest.traces import infer_harness
 
     rows = [
         {

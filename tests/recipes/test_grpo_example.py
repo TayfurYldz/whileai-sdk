@@ -15,7 +15,7 @@ from example_helpers import (
     load_script,
 )
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 GRPO = EXAMPLES / "04-train/grpo"
 README = GRPO / "README.md"

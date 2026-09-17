@@ -7,7 +7,7 @@
     python run.py call             # one chat completion against the endpoint
     python run.py models           # what the account hosts
 
-Needs a key: ``zeroproof login`` or ZEROPROOF_API_KEY
+Needs a key: ``whileai login`` or WHILEAI_API_KEY
 (https://www.zeroproofai.com/docs/get-started). The
 rows come from the offline template writer and a scripted agent, so no model
 key is needed to build them. Training runs on the platform's A10G (about a
@@ -27,9 +27,9 @@ from pathlib import Path
 
 import requests
 
-import zeroproof.simulations as zps
-from zeroproof.auth import resolve_api_key
-from zeroproof.simulations.score.judging import run_judge
+import whileai.simulations as zps
+from whileai.auth import resolve_api_key
+from whileai.simulations.score.judging import run_judge
 
 STATE = Path(__file__).with_name("hosted-loop.json")
 DOCS = "https://www.zeroproofai.com/docs/training"
@@ -70,7 +70,7 @@ def scripted_agent(message: str) -> dict:
     """Reliability depends on the ask, so the graded set has passes to imitate
     and contrast between repeats: some asks always pass, some never, some
     on alternate repeats."""
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     match = re.search(r"\b(\d{4,})\b", message)
     order = match.group(1) if match else None
@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=1800)
     args = parser.parse_args(argv)
     if not resolve_api_key():
-        sys.exit(f"No API key. Run `zeroproof login` or set ZEROPROOF_API_KEY ({DOCS}).")
+        sys.exit(f"No API key. Run `whileai login` or set WHILEAI_API_KEY ({DOCS}).")
     steps = list(STEPS) if args.step == "all" else [args.step]
     if args.step == "all":
         steps.remove("models")

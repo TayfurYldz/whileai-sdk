@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 TOOLS = [
     {
@@ -56,7 +56,7 @@ def scripted_agent(message: str) -> dict:
     some asks it gets careless every third repeat. Some asks it always
     gets right, some never, and some only sometimes. That spread is what
     pass@1, pass^k and pass@k tell apart."""
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     token = re.search(r"[A-Za-z]+[-_]?\d+", message)
     if token is None:

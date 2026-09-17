@@ -33,8 +33,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.schema import stamp
+import whileai.simulations as zps
+from whileai.simulations.schema import stamp
 
 HERE = Path(__file__).resolve().parent
 CONSTITUTION = HERE / "constitution.json"
@@ -240,7 +240,7 @@ def live_student(
     system: str,
     temperature: float = 0.8,
 ) -> str:
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     messages = [
         {"role": "system", "content": system},
@@ -345,7 +345,7 @@ def llm_judge(
     model: str,
     key: str | None,
 ) -> dict:
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     task = tasks_by_id[row["scenario_id"]]
     if task["kind"] == "control":
@@ -705,7 +705,7 @@ def written_tasks(
     that exercise the trait. Few-shot from the spec's own prompts. New
     prompts split train/holdout by hash so the holdout is prompt-disjoint,
     which the adversarial holdout is not."""
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     tasks: list[dict] = []
     for trait in constitution["traits"]:

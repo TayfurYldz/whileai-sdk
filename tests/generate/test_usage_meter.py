@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from zeroproof.simulations.generate import usage_meter
-from zeroproof.simulations.generate.usage_meter import UsageMeter, report_usage
+from whileai.simulations.generate import usage_meter
+from whileai.simulations.generate.usage_meter import UsageMeter, report_usage
 
 
 class _Posts:
@@ -21,7 +21,7 @@ class _Posts:
 
 @pytest.fixture
 def meter(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_NO_USAGE_REPORT", raising=False)
+    monkeypatch.delenv("WHILEAI_NO_USAGE_REPORT", raising=False)
     m = UsageMeter()
     posts = _Posts()
     monkeypatch.setattr(UsageMeter, "_post", posts)
@@ -79,7 +79,7 @@ def test_report_usage_only_counts_hosted_calls(meter):
 
 def test_opt_out_env(meter, monkeypatch):
     m, posts = meter
-    monkeypatch.setenv("ZEROPROOF_NO_USAGE_REPORT", "1")
+    monkeypatch.setenv("WHILEAI_NO_USAGE_REPORT", "1")
     m.add(100, 100)
     m.flush()
     assert posts.bodies == []
@@ -103,8 +103,8 @@ def test_post_shape(monkeypatch):
         seen["body"] = json.loads(req.data)
         return _Res()
 
-    monkeypatch.setenv("ZEROPROOF_API_KEY", "zp_test")
-    monkeypatch.setenv("ZEROPROOF_API_URL", "https://api.example.test/")
+    monkeypatch.setenv("WHILEAI_API_KEY", "zp_test")
+    monkeypatch.setenv("WHILEAI_API_URL", "https://api.example.test/")
     monkeypatch.setattr(usage_meter.urllib.request, "urlopen", fake_urlopen)
     assert UsageMeter()._post(12, 3) is True
     assert seen == {
@@ -115,8 +115,8 @@ def test_post_shape(monkeypatch):
 
 
 def test_no_key_means_nothing_is_sent(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.setattr("zeroproof.auth.stored_api_key", lambda: None)
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.setattr("whileai.auth.stored_api_key", lambda: None)
     called = []
     monkeypatch.setattr(usage_meter.urllib.request, "urlopen", lambda *a, **k: called.append(1))
     assert UsageMeter()._post(1, 1) is False

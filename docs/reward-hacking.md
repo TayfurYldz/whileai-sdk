@@ -1,4 +1,4 @@
-# Reward hacking detection with zeroproof
+# Reward hacking detection with whileai
 
 Reinforcement learning is a strong optimizer. Point it at a reward and it
 pulls every bit of reward out of the environment, including the bits the

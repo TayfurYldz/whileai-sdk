@@ -45,7 +45,7 @@ from agents import AGENTS
 from judge import HELPFUL, SAFETY_MARKERS, safety_judge, safety_only_judge
 from suite import ATTACKS, CATEGORIES, LABELED, SEEDS, SYSTEM_PROMPT, TOOLS, classify
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 GRID_SITUATIONS = 8  # situations the simulator writes on top of the suite
 _WATCHED = {

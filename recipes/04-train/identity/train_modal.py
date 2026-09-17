@@ -47,16 +47,16 @@ image = (
         "peft==0.16.0",
         "datasets==3.6.0",
         "accelerate==1.8.1",
-        "zeroproof",
+        "whileai",
     )
     .env({"HF_HOME": "/root/.cache/huggingface"})
 )
 
-# The dashboard. With ZEROPROOF_API_KEY set on your laptop the run reports
+# The dashboard. With WHILEAI_API_KEY set on your laptop the run reports
 # loss, learning rate and progress to zeroproofai.com/platform/training;
 # without it, training is unchanged and nothing is sent.
 dashboard_secret = modal.Secret.from_dict(
-    {"ZEROPROOF_API_KEY": os.environ.get("ZEROPROOF_API_KEY", "")}
+    {"WHILEAI_API_KEY": os.environ.get("WHILEAI_API_KEY", "")}
 )
 
 adapter_volume = modal.Volume.from_name("identity-lora", create_if_missing=True)
@@ -156,8 +156,8 @@ def train(
 
     # One line for the dashboard: loss curve and progress bar on the platform.
     run = None
-    if os.environ.get("ZEROPROOF_API_KEY"):
-        import zeroproof.simulations as zps
+    if os.environ.get("WHILEAI_API_KEY"):
+        import whileai.simulations as zps
 
         run = zps.training_run(
             run_name,

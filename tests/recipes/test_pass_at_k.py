@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "02-measure" / "pass-at-k"
@@ -25,7 +25,7 @@ EXAMPLE = REPO / "recipes" / "02-measure" / "pass-at-k"
 
 def _offline_env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     return env

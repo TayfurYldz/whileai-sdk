@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.export import export_preference
-from zeroproof.simulations.score.pairwise import judge_pairs, parse_pairwise
+import whileai.simulations as zps
+from whileai.simulations.export import export_preference
+from whileai.simulations.score.pairwise import judge_pairs, parse_pairwise
 
 
 def _row(prompt, final, reward, model="qwen"):

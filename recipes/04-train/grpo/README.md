@@ -11,15 +11,15 @@ run reports into the platform through `zps.TrainerCallback` and
 to be stratified by prompt category, and how loss variants and prompt
 balance change the result. You need a Modal account and one A10G (under
 fifteen minutes at the default 40 steps, longer at 120);
-`ZEROPROOF_API_KEY` is optional and only decides whether the run page is
+`WHILEAI_API_KEY` is optional and only decides whether the run page is
 drawn.
 
 ## Run it
 
 ```bash
-pip install zeroproof modal
+pip install whileai modal
 modal profile activate <your workspace>
-export ZEROPROOF_API_KEY=...          # for the dashboard; optional
+export WHILEAI_API_KEY=...          # for the dashboard; optional
 modal run recipes/04-train/grpo/train_modal.py
 modal run recipes/04-train/grpo/train_modal.py --steps 80 --gpu H100 --run-name refund-grpo-v2
 modal run recipes/04-train/grpo/train_modal.py --monitor-every 5 --stop-on feature   # end the run on a named hack
@@ -93,7 +93,7 @@ truth.
   samples each, with intervals; `run.delta` puts the paired comparison on
   the run page (a bootstrap over prompts, rlhf-book ch. 16) and names
   `well_formed` if it regressed. The adapter and both
-  holdout row files land on the `zeroproof-grpo-runs` volume under the run
+  holdout row files land on the `whileai-grpo-runs` volume under the run
   name.
 
 ## Reading it as RL

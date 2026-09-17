@@ -1,6 +1,6 @@
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
 
 # The only keys an exported row may never carry (#149): teacher-only
@@ -98,7 +98,7 @@ def test_conversation_drops_stale_final_text():
 
 
 def test_finish_on_agent_drops_pre_tool_clarify():
-    from zeroproof.simulations.generate.agents import _finish_on_agent
+    from whileai.simulations.generate.agents import _finish_on_agent
 
     clarify = "Which repo and PR number?"
     steps = [
@@ -112,7 +112,7 @@ def test_finish_on_agent_drops_pre_tool_clarify():
 
 
 def test_finish_on_agent_keeps_post_tool_speech():
-    from zeroproof.simulations.generate.agents import _finish_on_agent
+    from whileai.simulations.generate.agents import _finish_on_agent
 
     steps = [
         {"text": "Which repo?"},
@@ -296,7 +296,7 @@ def test_lost_repeat_rollouts_do_not_starve_the_run():
     """A discarded rollout must not deadlock the budget against the
     situation cap: the run lifts the cap and fills the owed rows."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     calls = {"n": 0}
 
@@ -333,7 +333,7 @@ def test_lost_repeat_rollouts_are_rerolled_so_groups_stay_complete():
     import collections
 
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     calls = {"n": 0}
 

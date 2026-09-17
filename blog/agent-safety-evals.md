@@ -3,7 +3,7 @@ title: "AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks B
 description: "A practical guide to safety evals for tool-using LLM agents: an attack suite for prompt injection, indirect injection, data exfiltration and unauthorized actions, a judge that reads the trajectory, pass^k per attack class, and a before/after that catches the fix which got safe by refusing. Runnable example, no API key."
 slug: agent-safety-evals
 date: 2026-09-15
-author: Zero Proof AI
+author: While
 canonical: https://zeroproofai.com/blog/agent-safety-evals
 keywords:
   - AI agent safety evals
@@ -15,10 +15,10 @@ keywords:
   - OWASP LLM Top 10
   - over-refusal
   - pass^k
-  - zeroproof
+  - whileai
 tags: [safety, evals, agents, prompt-injection, data-leakage]
 reading_time: 12 min
-code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals
+code: https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals
 ---
 
 # AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks Before You Ship
@@ -29,11 +29,11 @@ an instruction it read from a tool result, or act without authority, graded
 from what the agent *did* rather than what it *said*, with benign requests
 in the same set so that "refuse everything" cannot pass. This post builds
 one in under a thousand lines of Python (suite, judge, three agents, runner) on the open-source
-[zeroproof SDK](https://github.com/Zero-Proof-AI/zeroproof-sdk), runs it on
+[whileai SDK](https://github.com/whilehq/whileai-sdk), runs it on
 three agents in under two seconds with no API key, and shows the two
 numbers that matter: **pass^k per attack class** and a **before/after that
 fails on over-refusal**. The code is
-[`recipes/02-measure/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals).
+[`recipes/02-measure/safety-evals`](https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals).
 
 ## What is a safety eval for an AI agent?
 
@@ -108,7 +108,7 @@ false-authority probes land in the same buckets when drawn). Every ask is
 rolled `k` times:
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 base = zps.simulate(
     agent,  # a callable, or "openai:gpt-4.1-mini", or your endpoint
@@ -334,9 +334,9 @@ key, about a second. `--json out.json` writes every report.
 
 ## Further reading
 
-- The runnable example: [`recipes/02-measure/safety-evals`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals)
-- The recipe: [`docs/safety-evals.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/safety-evals.md)
-- Judge trust and the probes: [`docs/reward-hacking.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/reward-hacking.md)
+- The runnable example: [`recipes/02-measure/safety-evals`](https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals)
+- The recipe: [`docs/safety-evals.md`](https://github.com/whilehq/whileai-sdk/blob/main/docs/safety-evals.md)
+- Judge trust and the probes: [`docs/reward-hacking.md`](https://github.com/whilehq/whileai-sdk/blob/main/docs/reward-hacking.md)
 - OWASP Top 10 for LLM Applications: [owasp.org](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 - Simon Willison, "The lethal trifecta for AI agents": [simonwillison.net](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)
 - rlhfbook.com ch. 13 (tool use), ch. 14 (over-optimization), ch. 16 (evaluation)
@@ -350,12 +350,12 @@ key, about a second. `--json out.json` writes every report.
       "headline": "AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks Before You Ship",
       "description": "A practical guide to safety evals for tool-using LLM agents: an attack suite for prompt injection, indirect injection, data exfiltration and unauthorized actions, a judge that reads the trajectory, pass^k per attack class, and a before/after that catches the fix which got safe by refusing.",
       "datePublished": "2026-09-15",
-      "author": {"@type": "Organization", "name": "Zero Proof AI", "url": "https://zeroproofai.com"},
-      "publisher": {"@type": "Organization", "name": "Zero Proof AI", "url": "https://zeroproofai.com"},
+      "author": {"@type": "Organization", "name": "While", "url": "https://zeroproofai.com"},
+      "publisher": {"@type": "Organization", "name": "While", "url": "https://zeroproofai.com"},
       "mainEntityOfPage": "https://zeroproofai.com/blog/agent-safety-evals",
       "keywords": "AI agent safety evals, LLM agent security testing, prompt injection testing, indirect prompt injection, data leakage evaluation, agent red teaming, OWASP LLM Top 10, over-refusal, pass^k",
       "proficiencyLevel": "Expert",
-      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals"
+      "codeRepository": "https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals"
     },
     {
       "@type": "FAQPage",

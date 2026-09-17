@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.grading import looks_finished
-from zeroproof.simulations.score.hygiene import (
+import whileai.simulations as zps
+from whileai.simulations.score.grading import looks_finished
+from whileai.simulations.score.hygiene import (
     HACK_THRESHOLD,
     dedupe_groups,
     hygiene_warnings,
@@ -17,7 +17,7 @@ from zeroproof.simulations.score.hygiene import (
     reply_length,
     reward_correlations,
 )
-from zeroproof.simulations.score.optimize import select_for_rl, select_for_sft
+from whileai.simulations.score.optimize import select_for_rl, select_for_sft
 
 
 def _row(prompt: str, reward, final: str, *, tools: int = 1, turns: int = 1) -> dict:
@@ -185,14 +185,14 @@ def test_publish_gate_reports_hygiene_without_dropping():
 
 
 def test_judge_prompts_are_length_neutral():
-    from zeroproof.simulations.score import grade_llm, llm_judge
+    from whileai.simulations.score import grade_llm, llm_judge
 
     assert "length" in grade_llm.JUDGE_SYSTEM.lower()
     assert "length" in llm_judge.JUDGE_SYSTEM.lower()
 
 
 def test_tool_calls_reads_platform_tool_trace_rows():
-    from zeroproof.simulations.score.hygiene import tool_calls
+    from whileai.simulations.score.hygiene import tool_calls
 
     pulled = {
         "prompt": "a",

@@ -1,4 +1,4 @@
-# ZeroProof Simulations
+# While Simulations
 
 The SDK makes post-training data for an agent you already have, or one you
 can describe. You give it the agent's definition; it gives you graded
@@ -136,8 +136,8 @@ zps.hf_publish_run("run_...", private=True)  # a finished run's LoRA adapter, as
 One repo holds one split per purpose (`train`, `holdout`, `eval`), so the
 train set and its held-out sibling land in the same place. Pushing a new
 cut into a split replaces the old parts, the commit message carries the
-delta (rows, pass rate, support), and `zeroproof.json` in the repo keeps
-the history: which ZeroProof dataset each split came from, and what it
+delta (rows, pass rate, support), and `whileai.json` in the repo keeps
+the history: which While dataset each split came from, and what it
 replaced. `load_dataset(repo, split, revision="zp-ds_...")` loads exactly
 one push.
 

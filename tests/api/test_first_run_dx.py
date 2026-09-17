@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
 
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as zps
+from whileai.simulations.ingest import platform
 
 
 class Recorder:
@@ -51,9 +51,9 @@ def test_catalog_needs_no_key(monkeypatch):
 
 
 def test_pull_uses_the_catalog_when_there_is_no_key(monkeypatch, tmp_path):
-    monkeypatch.setenv("ZEROPROOF_HOME", str(tmp_path))
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
-    monkeypatch.delenv("ZEROPROOF_DELEGATED_CREDENTIAL", raising=False)
+    monkeypatch.setenv("WHILEAI_HOME", str(tmp_path))
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
+    monkeypatch.delenv("WHILEAI_DELEGATED_CREDENTIAL", raising=False)
     rec = Recorder({("GET", "/catalog/ds_pub/download"): {"parts": ["https://s3/x"]}})
     monkeypatch.setattr(platform, "_call", rec)
     rows = zps.pull("ds_pub")
@@ -62,7 +62,7 @@ def test_pull_uses_the_catalog_when_there_is_no_key(monkeypatch, tmp_path):
 
 
 def test_pull_prefers_your_own_copy_and_falls_back_to_the_catalog(monkeypatch):
-    monkeypatch.setenv("ZEROPROOF_API_KEY", "zp_x")
+    monkeypatch.setenv("WHILEAI_API_KEY", "zp_x")
     rec = Recorder(
         {
             ("GET", "/datasets/ds_pub/download"): platform.PlatformError(
@@ -104,7 +104,7 @@ def test_push_with_publish_needs_an_agent_and_returns_the_card(monkeypatch):
         calls.append(("publish", dataset_id, agent, description))
         return {"datasetId": dataset_id, "agent": agent}
 
-    monkeypatch.setattr("zeroproof.simulations.data.push_rows", fake_push_rows)
+    monkeypatch.setattr("whileai.simulations.data.push_rows", fake_push_rows)
     monkeypatch.setattr(platform, "publish", fake_publish)
     with pytest.raises(ValueError, match="agent"):
         data.push("run", publish=True)

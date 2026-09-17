@@ -7,8 +7,8 @@ import sys
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.adapters import detect, inspect, parse_claude_stream
+import whileai.simulations as zps
+from whileai.simulations.generate.adapters import detect, inspect, parse_claude_stream
 
 TOOLS = [
     {
@@ -179,7 +179,7 @@ def test_parse_claude_stream_pairs_any_tool_names():
 
 
 def test_parse_text_tool_calls():
-    from zeroproof.simulations.generate.agents import parse_text_tool_calls
+    from whileai.simulations.generate.agents import parse_text_tool_calls
 
     raw = (
         '<tool_call>\n{"name": "list_events", "arguments": {"date": "2023-10-05"}}\n'
@@ -222,7 +222,7 @@ def test_hash_embedder_does_not_claim_semantic_diversity():
 
 
 def test_refuses_to_mix_lexical_and_semantic_vectors():
-    from zeroproof.simulations.generate.embeddings import (
+    from whileai.simulations.generate.embeddings import (
         EmbeddingArchive,
         HashEmbedder,
         select_execution_batch,
@@ -245,7 +245,7 @@ def test_refuses_to_mix_lexical_and_semantic_vectors():
 
 
 def test_model_prompt_asks_for_gaps():
-    from zeroproof.simulations.generate.generator import ModelSimulator
+    from whileai.simulations.generate.generator import ModelSimulator
 
     sim = ModelSimulator(
         "vllm:fake@http://example",
@@ -289,7 +289,7 @@ def test_coverage_axes_come_from_this_agent():
 
 
 def test_selection_keeps_typical_and_fills_gaps():
-    from zeroproof.simulations.generate.embeddings import EmbeddingArchive, select_execution_batch
+    from whileai.simulations.generate.embeddings import EmbeddingArchive, select_execution_batch
 
     class Stub:
         name = "stub-semantic"

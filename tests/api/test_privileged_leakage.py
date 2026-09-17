@@ -30,26 +30,26 @@ import json
 
 import pytest
 
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.export import (
+from whileai.simulations.data import export_row
+from whileai.simulations.export import (
     _CARRY_KEYS,
     export_preference,
     export_training,
     training_rows,
 )
-from zeroproof.simulations.schema import (
+from whileai.simulations.schema import (
     Privileged,
     Rollout,
     Step,
     Task,
     to_row,
 )
-from zeroproof.simulations.score.judging import (
+from whileai.simulations.score.judging import (
     build_preference_pairs,
     evaluate,
     run_judge,
 )
-from zeroproof.simulations.verify import (
+from whileai.simulations.verify import (
     CodeExec,
     ExactMatch,
     Includes,
@@ -192,7 +192,7 @@ def test_export_row_rebuilds_messages_from_the_scrubbed_steps():
 
 def test_saved_file_carries_no_nested_privileged_value(tmp_path):
     """The bytes on disk, which is what the customer in #149 reads back."""
-    from zeroproof.simulations.data import SimulationData
+    from whileai.simulations.data import SimulationData
 
     data = SimulationData(trajectories=[_nested_privileged_row()])
     dest = tmp_path / "rows.jsonl"
@@ -322,7 +322,7 @@ def test_a_plain_answer_column_is_still_quoted_back():
 def test_graded_by_a_verifier_no_export_carries_the_gold(tmp_path):
     """End to end on the path the RLVR customer actually runs: grade with a
     verifier, then write every file the SDK writes."""
-    from zeroproof.simulations.data import SimulationData
+    from whileai.simulations.data import SimulationData
 
     rows = [_graded_row(principle=f"{SECRET}_principle"), _graded_row("The answer is 12")]
     graded = run_judge([dict(r) for r in rows], MathEqual())

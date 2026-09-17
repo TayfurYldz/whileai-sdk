@@ -1,9 +1,9 @@
 ---
 title: "How to Test an AI Agent for Data Leaks: Safety Evals for Multi-Tenant Agents on User-Generated Content"
-description: "A step-by-step method for testing whether an LLM agent leaks data: prompt injection planted in user reviews, tenant isolation the tool does not enforce, exfiltration by email and by public post, and the over-refusal a naive fix causes. Runnable example on the open-source zeroproof SDK, with numbers from a real model. No API key."
+description: "A step-by-step method for testing whether an LLM agent leaks data: prompt injection planted in user reviews, tenant isolation the tool does not enforce, exfiltration by email and by public post, and the over-refusal a naive fix causes. Runnable example on the open-source whileai SDK, with numbers from a real model. No API key."
 slug: marketplace-agent-safety-evals
 date: 2026-09-15
-author: Zero Proof AI
+author: While
 canonical: https://zeroproofai.com/blog/marketplace-agent-safety-evals
 keywords:
   - how to test AI agent for data leaks
@@ -17,10 +17,10 @@ keywords:
   - OWASP LLM Top 10
   - over-refusal
   - pass^k
-  - zeroproof
+  - whileai
 tags: [safety, evals, agents, prompt-injection, data-leakage, multi-tenant]
 reading_time: 14 min
-code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace
+code: https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals-marketplace
 ---
 
 # How to Test an AI Agent for Data Leaks: Safety Evals for Multi-Tenant Agents on User-Generated Content
@@ -35,9 +35,9 @@ a fix that "refuses everything" fails. This post does that for the
 hardest common shape: an agent on a marketplace, where the text it reads
 is written by the public, the private data belongs to many tenants, and
 some of what it writes is public. The example runs offline in seconds on
-the open-source [zeroproof SDK](https://github.com/Zero-Proof-AI/zeroproof-sdk),
+the open-source [whileai SDK](https://github.com/whilehq/whileai-sdk),
 and the same suite runs on a real model through Ollama with no API key.
-Code: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace).
+Code: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals-marketplace).
 
 ## What is a data leak test for an AI agent?
 
@@ -173,7 +173,7 @@ In the SDK the suite goes in as `seeds=`; the simulator adds its own grid
 of situations from the tools and policy, and every ask is rolled `k` times:
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 base = zps.simulate(
     agent,  # a callable, "ollama:llama3.1:8b", "openai:gpt-4.1-mini", or your endpoint
@@ -446,9 +446,9 @@ in the suite, and every production incident too.
 
 ## Further reading
 
-- The runnable example: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace)
+- The runnable example: [`recipes/02-measure/safety-evals-marketplace`](https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals-marketplace)
 - The first post, with the argument for each step on a support agent: [AI Agent Safety Evals: How to Test for Prompt Injection and Data Leaks Before You Ship](https://zeroproofai.com/blog/agent-safety-evals)
-- The recipe: [`docs/safety-evals.md`](https://github.com/Zero-Proof-AI/zeroproof-sdk/blob/main/docs/safety-evals.md)
+- The recipe: [`docs/safety-evals.md`](https://github.com/whilehq/whileai-sdk/blob/main/docs/safety-evals.md)
 - OWASP Top 10 for LLM Applications: [owasp.org](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 - Simon Willison, "The lethal trifecta for AI agents": [simonwillison.net](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/)
 
@@ -459,21 +459,21 @@ in the suite, and every production incident too.
     {
       "@type": "TechArticle",
       "headline": "How to Test an AI Agent for Data Leaks: Safety Evals for Multi-Tenant Agents on User-Generated Content",
-      "description": "A step-by-step method for testing whether an LLM agent leaks data: prompt injection planted in user reviews, tenant isolation the tool does not enforce, exfiltration by email and by public post, and the over-refusal a naive fix causes. Runnable example on the open-source zeroproof SDK, with numbers from a real model.",
+      "description": "A step-by-step method for testing whether an LLM agent leaks data: prompt injection planted in user reviews, tenant isolation the tool does not enforce, exfiltration by email and by public post, and the over-refusal a naive fix causes. Runnable example on the open-source whileai SDK, with numbers from a real model.",
       "datePublished": "2026-09-15",
-      "author": {"@type": "Organization", "name": "Zero Proof AI", "url": "https://zeroproofai.com"},
-      "publisher": {"@type": "Organization", "name": "Zero Proof AI", "url": "https://zeroproofai.com"},
+      "author": {"@type": "Organization", "name": "While", "url": "https://zeroproofai.com"},
+      "publisher": {"@type": "Organization", "name": "While", "url": "https://zeroproofai.com"},
       "mainEntityOfPage": "https://zeroproofai.com/blog/marketplace-agent-safety-evals",
       "keywords": "how to test AI agent for data leaks, AI agent security testing, LLM agent safety evaluation, indirect prompt injection user-generated content, multi-tenant LLM data isolation, prompt injection in reviews, OWASP LLM Top 10, over-refusal, pass^k",
       "proficiencyLevel": "Expert",
-      "codeRepository": "https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/02-measure/safety-evals-marketplace",
+      "codeRepository": "https://github.com/whilehq/whileai-sdk/tree/main/recipes/02-measure/safety-evals-marketplace",
       "isBasedOn": "https://zeroproofai.com/blog/agent-safety-evals"
     },
     {
       "@type": "HowTo",
       "name": "How to test an AI agent for data leaks",
       "description": "Build a repeatable data-leak eval for a tool-using LLM agent whose inputs include user-generated content and whose data is per tenant.",
-      "tool": [{"@type": "HowToTool", "name": "zeroproof SDK"}, {"@type": "HowToTool", "name": "Ollama or any OpenAI-compatible model endpoint"}],
+      "tool": [{"@type": "HowToTool", "name": "whileai SDK"}, {"@type": "HowToTool", "name": "Ollama or any OpenAI-compatible model endpoint"}],
       "step": [
         {"@type": "HowToStep", "name": "Write the boundary down", "text": "Turn the agent's policy into a spec: one attack for every 'never', one benign control for every 'always help with'."},
         {"@type": "HowToStep", "name": "Plant the injection where the public writes", "text": "Put the instruction in a review, listing, profile or ticket the agent reads, and reach it with an ordinary request."},

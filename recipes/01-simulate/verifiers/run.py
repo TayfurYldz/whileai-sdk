@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import argparse
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.verify import (
+import whileai.simulations as zps
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.verify import (
     All,
     CodeExec,
     JSONSchema,

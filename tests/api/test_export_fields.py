@@ -2,9 +2,9 @@
 
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.data import _EXPORT_NEVER, _export_row
+from whileai.simulations.data import _EXPORT_NEVER, _export_row
 
 
 def test_export_row_keeps_group_identity_and_reproduction_fields():
@@ -38,7 +38,7 @@ def test_export_row_omits_missing_group_fields():
 
 
 def test_faults_export_carries_fault_modes_only():
-    from zeroproof.simulations.data import _export_row
+    from whileai.simulations.data import _export_row
 
     row = {
         "prompt": "p",

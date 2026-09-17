@@ -23,7 +23,7 @@ key stops travelling.
 ## The pieces
 
 ```python
-from zeroproof.simulations.verify import (
+from whileai.simulations.verify import (
     ExactMatch,
     Includes,
     Regex,
@@ -61,9 +61,9 @@ rows you bring that already carry `privileged.reference` (or
 RL gates (reward band, unanimous groups, duplicates), push:
 
 ```python
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.verify import MathEqual
+import whileai.simulations as zps
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.verify import MathEqual
 
 rows = [...]  # k rollouts per prompt, each with privileged.reference
 scored = run_judge(rows, MathEqual())  # the verifier IS the reward

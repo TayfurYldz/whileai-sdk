@@ -18,8 +18,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
+import whileai.simulations as zps
+from whileai.simulations import schema
 
 TOOLS = [
     {
@@ -57,7 +57,7 @@ def scripted_agent(message: str) -> dict:
     careless on every second rollout of the same prompt. That last one is
     what gives a task both a passing and a failing rollout, which is where
     preference pairs come from."""
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     raw = int((re.search(r"(\d+)", message) or [0, "40"])[1])
     amount = raw % 200

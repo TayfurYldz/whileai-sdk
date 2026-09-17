@@ -6,12 +6,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.data import export_row
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.score import rubric as R
-from zeroproof.simulations.score.judging import run_judge
+import whileai.simulations as zps
+from whileai.simulations import schema
+from whileai.simulations.data import export_row
+from whileai.simulations.export import training_rows
+from whileai.simulations.score import rubric as R
+from whileai.simulations.score.judging import run_judge
 
 TOOLS = [
     {

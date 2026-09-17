@@ -42,7 +42,7 @@ from sql_verifier import (
     system_prompt,
 )
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 SERVE_URL = "https://zeroproofai--zeroproof-serve-qwen3-4b.modal.run/v1"
 
@@ -96,7 +96,7 @@ def warm(spec: str, minutes: float = 15) -> None:
     """
     from urllib import error, request
 
-    from zeroproof.simulations.generate.agents import parse_backend_spec, resolve_completion_key
+    from whileai.simulations.generate.agents import parse_backend_spec, resolve_completion_key
 
     base_url, model = parse_backend_spec(spec)
     key = resolve_completion_key(base_url)
@@ -145,7 +145,7 @@ def main() -> int:
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument(
-        "--max-tokens", type=int, default=4096, help="agent reply budget (zeroproof >= 0.47)"
+        "--max-tokens", type=int, default=4096, help="agent reply budget (whileai >= 0.47)"
     )
     ap.add_argument("--timeout", type=float, default=300, help="seconds per agent call")
     ap.add_argument("--limit", type=int, default=0, help="first N tasks only (smoke)")
@@ -191,7 +191,7 @@ def main() -> int:
         tasks=[{"prompt": t["question"], "scenario_id": t["id"]} for t in todo],
         repeats=args.k,
         # one user turn, one reply: no simulated follow-ups. avg_turns=1 also
-        # keeps zeroproof 0.44's turn sampler off a division by zero that
+        # keeps whileai 0.44's turn sampler off a division by zero that
         # max_turns=1 alone triggers (fixed on main after 0.44).
         max_turns=1,
         avg_turns=1,
@@ -200,13 +200,13 @@ def main() -> int:
         budget=len(todo) * args.k,
     )
     try:
-        # a reasoning model thinks for 1-3k tokens before the query (zeroproof >= 0.47)
+        # a reasoning model thinks for 1-3k tokens before the query (whileai >= 0.47)
         data = zps.simulate(spec, agent_max_tokens=args.max_tokens, timeout=args.timeout, **kw)
     except TypeError as exc:
         if "agent_max_tokens" not in str(exc) and "timeout" not in str(exc):
             raise
         print(
-            "  this zeroproof has no agent_max_tokens/timeout knobs (needs >= 0.47): "
+            "  this whileai has no agent_max_tokens/timeout knobs (needs >= 0.47): "
             "replies capped at 2048 tokens, 60 s per call; thinking models lose some rows",
             flush=True,
         )

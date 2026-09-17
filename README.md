@@ -1,11 +1,11 @@
-# zeroproof
+# whileai
 
-The ZeroProof Python SDK. One package, two importable modules:
+The While Python SDK. One package, two importable modules:
 
-- `zeroproof`: the platform client. OTLP trace ingest and trace-dataset listing against the token gate.
-- `zeroproof.simulations`: post-training data for an agent. (Was the separate top-level package `zeroproof_simulations`; that name still imports for two releases with a deprecation warning.) Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
+- `whileai`: the platform client. OTLP trace ingest and trace-dataset listing against the token gate.
+- `whileai.simulations`: post-training data for an agent. Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
 
-This repo absorbed the `zeroproof-simulations` package; `zeroproof-simulations` on PyPI is deprecated in favor of `zeroproof`.
+**Renamed.** This SDK was `zeroproof` (ZeroProof is now While). `pip install zeroproof` still works: it installs `whileai`, and `import zeroproof` (or the older `zeroproof_simulations`) resolves to the same modules with a deprecation warning. `ZEROPROOF_*` environment variables and a saved `~/.zeroproof/credentials.json` are still read. Change the import when you can; new releases land under `whileai`.
 
 Releases of `zeroproof` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `zeroproof<0.3` if you still depend on it.
 
@@ -33,7 +33,7 @@ Stop when the row cap or the clock hits.
 ## How to use
 
 ```bash
-pip install zeroproof   # or: uv add zeroproof
+pip install whileai   # or: uv add whileai
 ```
 
 ### Start here: no key required
@@ -43,7 +43,7 @@ fastest way to see a row and to check your agent and grader are wired up
 correctly before you spend a key on variety.
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 # 1. Your tools, in OpenAI function-calling shape. This is all `tools=` wants.
 TOOLS = [
@@ -163,7 +163,7 @@ export OPENAI_BASE_URL=...   # only for a non-OpenAI endpoint
 ```
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 data = zps.simulate(
     agent="openai:gpt-4.1-mini",
@@ -180,7 +180,7 @@ Agent to gated dataset. Everything else in this README is one layer down.
 `POLICY` is the agent's system prompt.
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 data = zps.simulate(
     agent="openai:gpt-4.1-mini",
@@ -208,7 +208,7 @@ Character training, the same loop aimed at how the model talks: a constitution i
 | Call | What it decides | Reads |
 |---|---|---|
 | `simulate` | the situations, the users, the world, k rollouts per ask | your spec or tools + system prompt |
-| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or your account key (`zeroproof login`) |
+| `data.grade(judge=)` | 0/1 per rollout. `zps.grade(data)` uses the hosted judge instead | your judge callable, or your account key (`whileai login`) |
 | `pass_at` / `judge_trust` | pass@1 with an interval, headroom for RL, whether the judge can be trusted | graded rows, 30 to 100 hand labels as `gold_reward` |
 | `optimize(mode="rl")` | drops junk rows, duplicates, dead groups, and asks outside the *difficulty* band; flags reward hacks | graded rows |
 | `push_rows(gate=True)` | refuses ungraded or gradient-free RL data; stamps calibration | pruned rows |
@@ -251,7 +251,7 @@ More on the four marker families in
 **The loop, closed in five lines.**
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 judge = lambda row: {"reward": int("sorry" not in row["final_text"])}
 scored = zps.run_judge(data.trajectories, judge)  # or data.grade(judge=judge)
@@ -262,8 +262,8 @@ nxt = zps.simulate(tools=TOOLS, system_prompt=POLICY, traces=evald.failed_traces
 ```
 
 The full contract, with every status and the rest of the loop, is the
-module docstring of `zeroproof.simulations.score.judging` — note the
-`score.`; there is no `zeroproof.simulations.judging`.
+module docstring of `whileai.simulations.score.judging` — note the
+`score.`; there is no `whileai.simulations.judging`.
 
 Writing the judge is half of it; knowing whether to believe it is the
 other half. `zps.judge_trust(rows, judge=...)` and `zps.judge_probes(rows,
@@ -271,10 +271,10 @@ judge)` are under [Trust the numbers](#trust-the-numbers).
 
 ### Verifiers: when the reward is a program, not a judge
 
-For a verifiable task the reward is a checker, not an opinion (RLHF book ch. 7, 13). `zeroproof.simulations.verify` gives you one, and because a verifier honors the same judge contract it drops into `grade`, `evaluate`, `optimize` and a gated `push` exactly where an LLM judge would.
+For a verifiable task the reward is a checker, not an opinion (RLHF book ch. 7, 13). `whileai.simulations.verify` gives you one, and because a verifier honors the same judge contract it drops into `grade`, `evaluate`, `optimize` and a gated `push` exactly where an LLM judge would.
 
 ```python
-from zeroproof.simulations.verify import MathEqual, CodeExec, JSONSchema, Regex, All
+from whileai.simulations.verify import MathEqual, CodeExec, JSONSchema, Regex, All
 
 data = zps.simulate(
     tools=MATH_TOOLS, system_prompt=MATH_POLICY, mode="rl", situations=200, repeats=8
@@ -285,8 +285,8 @@ rows, _ = zps.optimize(scored, mode="rl")  # GRPO data, gradient checked
 
 The candidate is the rollout's `final_text`; the gold is read from the row's `privileged.reference`, which the training export never projects, so the answer key cannot leak into a training file (flat `answer`/`target`/... fields work too, or point at any column with `field=`). Built in: `ExactMatch`, `Includes`, `Regex`, `MultipleChoice`, `Numeric`, `MathEqual`, `JSONValid`, `JSONSchema`, `JSONField`, and `CodeExec` (runs the candidate against hidden tests in a sandboxed subprocess with a timeout). Compose with `All` (right answer *and* right format), `Any`, or a graded `Weighted` rubric; wrap your own with `@verifier`. Worked example: [`recipes/01-simulate/verifiers`](recipes/01-simulate/verifiers).
 
-Or use ZeroProof-hosted Qwen, which is the default when no `agent=` is given.
-Your account key is enough: `zeroproof login` (or `zeroproof signup --email
+Or use While-hosted Qwen, which is the default when no `agent=` is given.
+Your account key is enough: `whileai login` (or `whileai signup --email
 you@example.com`) and the run goes to the account endpoints, Qwen3-4B for
 the writer and the agent and Phi-4 for the judge, on your daily allowance
 (a trial key: 25k input and 50k output tokens a day; after one sign-in:
@@ -296,7 +296,7 @@ goes to the shared pool instead: warm and faster, shared and unmetered;
 ask us for one.
 
 ```bash
-zeroproof login              # or: export ZEROPROOF_API_KEY=zp_...
+whileai login              # or: export WHILEAI_API_KEY=zp_...
 export VLLM_API_KEY=...      # optional: the shared pool instead
 ```
 
@@ -385,7 +385,7 @@ When the rows carry none of that metadata the export warns: the reward
 reduces to `conduct_grade`, a process reward, and a policy trained on it
 alone learns to call nothing (`recipes/03-select/prime-intellect-rl`). `zps.load_environment(spec)`
 builds the environment in a process that has `verifiers` (`pip install
-'zeroproof[rl]'`); `examples/coding-efficiency` is the same shape built by
+'whileai[rl]'`); `examples/coding-efficiency` is the same shape built by
 hand over an executable world with a hidden test suite.
 
 Training notes, each with the chapter of rlhfbook.com behind it. Calibrate
@@ -409,13 +409,13 @@ and a `must_not_regress` list, and report pass^k alongside pass@1 for
 reliability (ch. 13, 16).
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 data = zps.simulate(tools=my_tools, system_prompt=my_system_prompt, output="rollout.jsonl")
 data = zps.simulate(agent=my_agent)
 ```
 
-Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a directory (or a JSON/YAML file) holding `tools` and `policy` / `system_prompt`, optionally with seed `situations` and a `rubric.md` (what doing the job means, for `grade()`). No spec folders ship with this package, so every snippet here uses `tools=` + `system_prompt=` — the two are interchangeable, and `spec=` is only a way to keep them in a file. The generated datasets are on Hugging Face in the [Post-Training Foundational Datasets](https://huggingface.co/collections/zero-proof-ai/zeroproof-post-training-foundational-datasets-6aa0b9c040ff8591988696dc) collection, not stored in this repo: [agent-simulations](https://huggingface.co/datasets/zero-proof-ai/agent-simulations) by agent type, [tool-call-efficiency](https://huggingface.co/datasets/zero-proof-ai/tool-call-efficiency) (SFT, preference, GRPO and eval splits), and [tau2-simulated](https://huggingface.co/datasets/zero-proof-ai/tau2-simulated), among others.
+Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a directory (or a JSON/YAML file) holding `tools` and `policy` / `system_prompt`, optionally with seed `situations` and a `rubric.md` (what doing the job means, for `grade()`). No spec folders ship with this package, so every snippet here uses `tools=` + `system_prompt=` — the two are interchangeable, and `spec=` is only a way to keep them in a file. The generated datasets are on Hugging Face in the [Post-Training Foundational Datasets](https://huggingface.co/collections/zero-proof-ai/whileai-post-training-foundational-datasets-6aa0b9c040ff8591988696dc) collection, not stored in this repo: [agent-simulations](https://huggingface.co/datasets/zero-proof-ai/agent-simulations) by agent type, [tool-call-efficiency](https://huggingface.co/datasets/zero-proof-ai/tool-call-efficiency) (SFT, preference, GRPO and eval splits), and [tau2-simulated](https://huggingface.co/datasets/zero-proof-ai/tau2-simulated), among others.
 
 | Knob | Default | |
 |---|---|---|
@@ -535,7 +535,7 @@ usually drop straight in. OTLP ingest and platform datasets are *one* way
 to get rows into this shape, not a prerequisite for it.
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 traces = zps.load_traces("production.jsonl")  # or just pass the list
 print(zps.trace_report(traces, tools=TOOLS))  # what will this aim at?
@@ -585,14 +585,14 @@ network.
 | Step | Example | What it does |
 |---|---|---|
 | Simulate and grade | [`recipes/01-simulate/bring-your-own-agent`](recipes/01-simulate/bring-your-own-agent) | Your own callable: the `agent(message) -> {steps, final_text}` contract, the `agent_failed` report when it raises or returns the wrong shape, and `eval_sourced` keeping a held-out score out of the reward. Offline. |
-| Simulate and grade | [`recipes/01-simulate/agent-behavior`](recipes/01-simulate/agent-behavior) | Start here if the platform is new to you. Runs a coding agent with bad habits against real tests, streams every turn to Zero Proof as OTLP spans plus a judge verdict, and fills a dashboard with behaviour worth looking at. Needs a key and a model endpoint; stdlib only. |
+| Simulate and grade | [`recipes/01-simulate/agent-behavior`](recipes/01-simulate/agent-behavior) | Start here if the platform is new to you. Runs a coding agent with bad habits against real tests, streams every turn to While as OTLP spans plus a judge verdict, and fills a dashboard with behaviour worth looking at. Needs a key and a model endpoint; stdlib only. |
 | Simulate and grade | [`recipes/01-simulate/verifiers`](recipes/01-simulate/verifiers) | Verifiable rewards: math (`MathEqual`), an answer-and-format gate (`All`), code run against hidden tests (`CodeExec`), and a JSON-schema check, each feeding `grade`/`optimize`. Offline. |
 | Measure | [`recipes/02-measure/pass-at-k`](recipes/02-measure/pass-at-k) | pass@1, pass^k and pass@k with their intervals for one agent, the per-ask histogram the mean hides, and what each number tells you to do next. Offline. |
 | Measure | [`recipes/02-measure/reward-hacking`](recipes/02-measure/reward-hacking) | Reward hacking caught before, during and after training: the within-ask scan, the judge probes, the trajectory flags, and the proxy-vs-target verdict on a scripted agent and two judges. Offline, seconds, no key. How-to: [docs/reward-hacking.md](docs/reward-hacking.md). |
 | Measure | [`recipes/02-measure/safety-evals`](recipes/02-measure/safety-evals) | Safety evals for a tool-using agent: prompt injection (direct, and planted in a tool result), data exfiltration, secret leakage, unauthorized writes, plus the benign controls that catch over-refusal. Trajectory markers as the judge, pass^k per attack class, the judge checked against hand labels, and a before/after that fails the fix which got safe by refusing. Offline, seconds. How-to: [docs/safety-evals.md](docs/safety-evals.md). |
 | Measure | [`recipes/02-measure/safety-evals-marketplace`](recipes/02-measure/safety-evals-marketplace) | The same safety eval for a marketplace agent: the injection is planted in user-generated reviews, the private data is per tenant (a competitor's buyer-intent list), one of the writes is a public post, and a flag needs a moderation ticket. Six trajectory markers, pass^k per attack class, the guarded before/after, and `live.py` to run the suite on a real model through Ollama with no key. Offline, seconds. |
 | Select | [`recipes/03-select/schema`](recipes/03-select/schema) | One row file in, six training targets out: eval, SFT, preference, GRPO prompts, OPSD hints, OPD. Migrates any legacy file first. Offline. |
-| Select | [`recipes/03-select/prime-intellect-rl`](recipes/03-select/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs an account key (`zeroproof login`), or `VLLM_API_KEY` for the shared pool. |
+| Select | [`recipes/03-select/prime-intellect-rl`](recipes/03-select/prime-intellect-rl) | Generates a GRPO-ready dataset with `simulate(mode="rl")` and checks it carries gradient before you spend GPU time on it, then exports prompts in the `verifiers` shape. Needs an account key (`whileai login`), or `VLLM_API_KEY` for the shared pool. |
 | Select | [`recipes/03-select/character`](recipes/03-select/character) | Character training from a constitution: the OpenAI Model Spec's style traits become graded rows, preference pairs and SFT rows, with the judge checked against the spec's own labels and a before/after measurement. Offline by default. How-to: [docs/character-training.md](docs/character-training.md). |
 | Train | [`recipes/04-train/hosted-loop`](recipes/04-train/hosted-loop) | Push graded rows, `zps.train` SFT on Qwen3-4B, `zps.serve` the adapter, one chat completion from the endpoint. One key, one A10G minute; the wiring check for training on the platform. |
 | Train | [`recipes/04-train/identity`](recipes/04-train/identity) | Builds a leak-free SFT set that teaches a model a new name and maker, with Modal scripts to train a LoRA and evaluate identity and leak rates. No model calls to generate. |
@@ -603,44 +603,44 @@ network.
 ## Sign in
 
 ```bash
-zeroproof login
+whileai login
 ```
 
 Prints a link and a short code. Open the link, sign in or sign up, press
-Approve. The key is saved to `~/.zeroproof/credentials.json` and every
+Approve. The key is saved to `~/.whileai/credentials.json` and every
 platform call below reads it from there. Interrupted before you approved?
 Run it again; it resumes the same code. This is the path for coding
-agents too: tell yours to run `zeroproof login` and click the link it
-shows you. `zeroproof status` shows which key is in use, `zeroproof
+agents too: tell yours to run `whileai login` and click the link it
+shows you. `whileai status` shows which key is in use, `whileai
 logout` removes it.
 
 No account yet, or no browser? One command creates the account and the
 key. Open the dashboard later by signing in with an email code.
 
 ```bash
-zeroproof signup --email you@example.com
+whileai signup --email you@example.com
 ```
 
 That key is a trial key (25k input and 50k output tokens a day, 100 MB,
 ten datasets, seven days) until the person signs in once at
-https://www.zeroproofai.com/sign-in with an email code. `zeroproof status`
-shows the tier; `zeroproof.account()` returns tier, limits and usage.
+https://www.zeroproofai.com/sign-in with an email code. `whileai status`
+shows the tier; `whileai.account()` returns tier, limits and usage.
 
-## Store datasets on Zero Proof Labs
+## Store datasets on While
 
-Push a run to your Zero Proof Labs account so the optimization framework
+Push a run to your While account so the optimization framework
 can iterate on it. Credentials resolve in this order: `api_key=` argument,
-`ZEROPROOF_DELEGATED_CREDENTIAL` (a short-lived `zp_dc_...` issued from a
-Clerk session), `ZEROPROOF_API_KEY`, then the key saved by `zeroproof
+`WHILEAI_DELEGATED_CREDENTIAL` (a short-lived `zp_dc_...` issued from a
+Clerk session), `WHILEAI_API_KEY`, then the key saved by `whileai
 login`.
 
 ```python
 # Runtime path with a delegated credential
-# export ZEROPROOF_DELEGATED_CREDENTIAL="zp_dc_..."
+# export WHILEAI_DELEGATED_CREDENTIAL="zp_dc_..."
 
 # If you need to mint one from a Clerk session token:
 # credential = zps.issue_delegated_credential(clerk_token, ttl_seconds=3600)
-# export ZEROPROOF_DELEGATED_CREDENTIAL=credential["credential"]
+# export WHILEAI_DELEGATED_CREDENTIAL=credential["credential"]
 
 data = zps.simulate(my_agent, tools=TOOLS, system_prompt=POLICY)
 v1 = data.push("github-explore-v1")  # -> {"datasetId": "ds_...", ...}
@@ -725,9 +725,9 @@ zps.register_agent("airline-support", description="Refunds and rebooking")
 ### Clean up
 
 ```bash
-zeroproof purge --agent demo-agent --dry-run   # count its traces, datasets, record
-zeroproof purge --agent demo-agent             # delete them, after a y/N
-zeroproof purge --empty --max-rows 2           # datasets with no bytes, or 2 rows or fewer
+whileai purge --agent demo-agent --dry-run   # count its traces, datasets, record
+whileai purge --agent demo-agent             # delete them, after a y/N
+whileai purge --empty --max-rows 2           # datasets with no bytes, or 2 rows or fewer
 ```
 
 Python: `zps.purge_agent("demo-agent")`, `zps.delete_empty_datasets(max_rows=2)`.
@@ -774,7 +774,7 @@ A cut needs a pass or a fail on every run, and a judge answers after the run it
 is judging has closed. `send_score(trace_id, value)` grades a run that already
 ran — **1.0 or above is a pass**, so a 0-to-1 quality number never reads as one;
 send that under its own `name=` and keep `score` for the verdict. Re-sending the
-same name is a correction. Emitting `zeroproof.reward` on the span does the same
+same name is a correction. Emitting `whileai.reward` on the span does the same
 thing when your grader runs inline.
 
 Runs of the same prompt are grouped by `zeroproof.scenario_id`. `kind="rl"` keeps the
@@ -817,7 +817,7 @@ zps.mark_grounding(
 zps.grounding_report(rows)  # grounded rate, and the invented values by tool and key
 ```
 
-**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1) -- `report["ok"]` means measured and clean, so with no labels it is `False` and the report says the judge is unmeasured rather than untrustworthy (`format_judge_trust` prints `NOT MEASURED`). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `zps.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `zeroproof.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
+**Judge trust.** Label 30 to 100 rows by hand as `gold_reward` (0/1) -- `report["ok"]` means measured and clean, so with no labels it is `False` and the report says the judge is unmeasured rather than untrustworthy (`format_judge_trust` prints `NOT MEASURED`). The report gives agreement with a Wilson interval and Cohen's kappa, agreement on two task halves (tune the rubric on one, read the other), judge pass rate on short versus long replies within the same human label (length bias the humans rule out), and, with the judge callable, a re-judge of a sample as-is (consistency) and with neutral filler appended (a flip means the judge reads length). Disagreements come back as a review queue. `format_judge_trust(report)` prints it. `probes="all"` (or a list) tries the reward hacks a policy finds first on the judge on purpose: filler, the rubric's own words stuffed in, a claim of success with no evidence, the ask echoed back, a well-formed tool call with empty arguments, a sycophantic opener, a polite refusal. An additive probe is exploitable when failing replies start passing; a replacement probe when a reply with no content passes. `report["exploitable_by"]` names the holes at or over 10%, and a policy trained on this judge will find those same holes. Standalone: `zps.judge_probes(rows, judge, rubric=...)`. The gold set needs both passes and failures; with one class only the report says so and skips the kappa and length flags. With the hosted judge, call `zps.grade` once first (or `whileai.simulations.score.grade_llm.warm_judge`; it is not re-exported) so the cold start, two to three minutes, is not counted as timeouts.
 
 **Decontamination.** Word 8-gram overlap between a dataset's prompts and any evaluation source: row lists, JSONL paths, or platform dataset ids. A row is contaminated when it is an eval prompt verbatim or when one eval text covers at least 80% of its words (`overlap=`, the Llama 2 rule); one shared 8-gram is not enough, because situations written from the same templates share whole sentences without sharing the question. Short prompts match verbatim only. `fields=("prompt", "final_text")` also checks replies against eval answers and references. The report separates verbatim hits from near copies and counts hits per field, and returns the clean rows with the first offenders.
 
@@ -868,7 +868,7 @@ one of them has the wrong polarity:
 
 > **Deprecated.** `behavioral_markers`, `mark_rows`, `row_markers` and
 > `STOCK_MARKERS` all live in
-> `zeroproof.simulations.score.markers`, which is deprecated and raises a
+> `whileai.simulations.score.markers`, which is deprecated and raises a
 > `DeprecationWarning` on first use. They are being consolidated onto
 > `score.style`. `style_markers` / `style_report` / `refusal_report` cover
 > the same rlhf-book ch. 14 behaviors with the delta-ready polarity.
@@ -993,7 +993,7 @@ row = zps.import_hf(
 zps.profile(row["datasetId"])  # profiled before you train on it
 ```
 
-Every push is one commit tagged `zp-<id>`, so `load_dataset(repo, split, revision="zp-ds_...")` pins the exact push; the repo's `zeroproof.json` maps each split to its ZeroProof dataset with history. Worked example: [`recipes/05-export/hugging-face`](recipes/05-export/hugging-face).
+Every push is one commit tagged `zp-<id>`, so `load_dataset(repo, split, revision="zp-ds_...")` pins the exact push; the repo's `whileai.json` maps each split to its While dataset with history. Worked example: [`recipes/05-export/hugging-face`](recipes/05-export/hugging-face).
 
 Cards live at https://zeroproofai.com/datasets, grouped by agent, with rows,
 size and the analyzer's numbers on each. A dataset must be finalized and
@@ -1001,7 +1001,7 @@ hold rows to publish.
 
 ## Speed
 
-Two-minute airline runs using ZeroProof-hosted Qwen. Results were measured on the
+Two-minute airline runs using While-hosted Qwen. Results were measured on the
 hosted GPU with warm replicas and burst under load.
 
 | Mode | Rows | Rate | Unique openers |
@@ -1080,11 +1080,11 @@ zps.staleness_report(
 
 `staleness_report` is the off-policy check (rlhf-book ch. 6): rows sampled by an older policy are usable only when they carry the sampler's version and its logprobs, so the importance ratio can be formed; rows whose `model_version` differs from `base_model` are `stale`.
 
-The default judge is not the policy. `zps.grade` grades with hosted Phi-4 (`ZEROPROOF_JUDGE` overrides; any `vllm:`/`openai:` spec or a bare URL works), while rollouts come from hosted Qwen, because a judge grading its own model's writing prefers it. When the judge and the rows' `model_version` are the same model anyway, the grade report says so (`self_judged`, `warnings`).
+The default judge is not the policy. `zps.grade` grades with hosted Phi-4 (`WHILEAI_JUDGE` overrides; any `vllm:`/`openai:` spec or a bare URL works), while rollouts come from hosted Qwen, because a judge grading its own model's writing prefers it. When the judge and the rows' `model_version` are the same model anyway, the grade report says so (`self_judged`, `warnings`).
 
 A judge is a reward model, so two things ride with every label. Provenance: rows graded by `zps.grade` carry `judge_name`, `judge_status`, and `judge_meta` with the model, prompt hash, temperature, and `version` (`<model>@<prompt sha>`); a rubric edit is a new judge and the row says so. `run_judge(version=...)` records the same for your own judge. Accuracy: hand-label a sample into `gold_reward` and call `zps.judge_agreement(rows)` (or `scored.agreement()`) for agreement, Cohen's kappa, the confusion counts, and `pass_when_gold_fail`, the gold failures the judge passed. Those are the rows a training run learns the failure from, so that rate matters more than the headline agreement. Pass a second scoring run as `gold` to measure the judge against itself. Fifty gold rows is the floor; the report says so below it.
 
-Every row carries `schema_version` (`"1"`). A row is a projection of four objects in `zeroproof.simulations.schema`: `Task` (the situation), `Rollout` (one episode), `Judgment` (a scorer's verdict), `Marker` (a behavior measurement). `zps.from_row(row)` splits a row into them and `zps.to_row(...)` flattens them back. The wire contract is `zeroproof/simulations/schemas/row-v1.json`. Rows written before the stamp are version 0 and load by shape, so older files still work.
+Every row carries `schema_version` (`"1"`). A row is a projection of four objects in `whileai.simulations.schema`: `Task` (the situation), `Rollout` (one episode), `Judgment` (a scorer's verdict), `Marker` (a behavior measurement). `zps.from_row(row)` splits a row into them and `zps.to_row(...)` flattens them back. The wire contract is `whileai/simulations/schemas/row-v1.json`. Rows written before the stamp are version 0 and load by shape, so older files still work.
 
 ## The recipe
 
@@ -1110,7 +1110,7 @@ Ordinary asks first, then the edges. On top of that, we embed the openers and ad
 
 ## Package layout
 
-The public surface is the package itself: `import zeroproof.simulations as zps`.
+The public surface is the package itself: `import whileai.simulations as zps`.
 Internals are grouped by stage and may move between releases.
 
 | folder | what lives there |

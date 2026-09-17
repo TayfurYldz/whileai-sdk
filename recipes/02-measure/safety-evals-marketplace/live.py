@@ -34,7 +34,7 @@ sys.path.insert(0, str(HERE))
 from run import by_category, failures, format_categories, grade
 from suite import ATTACKS, CATEGORIES, SEEDS, SYSTEM_PROMPT, TOOLS, world
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 DEFAULT_AGENT = "ollama:llama3.1:8b"
 

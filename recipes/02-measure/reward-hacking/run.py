@@ -30,8 +30,8 @@ import random
 import re
 from typing import Any
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.agents import current_rollout
+import whileai.simulations as zps
+from whileai.simulations.generate.agents import current_rollout
 
 TOOLS = [
     {

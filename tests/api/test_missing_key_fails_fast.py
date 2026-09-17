@@ -6,9 +6,9 @@ import time
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.generate.agents import missing_hosted_key
+from whileai.simulations.generate.agents import missing_hosted_key
 
 
 def test_openai_endpoint_without_key_names_the_variable(monkeypatch):

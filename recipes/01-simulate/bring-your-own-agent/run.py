@@ -21,8 +21,8 @@ import argparse
 import os
 import sys
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.judging import evaluate, run_judge
+import whileai.simulations as zps
+from whileai.simulations.score.judging import evaluate, run_judge
 
 TOOLS = [
     {
@@ -63,7 +63,7 @@ def ops_agent(message: str) -> dict:
     what the agent said at the end. Nothing else is required; extra keys
     are kept on the row.
     """
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     service = "checkout-api" if "checkout" in message.lower() else "search-api"
     # Every third repeat this agent skips the runbook: a behavior a judge

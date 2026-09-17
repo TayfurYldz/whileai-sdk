@@ -7,8 +7,8 @@ import subprocess
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate.agents import USER_TURN_MARK
+import whileai.simulations as zps
+from whileai.simulations.generate.agents import USER_TURN_MARK
 
 TOOL_CALL = {
     "type": "assistant",

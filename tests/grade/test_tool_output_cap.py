@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.export import export_training, training_rows
-from zeroproof.simulations.generate import adapters
+from whileai.simulations.export import export_training, training_rows
+from whileai.simulations.generate import adapters
 
 TOOLS = [
     {

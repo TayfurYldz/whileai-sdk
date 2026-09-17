@@ -46,7 +46,7 @@ jobs:
           # pin or the env var without re-timing the job.
           python-version: "3.12"
       - run: uv sync --extra dev
-      - run: uv run pytest -q --cov=zeroproof --cov-report=term
+      - run: uv run pytest -q --cov=whileai --cov-report=term
               --cov-fail-under=88
         env:
           COVERAGE_CORE: sysmon
@@ -61,6 +61,7 @@ jobs:
           python-version: "3.12"
       - run: pip install build twine
       - run: python -m build
+      - run: python -m build --outdir dist compat/zeroproof
       - run: python -m twine check dist/*
       # Installs the wheel with plain pip into a clean venv with no source tree
       # on the path. This is the check that would have caught the Prime
@@ -69,13 +70,15 @@ jobs:
       - name: install wheel from a clean venv
         run: |
           python -m venv /tmp/fresh
-          /tmp/fresh/bin/pip install --quiet dist/*.whl
+          /tmp/fresh/bin/pip install --quiet dist/whileai-*.whl
+          /tmp/fresh/bin/pip install --quiet --no-deps dist/zeroproof-*.whl
           cd /tmp && /tmp/fresh/bin/python -c "
-          import zeroproof.simulations as zps
+          import whileai.simulations as zps
+          import zeroproof.simulations as old
           import zeroproof_simulations as legacy
-          assert legacy is zps, 'compatibility shim must alias the real package'
-          from zeroproof.simulations.score.grading import conduct_grade
-          from zeroproof.simulations.world.sandbox import MockEnvironment
+          assert old is zps and legacy is zps, 'compatibility shim must alias the real package'
+          from whileai.simulations.score.grading import conduct_grade
+          from whileai.simulations.world.sandbox import MockEnvironment
           assert callable(zps.simulate)
           t = {'prompt': 'x', 'final_text': 'Fixed it, all tests pass.',
                'steps': [{'tool': 'run_tests', 'arguments': {},

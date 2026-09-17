@@ -2,7 +2,7 @@
 
 One model serves all three roles: the agent, and afterwards the judge that
 reviews it. Nothing here is specific to any one provider: point
-`ZEROPROOF_MODEL_URL` at any OpenAI-compatible endpoint that returns
+`WHILEAI_MODEL_URL` at any OpenAI-compatible endpoint that returns
 `tool_calls`. There is no endpoint baked into this file and there should never
 be one.
 
@@ -39,9 +39,9 @@ from signals import MAX_ISSUES, MAX_JUDGE_METRICS, Observation, TurnSignals, des
 
 #: No default endpoint, deliberately. This file is public and an inference URL
 #: is infrastructure: it belongs in the environment, never in the repo. Set
-#: ZEROPROOF_MODEL_URL (or pass --model-url) to any OpenAI-compatible base URL.
-MODEL_URL_ENV = "ZEROPROOF_MODEL_URL"
-MODEL_KEY_ENV = "ZEROPROOF_MODEL_KEY"
+#: WHILEAI_MODEL_URL (or pass --model-url) to any OpenAI-compatible base URL.
+MODEL_URL_ENV = "WHILEAI_MODEL_URL"
+MODEL_KEY_ENV = "WHILEAI_MODEL_KEY"
 DEFAULT_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
 
 #: A reasoning model spends tokens before it says anything, and the tasks where
@@ -51,7 +51,7 @@ DEFAULT_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
 #: answer. Generous is cheap here; truncation is not.
 # Overridable because the default assumes a long-context host: a 4k-context
 # model rejects the whole request when max_tokens alone exceeds what is left.
-MAX_TOKENS = int(os.environ.get("ZEROPROOF_MAX_TOKENS", "12000"))
+MAX_TOKENS = int(os.environ.get("WHILEAI_MAX_TOKENS", "12000"))
 REQUEST_TIMEOUT_S = 300
 
 BASE_RULES = (
@@ -164,12 +164,12 @@ class Llm:
         if not endpoint:
             raise LlmError(
                 f"No model endpoint. Set {MODEL_URL_ENV} to an OpenAI-compatible base URL "
-                f"(one ending in /v1), or pass --model-url. Ask ZeroProof for an endpoint and "
+                f"(one ending in /v1), or pass --model-url. Ask While for an endpoint and "
                 f"a key if you do not have one."
             )
         self.url = endpoint.rstrip("/")
         self.key = key or os.environ.get(MODEL_KEY_ENV, "")
-        self.model = model or os.environ.get("ZEROPROOF_MODEL") or DEFAULT_MODEL
+        self.model = model or os.environ.get("WHILEAI_MODEL") or DEFAULT_MODEL
 
     def chat(
         self, messages: list[dict], tools: list[dict] | None = None, temperature: float = 0.7
@@ -453,7 +453,7 @@ def ground_truth_score(solved: bool) -> dict:
 
     This goes out on the scores route rather than as a span attribute for one
     reason: `pass_at`. A span can qualify the unnamed primary score with
-    `zeroproof.score.pass_at`, and there is no equivalent for a named
+    `whileai.score.pass_at`, and there is no equivalent for a named
     measurement, so `zeroproof.scores.task_solved` can carry a number and
     nothing that says what the number has to beat.
 

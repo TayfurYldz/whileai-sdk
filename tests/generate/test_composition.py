@@ -73,7 +73,7 @@ def _fake_complete(_base_url, _model, messages, **_kwargs):
 
 
 def test_default_path_executes_every_stage(monkeypatch, capsys):
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", _fake_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", _fake_complete)
 
     data = simulate_offline(
         budget=12,
@@ -161,7 +161,7 @@ def test_one_failed_writer_wave_is_not_a_fallback(monkeypatch):
                 raise RuntimeError("HTTP 502 from the writer")
         return _fake_complete(base_url, model, messages, **kwargs)
 
-    monkeypatch.setattr("zeroproof.simulations.generate.generator.complete", flaky_complete)
+    monkeypatch.setattr("whileai.simulations.generate.generator.complete", flaky_complete)
     data = simulate_offline(
         budget=8, simulator="vllm:fake@http://example", concurrency=4, per_round=6
     )

@@ -55,8 +55,8 @@ image = (
         }
     )
 )
-hf_cache = modal.Volume.from_name("zeroproof-hf-cache", create_if_missing=True)
-runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=True)
+hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
+runs_volume = modal.Volume.from_name("whileai-train-runs", create_if_missing=True)
 
 
 @app.function(

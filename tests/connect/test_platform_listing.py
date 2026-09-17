@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import training
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as zps
+from whileai.simulations import training
+from whileai.simulations.ingest import platform
 
 
 class Recorder:

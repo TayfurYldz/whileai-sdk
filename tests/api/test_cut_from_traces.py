@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def calls(monkeypatch):
             "band": [0.2, 0.8],
         }
 
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     monkeypatch.setattr(platform, "_call", fake_call)
     return seen
@@ -59,7 +59,7 @@ def test_cut_without_an_agent_covers_every_trace(calls):
 
 
 def test_a_cut_with_no_holdout_still_answers(calls, monkeypatch):
-    from zeroproof.simulations.ingest import platform
+    from whileai.simulations.ingest import platform
 
     monkeypatch.setattr(
         platform,

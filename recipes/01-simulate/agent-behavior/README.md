@@ -1,6 +1,6 @@
 # Watch an agent misbehave
 
-A coding agent with bad habits, wired to Zero Proof. It runs locally against
+A coding agent with bad habits, wired to While. It runs locally against
 your own repo of small Python bugs, streams every turn to the platform as OTLP
 spans, and posts a judge's verdict against each one. Twenty minutes after you
 pick up an API key you have a dashboard with something on it worth looking at.
@@ -11,7 +11,7 @@ about, which you can only see once the runs are in one place.
 What you will learn: how a trace becomes a row with a `scenario_id` and a
 `reward`, what an LLM judge misses that a counter over tool calls catches,
 and how to nominate a ground-truth score so the traces page ranks the
-other signals against it. You need `ZEROPROOF_API_KEY` and an
+other signals against it. You need `WHILEAI_API_KEY` and an
 OpenAI-compatible model endpoint with its token (`--dry-run` needs
 neither); about eight minutes for the default 40 runs.
 
@@ -40,18 +40,18 @@ not the number you would have given. Finding those is the job.
 ## Run it
 
 ```bash
-export ZEROPROOF_API_KEY=zp_...     # your key, from the platform page
-export ZEROPROOF_MODEL_URL=...      # any OpenAI-compatible base URL, ending in /v1
-export ZEROPROOF_MODEL_KEY=...      # its bearer token
+export WHILEAI_API_KEY=zp_...     # your key, from the platform page
+export WHILEAI_MODEL_URL=...      # any OpenAI-compatible base URL, ending in /v1
+export WHILEAI_MODEL_KEY=...      # its bearer token
 cd recipes/01-simulate/agent-behavior
 python run.py --runs 40 --days 3
 ```
 
-The platform defaults to https://api.zeroproofai.com. Set `ZEROPROOF_API_URL`
+The platform defaults to https://api.zeroproofai.com. Set `WHILEAI_API_URL`
 or pass `--gate` to point at a different one.
 
 Sign in at https://www.zeroproofai.com/platform for your key. For the
-model, ask ZeroProof for an endpoint and token, or point it at anything that
+model, ask While for an endpoint and token, or point it at anything that
 speaks the OpenAI chat-completions API.
 
 No dependencies and nothing to install: seven stdlib-only files in this
@@ -146,7 +146,7 @@ suite's verdict. It is in here as the ruler for the other two, and it says so
 on the wire: it is sent on `POST /v1/scores` carrying `pass_at`, which is what
 nominates it as the outcome the charts are ranked against. It goes out on that
 route rather than as a span attribute for a boring reason. A span can qualify
-the unnamed primary score with `zeroproof.score.pass_at` and has no way to say
+the unnamed primary score with `whileai.score.pass_at` and has no way to say
 the same thing about a named measurement, so `zeroproof.scores.task_solved`
 could carry a number and nothing that says what the number has to beat.
 
@@ -157,7 +157,7 @@ trace list without opening the turn. A flag is a place to look, not a verdict.
 **One wrinkle worth knowing before you read the `score` column.** A judge does
 not always return a parseable verdict; when it does not, this example files
 what it said as `judge.raw` and sends no score. The store then back-fills
-`score` from the span's `zeroproof.reward`, which here is ground truth. So a
+`score` from the span's `whileai.reward`, which here is ground truth. So a
 handful of rows have a `score` that is not the judge's opinion at all. The
 `source` field tells them apart: `example-judge` is the verdict,
 `span` is the reward standing in. It runs at a few percent of turns.
@@ -203,7 +203,7 @@ you are looking for before you go looking.
 ## From behaviour to training data
 
 Every trace also lands as a row in a dataset, tagged by the
-`zeroproof.dataset` resource attribute (`--dataset`, default
+`whileai.dataset` resource attribute (`--dataset`, default
 `agent-behavior-demo`). Two attributes are what make those rows trainable
 rather than merely stored:
 
@@ -212,7 +212,7 @@ rather than merely stored:
   each scenario is attempted several times with different outcomes. A scenario
   attempted once is a group of one, and a group of one has no variance to
   learn from.
-- **`zeroproof.reward`** is 1 only when the held-out suite passed *and* no
+- **`whileai.reward`** is 1 only when the held-out suite passed *and* no
   `hack.*` flag fired. Solving it is necessary; gaming the suite disqualifies
   the row even when something else made the grade come out green.
 
@@ -223,7 +223,7 @@ needs. `recipes/03-select/prime-intellect-rl` picks the thread up from there.
 To read the rows back:
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 print(zps.datasets())
 ```
@@ -251,7 +251,7 @@ OTEL_EXPORTER_OTLP_HEADERS=x-api-key=zp_...
 OTEL_EXPORTER_OTLP_PROTOCOL=http/json     # protobuf is a 415 by design
 ```
 
-Everything Zero Proof adds is a `zeroproof.` attribute on spans you were
+Everything While adds is a `zeroproof.` attribute on spans you were
 already emitting, and every one of them is optional.
 
 ## Options
@@ -260,18 +260,18 @@ already emitting, and every one of them is optional.
 --runs N            agent turns to simulate (default 40)
 --days N            spread the spans over this many past days (default 3)
 --concurrency N     turns in flight at once (default 4)
---dataset NAME      zeroproof.dataset resource attribute
+--dataset NAME      whileai.dataset resource attribute
 --agent NAME        gen_ai.agent.name; the row the platform groups by
 --service NAME      service.name resource attribute
 --tasks a,b         restrict to these task ids
 --personas a,b      restrict to these personas
 --max-steps N       tool rounds before a turn is cancelled (default 12)
 --seed N            reproducible task and persona draw
---api-key KEY       platform key, or set ZEROPROOF_API_KEY
---gate URL          platform API base, or set ZEROPROOF_API_URL
---model-url URL     OpenAI-compatible base URL, or set ZEROPROOF_MODEL_URL
---model-key KEY     its bearer token, or set ZEROPROOF_MODEL_KEY
---model ID          model id, or set ZEROPROOF_MODEL
+--api-key KEY       platform key, or set WHILEAI_API_KEY
+--gate URL          platform API base, or set WHILEAI_API_URL
+--model-url URL     OpenAI-compatible base URL, or set WHILEAI_MODEL_URL
+--model-key KEY     its bearer token, or set WHILEAI_MODEL_KEY
+--model ID          model id, or set WHILEAI_MODEL
 --no-judge          observable signals only, no second model call.
                     Ground truth is still sent: it carries the pass_at that
                     makes the charts rankable.
@@ -283,8 +283,8 @@ clock, so spreading 40 runs over three days gives the charts a shape instead of
 one vertical line at the moment you ran this. The dataset is still filed under
 today, which is the day the store first saw the trace.
 
-The model comes from `ZEROPROOF_MODEL_URL`, `ZEROPROOF_MODEL_KEY` and
-`ZEROPROOF_MODEL`, or the matching flags. Any OpenAI-compatible endpoint that
+The model comes from `WHILEAI_MODEL_URL`, `WHILEAI_MODEL_KEY` and
+`WHILEAI_MODEL`, or the matching flags. Any OpenAI-compatible endpoint that
 returns `tool_calls` works; the default for `--model` is
 `Qwen/Qwen3-4B-Instruct-2507`, the only thing about the model this repo
 hard-codes.

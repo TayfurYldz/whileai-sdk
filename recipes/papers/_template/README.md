@@ -54,4 +54,4 @@ Recipe vs baseline: <+0.00 [lo, hi]>. Verdict: <moved / flat>.
 - <what did not>
 - <what to try next>
 
-Verified <YYYY-MM-DD>, zeroproof <version>, <trainer and version>. Run page: <url>
+Verified <YYYY-MM-DD>, whileai <version>, <trainer and version>. Run page: <url>

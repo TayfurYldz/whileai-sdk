@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 from tests.helpers import REPO_ROOT, simulate_offline
-from zeroproof.simulations.score.quality import DIMENSIONS, FAIL, score_row
+from whileai.simulations.score.quality import DIMENSIONS, FAIL, score_row
 
 
 def _good(**extra):

@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sql_verifier import AGENT, OUT, extract_sql, read_jsonl
 
-import zeroproof.simulations as zps
+import whileai.simulations as zps
 
 STATE = OUT / "distill_state.json"
 

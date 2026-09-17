@@ -12,9 +12,9 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.environment import _ref_of, build_tasks, resolve_ref
-from zeroproof.simulations.score.grading import conduct_grade
+import whileai.simulations as zps
+from whileai.simulations.environment import _ref_of, build_tasks, resolve_ref
+from whileai.simulations.score.grading import conduct_grade
 
 TOOLS = [
     {
@@ -129,7 +129,7 @@ def test_build_tasks_explicit_holdout_and_no_band():
 
 def test_refs_round_trip_and_reject_locals():
     ref = _ref_of(conduct_grade)
-    assert ref == "zeroproof.simulations.score.grading:conduct_grade"
+    assert ref == "whileai.simulations.score.grading:conduct_grade"
     assert resolve_ref(ref) is conduct_grade
     assert resolve_ref(_ref_of(outcome_reward)) is outcome_reward
     with pytest.raises(ValueError, match="importable"):
@@ -139,8 +139,8 @@ def test_refs_round_trip_and_reject_locals():
     # A Verifier instance with no module-level name is referenced by its
     # class, which the trainer instantiates bare: fine for a default one,
     # refused when it carries configuration a bare one would silently lose.
-    from zeroproof.simulations.verify.code import CodeExec
-    from zeroproof.simulations.verify.text import ExactMatch
+    from whileai.simulations.verify.code import CodeExec
+    from whileai.simulations.verify.text import ExactMatch
 
     assert type(resolve_ref(_ref_of(ExactMatch()))) is ExactMatch
     with pytest.raises(ValueError, match="configured but not bound"):
@@ -179,7 +179,7 @@ def test_export_environment_writes_an_installable_package(tmp_path):
     readme = (out / "README.md").read_text()
     assert ":outcome_reward" in readme and "prime eval run refund-agent" in readme
     assert "2 train / 1 holdout" in readme or "1 train / 2 holdout" in readme
-    assert "zeroproof>=" in pyproject  # the SDK carries the environment module
+    assert "whileai>=" in pyproject  # the SDK carries the environment module
     assert not (pkg / "_zp_env.py").exists() and not (pkg / "_zp_checklist.py").exists()
 
 
