@@ -147,6 +147,10 @@ def _train(
     use_vllm: bool = False,
     steps_per_generation: int = 0,
     system_prefix: str = "",
+    prompts_per_step: int = 0,
+    micro_batch: int = 0,
+    mask_truncated: bool = True,
+    save_every: int = 0,
 ) -> dict:
     import json
 
@@ -277,8 +281,18 @@ def _train(
         num_generations=num_generations,
         # 8 generations x ~1,350 tokens OOMs the L40S in one micro-batch
         # (smoke run t2s-grpo-smoke3); two micro-batches of 4 fit.
-        per_device_train_batch_size=num_generations // accum,
-        gradient_accumulation_steps=accum,
+        # prompts_per_step x num_generations samples per optimizer step (issue
+        # whilehq/whileai-sdk#252: one prompt per step is a random walk); the
+        # legacy path is num_generations // accum per micro-batch, accum of them.
+        per_device_train_batch_size=(micro_batch or num_generations // accum),
+        gradient_accumulation_steps=(
+            (prompts_per_step * num_generations) // (micro_batch or num_generations // accum)
+            if prompts_per_step
+            else accum
+        ),
+        # A length-truncated completion gives no gradient instead of reward 0
+        # (issue #253: reward 0 on truncation teaches shorter thinking first).
+        mask_truncated_completions=mask_truncated,
         # Gradient checkpointing makes TRL generate without a KV cache, and on
         # Qwen3-4B (transformers 4.54) that path produced garbage completions
         # from the first token (smoke run t2s-grpo-smoke2: every completion
@@ -303,7 +317,9 @@ def _train(
         steps_per_generation=steps_per_generation or None,
         bf16=True,
         logging_steps=1,
-        save_strategy="no",
+        save_strategy="steps" if save_every else "no",
+        save_steps=save_every or 500,
+        save_only_model=True,
         report_to=[],
         seed=17,
     )
@@ -457,6 +473,11 @@ def main(
     steps_per_generation: int = 0,
     lora_rank: int = 16,
     system_prefix: str = "",
+    prompts_per_step: int = 0,
+    micro_batch: int = 0,
+    mask_truncated: bool = True,
+    save_every: int = 0,
+    task_ids: str = "",
 ):
     import hashlib
     import json
@@ -470,6 +491,16 @@ def main(
 
     train_tasks = [t for t in tasks if bucket(t["id"]) >= 0.2]
     holdout_tasks = [t for t in tasks if bucket(t["id"]) < 0.2]
+    if task_ids:
+        # A band-filtered prompt set from the previous round's rollouts
+        # (build.py --band writes out/band_ids.txt; issue #254).
+        keep = {
+            line.strip()
+            for line in Path(task_ids).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        train_tasks = [t for t in train_tasks if t["id"] in keep]
+        print(f"task_ids: {len(train_tasks)} train prompts kept from {task_ids}")
     if limit:
         train_tasks, holdout_tasks = train_tasks[:limit], holdout_tasks[: max(4, limit // 4)]
     print(f"{len(tasks)} tasks: {len(train_tasks)} train, {len(holdout_tasks)} holdout")
@@ -495,6 +526,10 @@ def main(
         steps_per_generation=steps_per_generation,
         lora_rank=lora_rank,
         system_prefix=system_prefix,
+        prompts_per_step=prompts_per_step,
+        micro_batch=micro_batch,
+        mask_truncated=mask_truncated,
+        save_every=save_every,
     )
     if spawn:
         # Submit and return. With `modal run --detach` the call keeps running
