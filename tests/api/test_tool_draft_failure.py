@@ -61,3 +61,46 @@ def test_successful_tool_draft_is_not_flagged(monkeypatch):
     )
     assert "tool_draft_unavailable" not in data.degraded
     assert data.search.get("drafted_tools") == ["lookup_order"]
+
+
+def test_pinned_tasks_never_draft_tools(monkeypatch):
+    """tasks= brings its own prompts; a drafted tool surface there only tempts
+    the policy into calling tools that do not exist."""
+    seen: dict = {}
+
+    def _draft(*a, **k):
+        seen["drafted"] = True
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "lookup_order",
+                    "drafted": True,
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    monkeypatch.setattr("whileai.simulations.run.engine.draft_tools", _draft)
+    monkeypatch.setattr(
+        "whileai.simulations.run.engine.hosted_model",
+        lambda tools, system="", **kw: (
+            seen.setdefault("tools", list(tools or [])),
+            lambda m: {"steps": [], "final_text": "SELECT 1"},
+        )[1],
+    )
+    data = wai.simulate(
+        system_prompt="Answer each question with one SQL query.",
+        tasks=[{"prompt": "How many orders are there?", "scenario_id": "t1"}],
+        repeats=1,
+        max_turns=1,
+        avg_turns=1,
+        concurrency=1,
+        grade=False,
+        time_budget=None,
+        simulator=_writer,
+    )
+    assert "drafted" not in seen
+    assert not seen.get("tools")
+    assert not data.search.get("drafted_tools")
+    assert "tool_draft_unavailable" not in data.degraded

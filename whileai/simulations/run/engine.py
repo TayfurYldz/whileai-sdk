@@ -243,9 +243,14 @@ class Run:
             and self.policy
             and self.simulator is not False
             and (c.agent is None or isinstance(c.agent, str))
+            and not c.pinned_tasks
         ):
             # A description with no tools gives the writer and the world no
             # domain; draft the tool surface the described agent would have.
+            # Pinned tasks (tasks=) bring their own prompts, so there is no
+            # situation to anchor; a drafted tool surface there only invites
+            # the policy to call tools that do not exist (Nemotron-8B answered
+            # every text-to-SQL task with a tool call instead of a query).
             drafted = draft_tools(
                 self.policy,
                 backend_spec=self.simulator if isinstance(self.simulator, str) else None,

@@ -92,6 +92,12 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   Hugging Face org and the `zeroproof.*` span attributes are unchanged. The
   repository moved to `whilehq/whileai-sdk`. The rename is `scripts/rebrand.py`,
   a script to run on an open branch instead of resolving conflicts by hand.
+- `simulate(tasks=...)` no longer drafts a tool surface for a prompt-only
+  agent. Pinned tasks bring their own prompts, so there is no situation to
+  anchor, and the drafted schemas reached the policy: Nemotron-Nano-8B
+  answered every text-to-SQL task with a call to a tool that did not exist
+  (pass@1 0.00), and 42 of 560 holdout replies from a Qwen3-4B checkpoint
+  did the same. Declared `tools=` still pass through unchanged.
 
 ## 0.50 (2026-09-17)
 

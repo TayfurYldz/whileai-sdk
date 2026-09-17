@@ -145,7 +145,7 @@ def _train(
     skip_eval: bool = False,
     from_run: str = "",
     use_vllm: bool = False,
-    steps_per_generation: int = 1,
+    steps_per_generation: int = 0,
     system_prefix: str = "",
 ) -> dict:
     import json
@@ -296,7 +296,11 @@ def _train(
         use_vllm=use_vllm,
         vllm_mode="colocate",
         vllm_gpu_memory_utilization=0.25,
-        steps_per_generation=steps_per_generation,
+        # 0 = TRL's default (= gradient_accumulation_steps), so one generate call
+        # covers exactly num_generations samples. TRL requires per_device x
+        # steps_per_generation to be a multiple of num_generations; 1 with
+        # micro-batches of 2 fails that check before the first step.
+        steps_per_generation=steps_per_generation or None,
         bf16=True,
         logging_steps=1,
         save_strategy="no",
@@ -450,7 +454,7 @@ def main(
     from_run: str = "",
     spawn: bool = False,
     use_vllm: bool = False,
-    steps_per_generation: int = 1,
+    steps_per_generation: int = 0,
     lora_rank: int = 16,
     system_prefix: str = "",
 ):
