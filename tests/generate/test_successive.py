@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import collections
 import hashlib
+import threading
 import time
 
 import whileai.simulations as wai
@@ -139,17 +140,44 @@ def test_every_mode_judges_beside_the_loop_when_a_grader_is_given():
 
 
 def test_rl_reports_time_spent_idle_waiting_on_verdicts():
-    def slow_judge(row: dict) -> dict:
-        time.sleep(0.15)
+    # The pool is idle on the judge exactly when it has nothing left to roll
+    # out and a verdict is still outstanding. Racing a judge sleep against
+    # the rollouts only makes that likely: under CPU contention the rollouts
+    # slow down too, the pool stays busy, and the branch is never reached
+    # (#216). So make it structural instead — the judge holds its verdict
+    # until the pool has provably drained, which no amount of load changes.
+    lock = threading.Lock()
+    rollouts_inflight = 0
+    pool_drained = threading.Event()
+
+    def counted_agent(message: str) -> dict:
+        nonlocal rollouts_inflight
+        with lock:
+            rollouts_inflight += 1
+            pool_drained.clear()
+        try:
+            return scripted_agent(message)
+        finally:
+            with lock:
+                rollouts_inflight -= 1
+                if rollouts_inflight == 0:
+                    pool_drained.set()
+
+    def blocking_judge(row: dict) -> dict:
+        # rollouts never wait on a verdict, so this always releases
+        assert pool_drained.wait(timeout=30.0), "rollout pool never drained"
+        # and then hold long enough to clear the 0.1s rounding on the
+        # reported figure (engine.py: round(idle_on_judge_s, 1))
+        time.sleep(0.2)
         return _judge(row)
 
     data = wai.simulate(
-        scripted_agent,
+        counted_agent,
         mode="rl",
         situations=2,
         rollouts_per_request=4,
         budget=8,
-        grader=slow_judge,
+        grader=blocking_judge,
         **offline(),
     )
     groups = data.search["groups"]
