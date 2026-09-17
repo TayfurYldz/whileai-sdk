@@ -35,7 +35,10 @@ def test_self_judging_is_reported_not_hidden(monkeypatch):
     assert same["self_judged"] is True
     assert any("self-preference" in w for w in same["warnings"])
     other = _grade(monkeypatch, [dict(r) for r in rows], "vllm:microsoft/phi-4@http://x")
-    assert other["self_judged"] is False and other["warnings"] == []
+    assert other["self_judged"] is False
+    # the only warning left is the judge check saying it had no human labels
+    assert [w for w in other["warnings"] if "self-preference" in w] == []
+    assert other["trust"] is None
     assert other["judge_version"].startswith("microsoft/phi-4@")
     empty = _grade(monkeypatch, [], "vllm:microsoft/phi-4@http://x")
     assert empty["status"] == "empty" and empty["self_judged"] is False

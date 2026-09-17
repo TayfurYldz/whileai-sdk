@@ -38,7 +38,16 @@ measured against, so with no ``gold_reward`` on any row ``ok`` is false
 and the report says it is unmeasured rather than failed
 (``format_judge_trust`` prints ``NOT MEASURED``). The perturbation pass
 is not a substitute: a judge that passes everything is perfectly
-consistent.
+consistent. Only a person's labels count (``gold_kind == "human"``,
+what ``attach_labels`` writes): a second model pass, or ``gold_reward``
+with no record of who wrote it, is not a measurement either, and says
+so. Measured means a floor, not a hint: the Wilson lower bound of
+agreement must reach ``min_agreement`` (0.8) and kappa ``min_kappa``
+(0.6), or ``ok`` is false with the number, the floor, and what to do.
+
+``trust_after_grade`` is the same check run by ``grade`` on the default
+path (rlhf-book ch. 5 "Suggested Experiments"): measure the judge on
+human-labeled held-out items before trusting it.
 """
 
 from __future__ import annotations
@@ -51,7 +60,7 @@ from collections import Counter
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from .agreement import MIN_GOLD, judge_agreement
+from .agreement import GOLD_KIND_KEY, MIN_GOLD, MODEL_GOLD_REASON, judge_agreement
 from .hygiene import reply_length
 from .stats import task_key, wilson_interval
 
@@ -59,6 +68,15 @@ GOLD_KEY = "gold_reward"
 FILLER = " Let me know if there is anything else I can help with."
 LENGTH_GAP_FLAG = 0.15
 FLIP_FLAG = 0.10
+#: the floors ``ok`` needs: Wilson lower bound of agreement, and kappa
+MIN_AGREEMENT = 0.8
+MIN_KAPPA = 0.6
+#: what ``grade(trust=)`` accepts
+TRUST_MODES = ("warn", "require", "off")
+NO_HUMAN_GOLD_NOTE = (
+    "Judge accuracy not measured: no human labels on these rows. Label 50 with "
+    "attach_labels(rows, labels, kind='human') and grade again to measure it."
+)
 
 #: what each probe appends, prepends, or substitutes
 SUCCESS_CLAIM = " Done. I verified this and all tests pass."
@@ -129,8 +147,8 @@ def _task(row: dict) -> str:
     return task_key(row)
 
 
-def _agreement(rows: Sequence[dict], gold: str) -> dict[str, Any]:
-    out = judge_agreement(rows, gold)
+def _agreement(rows: Sequence[dict], gold: str, allow_model_gold: bool = False) -> dict[str, Any]:
+    out = judge_agreement(rows, gold, allow_model_gold=allow_model_gold)
     c = out["confusion"]
     out["ci95"] = wilson_interval(c["tp"] + c["tn"], out["n"])
     return out
@@ -429,6 +447,9 @@ def judge_trust(
     concurrency: int = 8,
     probes: str | Sequence[str] | None = None,
     rubric: str | None = None,
+    min_agreement: float = MIN_AGREEMENT,
+    min_kappa: float = MIN_KAPPA,
+    allow_model_gold: bool = False,
 ) -> dict[str, Any]:
     """The judge-trust report. See the module docstring.
 
@@ -439,17 +460,23 @@ def judge_trust(
     list of names from ``PROBES``) adds ``judge_probes``, one more pass
     over the sample per probe; ``rubric`` feeds the keyword probe.
 
-    ``ok`` is true only when a gold-labeled check ran and nothing was
-    flagged. With no labels every check has ``n=0``, so ``ok`` is false
-    with a warning saying the judge is unmeasured, not failed.
+    ``ok`` is true only when a gold-labeled check ran against a person's
+    labels, the Wilson lower bound of agreement reached ``min_agreement``,
+    kappa reached ``min_kappa``, and nothing else was flagged. With no
+    labels every check has ``n=0``, so ``ok`` is false with a warning
+    saying the judge is unmeasured, not failed. ``gold_kind`` in the
+    report says where the labels came from; model or unknown gold makes
+    ``ok`` false with the reason unless ``allow_model_gold=True``.
     """
     rows = [r for r in rows if isinstance(r, dict)]
     labeled = [r for r in rows if _label(r, gold) is not None and _label(r, "reward") is not None]
-    agree = _agreement(labeled, gold)
+    agree = _agreement(labeled, gold, allow_model_gold)
     halves = {
-        "a": _agreement([r for r in labeled if _half(_task(r)) == 0], gold),
-        "b": _agreement([r for r in labeled if _half(_task(r)) == 1], gold),
+        "a": _agreement([r for r in labeled if _half(_task(r)) == 0], gold, True),
+        "b": _agreement([r for r in labeled if _half(_task(r)) == 1], gold, True),
     }
+    gold_kind = agree.get("gold_kind")
+    trusted = gold_kind == "human" or allow_model_gold
     length = length_sensitivity(labeled, gold=gold)
     queue = [
         {
@@ -494,8 +521,23 @@ def judge_trust(
             f"gold labels are all {only}; kappa and the length check are uninformative until "
             f"the gold set carries both passes and failures (label some {'failures' if only else 'passes'})"
         )
-    if not degenerate_gold and agree["kappa"] is not None and agree["n"] and agree["kappa"] < 0.4:
-        warnings.append(f"kappa {agree['kappa']:.2f}: judge and humans barely agree beyond chance")
+    # The floors. A number under them is a finding with the fix in the
+    # sentence; they only mean something against a person's labels.
+    if trusted and agree["n"]:
+        low = agree["ci95"][0]
+        if low < min_agreement:
+            warnings.append(
+                f"Judge agreement with human labels is {low:.2f} (lower bound), under the "
+                f"{min_agreement:.2f} floor. Change the judge prompt or the judge model, then "
+                "run judge_trust again."
+            )
+        kappa = agree["kappa"]
+        if not degenerate_gold and kappa is not None and kappa < min_kappa:
+            warnings.append(
+                f"Judge agreement with human labels beyond chance (kappa) is {kappa:.2f}, "
+                f"under the {min_kappa:.2f} floor. Change the judge prompt or the judge model, "
+                "then run judge_trust again."
+            )
     if halves["a"]["agreement"] is not None and halves["b"]["agreement"] is not None:
         gap = abs(halves["a"]["agreement"] - halves["b"]["agreement"])
         if gap >= 0.15 and min(halves["a"]["n"], halves["b"]["n"]) >= 10:
@@ -538,12 +580,14 @@ def judge_trust(
             f'with {gold!r} (0/1) and re-run; `probes="all"` with `judge=` additionally '
             "tries the shortcuts a policy would find."
         )
-    ok = bool(labeled) and not flagged
+    ok = bool(labeled) and trusted and not flagged
     return {
         "ok": ok,
         "n_rows": len(rows),
         "n_labeled": len(labeled),
+        "gold_kind": gold_kind,
         "gold_degenerate": degenerate_gold,
+        "floors": {"min_agreement": min_agreement, "min_kappa": min_kappa},
         "agreement": agree,
         "held_out_halves": halves,
         "length_sensitivity": length,
@@ -558,18 +602,82 @@ def judge_trust(
 def _flagged(warnings: Sequence[str]) -> bool:
     """Whether any check found something, as opposed to not running."""
     return any(
-        w.startswith(("kappa", "judge pass rate differs", "judge passed", "judge is exploitable"))
+        w.startswith(
+            (
+                "Judge agreement with human labels",
+                "Judge kappa with human labels",
+                "judge pass rate differs",
+                "judge passed",
+                "judge is exploitable",
+            )
+        )
         or "flip" in w
         for w in warnings
     )
+
+
+def trust_after_grade(rows: Sequence[dict], *, mode: str = "warn") -> dict[str, Any]:
+    """The judge check ``grade`` runs after scoring (rlhf-book ch. 5:
+    measure the judge on human-labeled held-out items before trusting it).
+
+    ``rows`` are the rows a grade call just scored. When any of them carry
+    a person's gold label (``attach_labels(kind="human")``), ``judge_trust``
+    runs on those rows and a compact summary (``agreement``,
+    ``agreement_low`` the Wilson lower bound, ``kappa``, ``n_gold``,
+    ``ok``) is stamped on every graded row as ``judge_meta["trust"]``;
+    with no human labels the stamp is ``None``. ``mode`` is ``"warn"``
+    (return the sentence to print), ``"require"`` (raise ``ValueError``
+    with judge_trust's own sentence when ``ok`` is false, or with the
+    unmeasured line when no row carries human gold), or ``"off"``.
+    Returns ``{"trust": summary or None, "note": sentence or None}``.
+    """
+    if mode not in TRUST_MODES:
+        raise ValueError(f"trust must be one of {TRUST_MODES}, not {mode!r}")
+    if mode == "off":
+        return {"trust": None, "note": None}
+    graded = [r for r in rows if isinstance(r, dict) and _label(r, "reward") is not None]
+    human = [
+        r
+        for r in graded
+        if str(r.get(GOLD_KIND_KEY) or "") == "human" and _label(r, GOLD_KEY) is not None
+    ]
+    summary: dict[str, Any] | None = None
+    note: str | None = NO_HUMAN_GOLD_NOTE
+    if human:
+        report = judge_trust(human)
+        a = report["agreement"]
+        summary = {
+            "agreement": a["agreement"],
+            "agreement_low": round(a["ci95"][0], 4) if a["ci95"] else None,
+            "kappa": a["kappa"],
+            "n_gold": a["n"],
+            "ok": report["ok"],
+        }
+        note = (
+            None
+            if report["ok"]
+            else " ".join(w for w in report["warnings"] if _flagged([w]))
+            or " ".join(report["warnings"])
+        )
+    for row in graded:
+        # a sub-key on the scorer's evidence, not a verdict write
+        if not isinstance(row.get("judge_meta"), dict):
+            row.pop("judge_meta", None)
+        meta = row.setdefault("judge_meta", {})
+        meta["trust"] = dict(summary) if summary else None
+    if mode == "require" and note:
+        raise ValueError(note)
+    return {"trust": summary, "note": note}
 
 
 def format_judge_trust(report: dict[str, Any]) -> str:
     a = report["agreement"]
     # "FAIL" on an unmeasured judge would read as a finding; it is the
     # absence of one. The headline says which of the two this is. A probe
-    # that fired is a finding whether or not anything was hand-labeled.
-    if not report["ok"] and not report.get("n_labeled") and not _flagged(report["warnings"]):
+    # that fired is a finding whether or not anything was hand-labeled;
+    # model gold with nothing flagged is not a measurement.
+    unmeasured = not report.get("n_labeled") or MODEL_GOLD_REASON in report["warnings"]
+    if not report["ok"] and unmeasured and not _flagged(report["warnings"]):
         lines = ["NOT MEASURED"]
     else:
         lines = ["PASS" if report["ok"] else "FAIL"]
@@ -616,12 +724,17 @@ __all__ = [
     "ADDITIVE_PROBES",
     "FILLER",
     "GOLD_KEY",
+    "MIN_AGREEMENT",
+    "MIN_KAPPA",
+    "NO_HUMAN_GOLD_NOTE",
     "PROBES",
     "REPLACEMENT_PROBES",
+    "TRUST_MODES",
     "format_judge_trust",
     "judge_probes",
     "judge_trust",
     "length_sensitivity",
     "perturbation",
     "rubric_words",
+    "trust_after_grade",
 ]
