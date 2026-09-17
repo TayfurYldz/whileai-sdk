@@ -281,6 +281,35 @@ when the rows will feed a trainer that corrects for off-policy sampling or
 measures KL: each agent step then carries `logprob` and `n_tokens`, and
 `wai.logprob_report(rows)` says what was captured.
 
+## Evals for an existing agent
+
+When the ask is "build evals" or "improve the evals" for an agent the
+developer already runs, do not start from training data. The path is
+`recipes/02-measure/eval-your-agent` in the SDK repo and `docs/evals.md`:
+
+1. Wrap the agent as `agent(message) -> {"steps": [...], "final_text": str}`.
+   It runs its own real tools and is played single-turn. Record tool calls
+   through a `threading.local`; rollouts are concurrent.
+2. Put the ids the developer's world has (order numbers, account names) in
+   the tool descriptions or in `seeds=`, one seed per policy branch.
+   Otherwise the writer invents ids and every rollout is "not found".
+3. Write the policy as the judge: read `row["steps"]`, return `reward`,
+   `reason`, `markers` (1.0 = the good outcome, `None` = not applicable).
+4. `wai.simulate(agent, tools=, system_prompt=, seeds=, simulator=False,
+   mode="rl", repeats=4, repeat_policy="fixed", reproducible=True)` first
+   (offline), then without `simulator=False` for the hosted writer.
+5. `scored = wai.evaluate(data, judge)` (pass the run itself so the declared tools are known); `wai.pass_at(scored.rows)`
+   overall and per category. Read `scored.warnings` before any number: a
+   run with no tool calls, an untouched declared tool or a marker on zero
+   rows is hollow. Never report a pass@1 from a
+   hollow run; fix the seeds or descriptions and rerun.
+6. Leave a CI gate (`--gate 0.9`, exit 1 under the floor, exit 2 when
+   hollow) and a fast lane of offline judge tests on hand-labeled rows.
+7. Judge trust: `wai.attach_labels(rows, labels, kind="human")` then
+   `wai.judge_trust(rows, judge)`. FAIL on eight labels means label more.
+
+Names: zp, ZeroProof and While are the same product; install `whileai`.
+
 ## Deliverable
 
 Return the generated JSONL and a concise report containing inputs used, model,

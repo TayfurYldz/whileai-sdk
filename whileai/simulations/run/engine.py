@@ -2851,6 +2851,27 @@ class Run:
                 data.degraded.append("same_model")
             data.warnings.append(note)
             log.warning(note)
+        # A run whose rollouts never called a tool is hollow: the writer
+        # asked about things the world does not have, or the wrapper did
+        # not record steps. Grading it gives a number that means nothing.
+        rows = data.trajectories
+        if rows and data.declared_tools:
+            with_calls = sum(
+                1
+                for r in rows
+                if any(isinstance(s, dict) and s.get("tool") for s in (r.get("steps") or []))
+            )
+            if with_calls == 0:
+                note = (
+                    f"0 of {len(rows)} rollouts called a tool, so this run says nothing "
+                    "about tool use. Put the ids your world has (order numbers, account "
+                    "names) in the tool descriptions or in seeds=, and check the agent "
+                    "wrapper records its steps, before grading it."
+                )
+                if "no_tool_calls" not in data.degraded:
+                    data.degraded.append("no_tool_calls")
+                data.warnings.append(note)
+                log.warning(note)
         if c.out_path is not None and data.trajectories:
             data.save(str(c.out_path), meta=True)
         return data

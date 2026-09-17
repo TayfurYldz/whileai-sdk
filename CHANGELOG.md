@@ -24,6 +24,31 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   sampling). `select_for_rl(prior=)` applies the same cut first and
   reports it under `prior`. (#254)
 
+Two coding agents were told "use zp to build evals" on a fresh machine and
+timed (2026-09-17). This is what they tripped on.
+
+- A hollow run says so. `simulate()` warns when no rollout called a tool
+  (`degraded` carries `no_tool_calls`); `run_judge`, `evaluate` and
+  `data.grade` attach `coverage_warnings` to `ScoredData.warnings` and
+  log them once: no tool calls, a declared tool no rollout touched
+  (`tools=`, or read off the run), a marker that fired on no row. Each
+  note names the fix. `wai.coverage_warnings(rows, tools=)`
+  runs standalone.
+- The knobs most runs touch are in `simulate()`'s signature: `repeats`,
+  `phrasings`, `repeat_policy`, `concurrency`, `simulator`, `user_model`,
+  `backend`, `seed`, `sampling`, `max_turns`, `avg_turns`, `fault_rate`,
+  `temperature`, `timeout`, `logprobs`. Same road underneath; an editor
+  now shows them, and the docstring says a callable agent is played
+  single-turn and why real ids belong in the seeds or tool descriptions.
+- `recipes/02-measure/eval-your-agent`: evals for the agent you already
+  have, ending at pass@1 with an interval and a CI gate, not at a push.
+  `docs/evals.md` is the how-to; the README and the skill link it first.
+- Names: the README says once that zp, ZeroProof and While are the same
+  product, that `WHILEAI_HOME` isolates a fresh account from an old
+  `~/.zeroproof`, and PyPI keywords carry `zp` and `zeroproof` so the
+  abbreviation people use finds the package. Dead links fixed
+  (`while.ai` does not resolve yet; `examples/coding-efficiency`).
+
 ## 0.55 (2026-09-17)
 
 - `mine_traces` no longer counts a tool result as a fault because it has

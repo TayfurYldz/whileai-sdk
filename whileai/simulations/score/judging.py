@@ -46,9 +46,14 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import logging
 import uuid
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
+
+from .hygiene import coverage_warnings
+
+log = logging.getLogger("whileai.simulations")
 
 _VALID_STATUSES = ("ok", "missing_reward", "invalid_result", "error", "timeout")
 
@@ -209,6 +214,10 @@ class ScoredData:
         self.eval_coverage: dict[str, Any] | None = None
         self.judge_name = judge_name
         self.model = model
+        # Plain-words notes on whether the score means anything: no row
+        # called a tool, a marker that never fired, a unanimous verdict.
+        # Filled by ``run_judge`` from ``coverage_warnings``; printed once.
+        self.warnings: list[str] = []
 
     def __iter__(self) -> Iterator[dict]:
         return iter(self.rows)
@@ -381,8 +390,13 @@ def run_judge(
     timeout: float | None = None,
     version: str | None = None,
     scale: tuple[float, float] | None = None,
+    tools: Sequence[dict] | Sequence[str] | None = None,
 ) -> ScoredData:
     """Score trajectories with any judge. Originals are left unmodified.
+
+    ``tools=`` is the agent's declared tool list (or names); with it the
+    result's ``warnings`` also say which declared tools no rollout called.
+    Passing the ``SimulationData`` itself as ``rows`` supplies it.
 
     Each scored row is a copy of the input row plus ``reward``, ``reason``,
     ``judge_status``, ``judge_meta``, and a ``lineage`` record naming the
@@ -393,6 +407,13 @@ def run_judge(
     would change its labels); it lands in ``lineage.judge_version`` and
     reads back as ``Judgment.scorer.version``.
     """
+    # A SimulationData passed whole supplies its rows and its declared tools.
+    if tools is None:
+        declared = getattr(rows, "declared_tools", None)
+        if declared:
+            tools = sorted(str(t) for t in declared)
+    if not isinstance(rows, (list, tuple)) and hasattr(rows, "trajectories"):
+        rows = rows.trajectories
     src_rows = [r for r in rows if isinstance(r, dict)]
     rid = run_id or f"score_{uuid.uuid4().hex[:12]}"
     # A function judge is named by __name__; a Verifier is an instance and
@@ -466,7 +487,15 @@ def run_judge(
             lineage["prior_scoring_run_id"] = row["lineage"]["scoring_run_id"]
         out["lineage"] = lineage
         scored.append(out)
-    return ScoredData(scored, run_id=rid, source=source, judge_name=name, model=model)
+    result = ScoredData(scored, run_id=rid, source=source, judge_name=name, model=model)
+    # A confident pass@1 on rows where the agent never touched a tool, or
+    # a marker that fired on no row, is the most expensive eval failure
+    # there is: it reads as a result. Say so once, and name the fix. The
+    # declared tools come from ``tools=`` or off a SimulationData.
+    result.warnings = coverage_warnings(scored, tools=tools)
+    for note in result.warnings:
+        log.warning(note)
+    return result
 
 
 def evaluate(
@@ -481,8 +510,13 @@ def evaluate(
     concurrency: int = 8,
     timeout: float | None = None,
     scale: tuple[float, float] | None = None,
+    tools: Sequence[dict] | Sequence[str] | None = None,
 ) -> ScoredData:
     """Judge held-out rollouts under the exact contract ``grade`` uses.
+
+    Read the result's ``warnings`` before its numbers: no rollout called
+    a tool, a declared tool none touched (``tools=``, or pass the
+    ``SimulationData`` as ``rows``), a marker that fired on no row.
 
     Same engine, same schema; only the lineage source differs. Feeding
     ``evaluate(...).traces`` to ``simulate(traces=...)`` is the
@@ -508,6 +542,7 @@ def evaluate(
         concurrency=concurrency,
         timeout=timeout,
         scale=scale,
+        tools=tools,
     )
     if eval_set is not None:
         wanted = {
