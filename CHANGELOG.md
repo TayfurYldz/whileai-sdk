@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.60 (2026-09-17)
 
 - `coverage_gap(asks, tools=, system_prompt=, rows=)` maps the asks a test
   suite already sends onto the grid `simulate` covers, and names what they
