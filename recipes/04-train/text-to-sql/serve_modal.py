@@ -54,36 +54,50 @@ runs_volume = modal.Volume.from_name("zeroproof-train-runs", create_if_missing=T
     timeout=24 * 60 * 60,
     scaledown_window=10 * 60,
     volumes={"/root/.cache/huggingface": hf_cache, "/vol": runs_volume},
+    # Modal imports this module again inside the container, where the deploy
+    # shell's variables are gone: everything the server needs rides in the secret.
     secrets=[
-        modal.Secret.from_dict({"VLLM_API_KEY": KEY, "HF_TOKEN": os.environ.get("HF_TOKEN", "")})
+        modal.Secret.from_dict(
+            {
+                "VLLM_API_KEY": KEY,
+                "HF_TOKEN": os.environ.get("HF_TOKEN", ""),
+                "T2S_SERVE_MODEL": MODEL,
+                "T2S_SERVE_ADAPTER": ADAPTER,
+                "T2S_SERVE_MAX_LEN": str(MAX_LEN),
+            }
+        )
     ],
 )
 @modal.concurrent(max_inputs=64)
 @modal.web_server(port=8000, startup_timeout=20 * 60)
 def serve():
+    model = os.environ["T2S_SERVE_MODEL"]
+    key = os.environ["VLLM_API_KEY"]
+    adapter = os.environ.get("T2S_SERVE_ADAPTER") or ""
+    max_len = os.environ.get("T2S_SERVE_MAX_LEN") or "16384"
     cmd = [
         "vllm",
         "serve",
-        MODEL,
+        model,
         "--host",
         "0.0.0.0",
         "--port",
         "8000",
         "--api-key",
-        KEY,
+        key,
         "--max-model-len",
-        str(MAX_LEN),
+        max_len,
         "--gpu-memory-utilization",
         "0.90",
         "--dtype",
         "bfloat16",
     ]
-    if ADAPTER.startswith("volume:"):
-        run_id = ADAPTER.split(":", 1)[1]
+    if adapter.startswith("volume:"):
+        run_id = adapter.split(":", 1)[1]
         cmd += [
             "--enable-lora",
             "--lora-modules",
-            f"{MODEL}-adapter=/vol/{run_id}/adapter",
+            f"{model}-adapter=/vol/{run_id}/adapter",
             "--max-lora-rank",
             "64",
         ]
