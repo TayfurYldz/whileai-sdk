@@ -113,7 +113,8 @@ def test_every_example_directory_is_tracked_by_git():
 
 
 def test_every_example_module_compiles():
-    scripts = sorted(EXAMPLES.glob("*/*/*.py"))
+    # recipes/papers/ has its own contract and test (tests/recipes/test_papers.py)
+    scripts = sorted(p for p in EXAMPLES.glob("*/*/*.py") if p.parts[-3] != "papers")
     assert scripts, "no recipe scripts found"
     for script in scripts:
         py_compile.compile(str(script), doraise=True)
