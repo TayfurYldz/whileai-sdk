@@ -534,8 +534,9 @@ def judge_trust(
         kappa = agree["kappa"]
         if not degenerate_gold and kappa is not None and kappa < min_kappa:
             warnings.append(
-                f"Judge kappa with human labels is {kappa:.2f}, under the {min_kappa:.2f} "
-                "floor. Change the judge prompt or the judge model, then run judge_trust again."
+                f"Judge agreement with human labels beyond chance (kappa) is {kappa:.2f}, "
+                f"under the {min_kappa:.2f} floor. Change the judge prompt or the judge model, "
+                "then run judge_trust again."
             )
     if halves["a"]["agreement"] is not None and halves["b"]["agreement"] is not None:
         gap = abs(halves["a"]["agreement"] - halves["b"]["agreement"])
