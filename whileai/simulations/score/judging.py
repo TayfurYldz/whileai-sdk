@@ -46,9 +46,14 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import logging
 import uuid
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
+
+from .hygiene import coverage_warnings
+
+log = logging.getLogger("whileai.simulations")
 
 _VALID_STATUSES = ("ok", "missing_reward", "invalid_result", "error", "timeout")
 
@@ -209,6 +214,10 @@ class ScoredData:
         self.eval_coverage: dict[str, Any] | None = None
         self.judge_name = judge_name
         self.model = model
+        # Plain-words notes on whether the score means anything: no row
+        # called a tool, a marker that never fired, a unanimous verdict.
+        # Filled by ``run_judge`` from ``coverage_warnings``; printed once.
+        self.warnings: list[str] = []
 
     def __iter__(self) -> Iterator[dict]:
         return iter(self.rows)
@@ -381,8 +390,13 @@ def run_judge(
     timeout: float | None = None,
     version: str | None = None,
     scale: tuple[float, float] | None = None,
+    tools: Sequence[dict] | Sequence[str] | None = None,
 ) -> ScoredData:
     """Score trajectories with any judge. Originals are left unmodified.
+
+    ``tools=`` is the agent's declared tool list (or names); with it the
+    result's ``warnings`` also say which declared tools no rollout called.
+    Passing the ``SimulationData`` itself as ``rows`` supplies it.
 
     Each scored row is a copy of the input row plus ``reward``, ``reason``,
     ``judge_status``, ``judge_meta``, and a ``lineage`` record naming the
@@ -393,6 +407,13 @@ def run_judge(
     would change its labels); it lands in ``lineage.judge_version`` and
     reads back as ``Judgment.scorer.version``.
     """
+    # A SimulationData passed whole supplies its rows and its declared tools.
+    if tools is None:
+        declared = getattr(rows, "declared_tools", None)
+        if declared:
+            tools = sorted(str(t) for t in declared)
+    if not isinstance(rows, (list, tuple)) and hasattr(rows, "trajectories"):
+        rows = rows.trajectories
     src_rows = [r for r in rows if isinstance(r, dict)]
     rid = run_id or f"score_{uuid.uuid4().hex[:12]}"
     # A function judge is named by __name__; a Verifier is an instance and
@@ -402,6 +423,11 @@ def run_judge(
     name = judge_name or getattr(judge, "__name__", "") or _instance_name(judge) or "judge"
     if name == "<lambda>":
         name = "lambda_judge"
+    # A Verifier says what it is (``kind="rule"``); a function judge does
+    # not, and the schema then infers "judge" from the name. Stamp the
+    # declared kind so a verifier does not read back as a model judge (#250).
+    kind = getattr(judge, "kind", None)
+    scorer_kind = kind if kind in ("rule", "reward_model", "human") else None
     verdicts: list[dict[str, Any]]
     if concurrency > 1 and len(src_rows) > 1:
         with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
@@ -429,8 +455,11 @@ def run_judge(
             out["reason"] = verdict["reason"]
         out["judge_status"] = verdict["judge_status"]
         out["judge_name"] = name
-        if verdict["judge_meta"]:
-            out["judge_meta"] = verdict["judge_meta"]
+        meta = dict(verdict["judge_meta"] or {})
+        if scorer_kind:
+            meta["scorer_kind"] = scorer_kind
+        if meta:
+            out["judge_meta"] = meta
         fc = (verdict["judge_meta"] or {}).get("failure_class")
         if fc:
             out["failure_class"] = str(fc)
@@ -458,7 +487,15 @@ def run_judge(
             lineage["prior_scoring_run_id"] = row["lineage"]["scoring_run_id"]
         out["lineage"] = lineage
         scored.append(out)
-    return ScoredData(scored, run_id=rid, source=source, judge_name=name, model=model)
+    result = ScoredData(scored, run_id=rid, source=source, judge_name=name, model=model)
+    # A confident pass@1 on rows where the agent never touched a tool, or
+    # a marker that fired on no row, is the most expensive eval failure
+    # there is: it reads as a result. Say so once, and name the fix. The
+    # declared tools come from ``tools=`` or off a SimulationData.
+    result.warnings = coverage_warnings(scored, tools=tools)
+    for note in result.warnings:
+        log.warning(note)
+    return result
 
 
 def evaluate(
@@ -473,8 +510,13 @@ def evaluate(
     concurrency: int = 8,
     timeout: float | None = None,
     scale: tuple[float, float] | None = None,
+    tools: Sequence[dict] | Sequence[str] | None = None,
 ) -> ScoredData:
     """Judge held-out rollouts under the exact contract ``grade`` uses.
+
+    Read the result's ``warnings`` before its numbers: no rollout called
+    a tool, a declared tool none touched (``tools=``, or pass the
+    ``SimulationData`` as ``rows``), a marker that fired on no row.
 
     Same engine, same schema; only the lineage source differs. Feeding
     ``evaluate(...).traces`` to ``simulate(traces=...)`` is the
@@ -500,6 +542,7 @@ def evaluate(
         concurrency=concurrency,
         timeout=timeout,
         scale=scale,
+        tools=tools,
     )
     if eval_set is not None:
         wanted = {
@@ -553,6 +596,42 @@ def length_confound_warning(chosen_longer: int, n: int) -> str | None:
             "trainer learns length before behavior (rlhf-book ch. 8)"
         )
     return None
+
+
+def _first_turn(row: dict) -> str:
+    """What the policy emitted first, read the way the hosted DPO trainer
+    reads it: the first tool step as its call, else the first assistant
+    text, else ``final_text``."""
+    steps = [s for s in (row.get("steps") or []) if isinstance(s, dict)]
+    for step in steps:
+        if step.get("tool"):
+            args = step.get("arguments")
+            if args is None:
+                args = step.get("args")
+            return json.dumps({"name": step["tool"], "arguments": args or {}}, sort_keys=True)
+    for step in steps:
+        if str(step.get("text") or "").strip():
+            return str(step["text"]).strip()
+    for message in row.get("messages") or []:
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            text = str(message.get("content") or "").strip()
+            if text:
+                return text
+    return str(row.get("final_text") or "").strip()
+
+
+def first_turn_note(identical: int, n: int) -> str:
+    """The warning for pairs whose first assistant turns read the same."""
+    if not identical:
+        return ""
+    left = n - identical
+    return (
+        f"{identical}/{n} pairs have identical first assistant turns (same opening tool call "
+        "or line); their contrast is later in the rollout. The hosted DPO trainer compares "
+        f"first turns only and will drop them, leaving {left} (it needs at least 8). Keep "
+        "[p for p in pairs if p['first_turn_differs']] to see what it will train on, or "
+        "export_preference(pairs) for a trainer that reads whole conversations."
+    )
 
 
 def build_preference_pairs(
@@ -643,6 +722,7 @@ def build_preference_pairs(
                     "rejected_model": r_model,
                     "same_policy": (c_model == r_model) if c_model and r_model else None,
                     "length_delta": reply_length(chosen) - reply_length(rejected),
+                    "first_turn_differs": _first_turn(chosen) != _first_turn(rejected),
                     "chosen_reason": str(chosen.get("reason") or ""),
                     "rejected_reason": str(rejected.get("reason") or ""),
                     "rejected_failure_class": rejected.get("failure_class"),
@@ -665,10 +745,13 @@ def build_preference_pairs(
         for p in pairs
         if p["chosen_score"] not in (0.0, 1.0) or p["rejected_score"] not in (0.0, 1.0)
     )
+    identical = sum(1 for p in pairs if not p["first_turn_differs"])
     warnings: list[str] = []
     length_note = length_confound_warning(chosen_longer, n)
     if length_note:
         warnings.append(length_note)
+    if identical:
+        warnings.append(first_turn_note(identical, n))
     if mixed_policy:
         warnings.append(
             f"{mixed_policy}/{n} pairs mix policies (chosen and rejected from different "
@@ -686,6 +769,8 @@ def build_preference_pairs(
         "min_margin": min_margin,
         "mean_margin": round(sum(p["margin"] for p in pairs) / n, 4) if n else None,
         "partial_score_pairs": partial,
+        "first_turn_identical": identical,
+        "trainer_pairs": n - identical,
         "same_policy_pairs": same_policy,
         "mixed_policy_pairs": mixed_policy,
         "eval_sourced": eval_pairs,

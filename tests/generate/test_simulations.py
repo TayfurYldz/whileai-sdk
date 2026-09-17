@@ -72,6 +72,7 @@ _PUBLIC = {
     "rollout_index",
     "model_version",
     "policy_version",
+    "finish_reason",
     "writer_model",
     "user_model",
 }

@@ -160,6 +160,32 @@ def _agent_error_text(exc: BaseException) -> str:
     return f"<agent error: {type(exc).__name__}: {public_llm_error(exc)}>"
 
 
+FINISH_REASONS = ("stop", "length", "tool", "error")
+
+
+def _finish_reason(raw: dict, steps: list, final_text: str) -> str:
+    """Why the rollout ended, on the row where a trainer can read it.
+
+    ``length``: a turn was cut by the reply token cap (the backend said
+    so). ``error``: the agent raised. ``tool``: the last thing the agent
+    did was call a tool and no final reply followed, so the turn budget
+    ran out. ``stop``: the agent finished on its own. A callable agent may
+    say it outright with ``finish_reason`` in what it returns. A length
+    cut scored 0 teaches the cheapest fix, shorter thinking, before it
+    teaches the task (#253), so the trainer masks these by default.
+    """
+    told = raw.get("finish_reason")
+    if isinstance(told, str) and told in FINISH_REASONS:
+        return told
+    if final_text.startswith("<agent error:"):
+        return "error"
+    if any(isinstance(s, dict) and s.get("truncated") for s in steps):
+        return "length"
+    if not final_text.strip() and steps and isinstance(steps[-1], dict) and steps[-1].get("tool"):
+        return "tool"
+    return "stop"
+
+
 def _hit_length_cap(row: dict) -> bool:
     """A step the backend flagged as cut by its token cap, or a reply that
     ends mid-sentence by the hygiene rule."""
@@ -802,6 +828,7 @@ class Run:
             t["seeded"] = [str(x) for x in seeded]
         t.update(_row_conversation(meta, prompt, c.seed))
         t["behavior_signature"] = behavior_signature(t)
+        t["finish_reason"] = _finish_reason(raw, t["steps"], t["final_text"])
         # Sampling facts roll up from the agent turns: the summed logprob
         # and token count a trainer needs for an importance ratio or a KL.
         lp_steps = [
@@ -2824,6 +2851,27 @@ class Run:
                 data.degraded.append("same_model")
             data.warnings.append(note)
             log.warning(note)
+        # A run whose rollouts never called a tool is hollow: the writer
+        # asked about things the world does not have, or the wrapper did
+        # not record steps. Grading it gives a number that means nothing.
+        rows = data.trajectories
+        if rows and data.declared_tools:
+            with_calls = sum(
+                1
+                for r in rows
+                if any(isinstance(s, dict) and s.get("tool") for s in (r.get("steps") or []))
+            )
+            if with_calls == 0:
+                note = (
+                    f"0 of {len(rows)} rollouts called a tool, so this run says nothing "
+                    "about tool use. Put the ids your world has (order numbers, account "
+                    "names) in the tool descriptions or in seeds=, and check the agent "
+                    "wrapper records its steps, before grading it."
+                )
+                if "no_tool_calls" not in data.degraded:
+                    data.degraded.append("no_tool_calls")
+                data.warnings.append(note)
+                log.warning(note)
         if c.out_path is not None and data.trajectories:
             data.save(str(c.out_path), meta=True)
         return data

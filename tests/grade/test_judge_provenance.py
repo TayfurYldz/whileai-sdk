@@ -302,3 +302,31 @@ def test_a_callable_with_an_unusable_name_falls_back_to_judge():
 
     assert run_judge(_rows(1), NumericName()).rows[0]["judge_name"] == "judge"
     assert run_judge(_rows(1), Raises()).rows[0]["judge_name"] == "judge"
+
+
+def test_a_verifier_reads_back_as_a_rule_and_keeps_its_name():
+    """#250: a Verifier carries ``judge_name`` since #213, and the schema
+    inferred ``kind="judge"`` from that alone. The grading run now stamps
+    the declared kind; the name still round-trips as ``judge_name``."""
+    from whileai.simulations.verify import ExactMatch
+
+    rows = [
+        {
+            "prompt": "p",
+            "final_text": "42",
+            "privileged": {"reference": "42"},
+            "scenario_id": "s1",
+            "rollout_index": 0,
+            "steps": [],
+        }
+    ]
+    row = run_judge(rows, ExactMatch()).rows[0]
+    assert row["judge_meta"]["scorer_kind"] == "rule"
+    task, rollout, judgments, _ = schema.from_row(row)
+    assert judgments[0].scorer == schema.ScorerRef(name="ExactMatch", kind="rule")
+    back = schema.to_row(task, rollout, judgments)
+    assert back["judge_name"] == "ExactMatch" and "label_source" not in back
+    # A function judge has no declared kind and is still a model judge.
+    fn = run_judge(rows, lambda t: 1, judge_name="fn").rows[0]
+    assert "scorer_kind" not in (fn.get("judge_meta") or {})
+    assert schema.from_row(fn)[2][0].scorer.kind == "judge"

@@ -31,6 +31,7 @@ CLI_EXAMPLES = [
     "05-export/hugging-face/roundtrip.py",
     "04-train/identity/generate.py",
     "02-measure/pass-at-k/measure.py",
+    "02-measure/eval-your-agent/run.py",
     "03-select/prime-intellect-rl/diagnose.py",
     "03-select/prime-intellect-rl/export_prompts.py",
     "03-select/prime-intellect-rl/generate.py",
@@ -46,6 +47,7 @@ CLI_EXAMPLES = [
     "04-train/text-to-sql/rollout.py",
     "04-train/text-to-sql/train.py",
     "01-simulate/verifiers/run.py",
+    "community/same-entrypoint-before-after/run.py",
 ]
 
 # Need the ``modal`` client, which is not a dev dependency. Compiled, not run.
