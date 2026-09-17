@@ -1022,11 +1022,6 @@ _CONFIRM_ONLY = re.compile(
     re.I,
 )
 _AGENT_QUESTION = re.compile(r"\?\s*$|\b(which|what|who|where|can you|could you)\b", re.I)
-_AGENT_SUCCESS = re.compile(
-    r"\b(done|created|opened|fixed|all set|i (have|'ve|just)|"
-    r"successfully|completed)\b",
-    re.I,
-)
 _AGENT_REFUSAL = re.compile(
     r"\b(can't|cannot|won't|unable|not allowed|against (the )?(policy|rules?))\b",
     re.I,

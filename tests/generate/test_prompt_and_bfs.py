@@ -1804,3 +1804,31 @@ def test_followup_depth_tracks_avg_turns():
     assert 1.5 < shallow < 3.0 and 4.0 < deep < 7.0, (shallow, deep)
     # the cap is still honoured
     assert not _want_followup("m", 9, user_turns=9, budget=6, agent_text="ok")
+
+
+def test_followup_depth_does_not_depend_on_success_phrasing():
+    """Depth used to turn on whether the agent's reply matched a success
+    regex, so "Done, I cancelled it" and "Your reservation has been
+    cancelled" gave mean depth 1.91 and 1.00 for the same event. That made
+    depth a property of each spec's wording rather than of avg_turns, and a
+    per-cell confound in any grid that compares specs."""
+    import statistics
+
+    from whileai.simulations.generate.agents import _want_followup
+
+    def depth(text: str) -> float:
+        lens = []
+        for i in range(1500):
+            n = 1
+            while _want_followup(f"m{i}", n, user_turns=n, budget=12, agent_text=text) and n < 50:
+                n += 1
+            lens.append(n)
+        return statistics.mean(lens)
+
+    active = depth("Done, I cancelled reservation 4821.")
+    passive = depth("Your reservation has been cancelled.")
+    plain = depth("There are 4821 orders in the last quarter.")
+    assert abs(active - passive) < 0.3, (active, passive)
+    assert abs(active - plain) < 0.3, (active, plain)
+    # a question still earns an answer, which is the one phrasing that should matter
+    assert depth("Do you want me to cancel it?") > active
