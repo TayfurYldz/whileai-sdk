@@ -7,12 +7,13 @@ malicious), and rolls the agent. Grade 0/1 later. Optimize for post-training.
 Five calls, spec to gated dataset:
 
     import whileai.simulations as wai
-    data = wai.simulate(agent="openai:gpt-4.1-mini", spec="specs/github",
-                        mode="rl", situations=200, repeats=8)      # generate
+    data = wai.simulate(agent="openai:gpt-4.1-mini", tools=my_tools,
+                        system_prompt=my_policy, mode="rl",
+                        situations=200, repeats=8)                  # generate
     scored = data.grade(judge=my_judge)                             # grade 0/1
     print(scored.pass_at); wai.judge_trust(scored.rows, judge=my_judge)  # trust
     rows, report = wai.optimize(scored, mode="rl")                  # prune
-    wai.push_rows(rows, "github-rl-v1", gate=True, mode="rl")       # publish, gated
+    wai.push_rows(rows, "my-agent-rl-v1", gate=True, mode="rl")     # publish, gated
 
 Everything else exported here is one layer down from those five.
 """
