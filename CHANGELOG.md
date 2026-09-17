@@ -3,7 +3,31 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.53 (2026-09-17)
+
+- `rubric_judge` warms the hosted judge once before the rows fan out, the
+  same `warm_judge` call and 600s budget `grade_llm` already used. A serve
+  container that had scaled to zero took longer to load its weights than the
+  120s per-call timeout, so all eight of `run_judge`'s concurrent calls timed
+  out together and every row came back `invalid_result` with `reward: None`.
+  A failed warm-up is not fatal: the rows are judged anyway and report the
+  real error.
+- `pass_at` on a set where every row failed judging says so, naming the
+  status and the judge's own error, instead of `no binary rewards; grade
+  first` -- which pointed at the step that had just run. Sets that were
+  never judged, and partly graded sets, keep the old wording.
+- `leak_report` on exported rows says why it found nothing. `rows()`,
+  `save()` and `push()` scrub `privileged` at any depth, so the detector had
+  nothing to check and `checked: False` read as "nothing populated it"
+  rather than "you passed the scrubbed copy". When the rows came through the
+  export, `summary` now names it and points at `data.trajectories`.
+- `recipes/_template/` to copy (`README.md`, `run.py`, `smoke.sh`), a
+  "Contributing a recipe" section in `CONTRIBUTING.md`, two issue forms,
+  and a CI job that runs every `recipes/**/smoke.sh` on every pull request:
+  no key, no GPU, under a minute, so "it runs" is checked rather than
+  claimed.
+
+## 0.52 (2026-09-17)
 
 - `simulate(tasks=base, runs=3)`: the same task set replayed three times in
   one call, every row stamped `lineage.eval_run` (0, 1, 2), one
@@ -69,7 +93,7 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   / `config["after"]` and warns when the judge, temperature or reply
   budget differ between sides, or when both sides are the same policy
   version.
-- One task key everywhere. `zps.task_key(row)` (`scenario_id`, else
+- One task key everywhere. `wai.task_key(row)` (`scenario_id`, else
   `task_id`, else the prompt text) is what `pass_at`, `group_signal`,
   `compare_runs`, `delta_report`, `eval_variance`, `curriculum`,
   `retire_solved`, `trim_unanimous_groups`, `trim_out_of_band`,

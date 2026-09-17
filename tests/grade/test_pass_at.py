@@ -180,3 +180,37 @@ def test_pass_pow_k_and_pass_at_k_carry_task_bootstrap_intervals():
         [{"prompt": p, "reward": r} for p in ("a", "b") for r in (1, 0)]
     )  # two repeats per group: below min_k
     assert short.pass_pow_k is None and short.pass_pow_k_ci95 is None
+
+
+def test_a_judge_that_failed_on_every_row_says_so_not_grade_first():
+    """A cold hosted judge times out on every concurrent call, so the whole
+    set reads as ungraded. "grade first" sent the user back to the step that
+    had just run (#224)."""
+    rows = [
+        {
+            "prompt": f"p{i}",
+            "reward": None,
+            "judge_status": "invalid_result",
+            "reason": "TimeoutError: The read operation timed out",
+            "final_text": "x",
+            "steps": [],
+        }
+        for i in range(6)
+    ]
+    out = pass_at(rows)
+    assert out.pass_at_1 is None and out.n_groups == 0
+    assert "the judge failed on all 6 rows" in out.note
+    assert "invalid_result" in out.note and "TimeoutError" in out.note
+    assert "grade first" not in out.note
+    assert "the judge failed on all 6 rows" in str(out)
+
+
+def test_a_partly_graded_set_still_says_grade_first():
+    # one row did grade, so the set is not a judge failure
+    rows = [
+        {"prompt": "a", "reward": None, "judge_status": "error", "final_text": "x", "steps": []},
+        {"prompt": "b", "reward": 0.5, "judge_status": "ok", "final_text": "x", "steps": []},
+    ]
+    assert "grade first" in pass_at(rows).note
+    # and rows nobody judged keep the original wording
+    assert "grade first" in pass_at([{"prompt": "a", "reward": None}]).note

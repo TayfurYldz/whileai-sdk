@@ -26,12 +26,19 @@ import concurrent.futures
 import hashlib
 import json
 import re
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ..generate.agents import complete, parse_backend_spec
-from .grade_llm import JUDGE_TEMPERATURE, _render_payload, judge_spec, judge_version
+from .grade_llm import (
+    JUDGE_TEMPERATURE,
+    _render_payload,
+    judge_spec,
+    judge_version,
+    warm_judge,
+)
 
 Kind = Literal["hard", "principle", "pitfall"]
 KINDS: tuple[str, ...] = ("hard", "principle", "pitfall")
@@ -375,10 +382,28 @@ def rubric_judge(
     ``markers`` (``rubric:<slug>`` = 1.0 met / 0.0 not, and for a pitfall
     1.0 clean / 0.0 exhibited), ``criteria`` (the raw verdicts),
     ``rubric_version`` and the score breakdown. The judge's name folds the
-    rubric version in when one is fixed."""
+    rubric version in when one is fixed.
+
+    The hosted judge scales to zero, so the first row through warms it once
+    (``warm_judge``, a 600s budget) while the rest of the fan-out waits.
+    Without that, ``run_judge``'s eight concurrent calls all raced a
+    container that was still loading its weights and every row came back
+    ``invalid_result`` with a ``TimeoutError``. Warm-up failure is not
+    fatal: the rows are judged anyway and report the real error."""
     resolved = judge_spec(spec=spec)
     url, model = parse_backend_spec(resolved)
     system = str(prompt or "").strip() or RUBRIC_JUDGE_SYSTEM
+    warm_lock = threading.Lock()
+    warmed: list[dict] = []
+
+    def ensure_warm() -> None:
+        # once per judge, and the other workers block here rather than
+        # opening their own request against a cold server
+        if warmed:
+            return
+        with warm_lock:
+            if not warmed:
+                warmed.append(warm_judge(resolved, api_key=api_key))
 
     def judge(row: dict) -> dict[str, Any]:
         use = rubric or rubric_of(row)
@@ -391,6 +416,7 @@ def rubric_judge(
             },
             default=str,
         )
+        ensure_warm()
         try:
             reply = complete(
                 url,

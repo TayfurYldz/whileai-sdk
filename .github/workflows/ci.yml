@@ -20,6 +20,30 @@ jobs:
       - run: uv sync --extra dev
       - run: uv run pytest -q
 
+  recipes:
+    name: recipe smoke runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      # Every recipe that carries a smoke.sh runs it: the whole script, with no
+      # key, no GPU and no spend. A recipe that trains on Modal cannot be run
+      # here — a fork's PR gets no secrets, deliberately — so this is the part
+      # a machine can check, and a maintainer runs the rest on our account.
+      - name: run every recipes/**/smoke.sh
+        run: |
+          found=0
+          for s in $(find recipes -name smoke.sh | sort); do
+            found=1
+            echo "::group::$s"
+            uv run sh "$s"
+            echo "::endgroup::"
+          done
+          [ "$found" = 1 ] || { echo "no smoke.sh found under recipes/"; exit 1; }
+
   lint:
     name: lint and types
     runs-on: ubuntu-latest
