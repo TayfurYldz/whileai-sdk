@@ -1,0 +1,79 @@
+{
+  "recipe": "endpoint-sft",
+  "title": "Endpoint SFT: keep the two ends of the reasoning trace, drop the middle",
+  "paper": "https://arxiv.org/abs/2609.07103",
+  "book": "ch. 4 Instruction tuning",
+  "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "metric": "pass@1",
+  "n_holdout": 64,
+  "k": 4,
+  "arms": {
+    "base": {
+      "score": 0.45703125,
+      "ci": [
+        0.359375,
+        0.5546875
+      ],
+      "pass_at_k": 0.6875,
+      "steps": 0,
+      "gpu_minutes": 0
+    },
+    "baseline": {
+      "score": 0.2890625,
+      "ci": [
+        0.2109375,
+        0.3671875
+      ],
+      "pass_at_k": 0.53125,
+      "steps": 75,
+      "gpu_minutes": 47.7
+    },
+    "recipe": {
+      "score": 0.27734375,
+      "ci": [
+        0.1953125,
+        0.35546875
+      ],
+      "pass_at_k": 0.5,
+      "steps": 75,
+      "gpu_minutes": 21.7
+    }
+  },
+  "delta": {
+    "recipe_vs_baseline": -0.01171875,
+    "ci": [
+      -0.07421875,
+      0.046875
+    ],
+    "verdict": "flat"
+  },
+  "checks": {
+    "run_std": 0.0135,
+    "decontaminated_dropped": 0,
+    "over_optimized": true,
+    "length_before": 1618.625,
+    "length_after": {
+      "baseline": 5472.68359375,
+      "recipe": 5245.00390625
+    },
+    "hack_scan_top": "contains:approach AND contains:two",
+    "seed": 0,
+    "retained_steps_each_end": 21,
+    "token_drop": 0.1925
+  },
+  "measured_without_gpu": {
+    "date": "2026-09-17",
+    "what": "the data checks and the truncation rule, run on the CPU with the shipped code path; every arm number above is still unset",
+    "train_rows": 600,
+    "traces_untouched_by_the_cut": 230,
+    "median_steps_per_trace": 50,
+    "baseline_target_tokens": 1464426,
+    "recipe_target_tokens": 1181008,
+    "decontaminated_dropped_vs_all_500": 0
+  },
+  "gpu": "L40S",
+  "usd": 2.31,
+  "verified": "2026-09-17",
+  "whileai": "0.53",
+  "run_url": "https://www.zeroproofai.com/platform/training/run_aca24d9fdb020c5b"
+}
