@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.57 (2026-09-17)
 
 - `audit_grades(rows, judge=, sample=, passes=)` estimates how often the
   verifier fails a right answer: it puts a sample of failed rows to a
@@ -14,27 +14,6 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   `select_for_rl(audit=)` and `optimize(audit=)` carry that line into
   `hygiene_warnings`. The judge is a second opinion, not ground truth,
   and the report says so. (#255)
-
-## 0.56 (2026-09-17)
-
-- `holdout_size(effect, base=, k=, power=, alpha=, rows=)` says how many
-  paired tasks a holdout needs to prove a gain, modelled on the paired
-  task bootstrap `delta_report` runs (rlhf-book ch. 16, appendix C), and
-  `detectable_effect(n_tasks, ...)` is the same solved for the gain. A
-  test checks the number against `compare_runs` by simulation. The
-  recipe that asked had 140 tasks at k=4: a +-0.06 band, so a 3-point
-  gain could never read as anything but `no_change_detected`.
-  `delta_report` now carries `detectable_effect` and `tasks_needed` and,
-  on a no-change verdict, says what this holdout can prove and what the
-  delta seen would have needed. `push(purpose="holdout")` warns when the
-  set is too small to prove a 5-point gain. (#257)
-- `next_round(prior, tasks=, lo=, hi=)` builds round N+1's prompt set
-  from round N's graded rollouts: tasks the current policy solves above
-  `hi` or below `lo` are dropped, the rest kept with their pass rate
-  stamped, plus counts, the policy versions the prior came from and a
-  `prompt_set_sha` for lineage (rlhf-book ch. 7 band; ch. 6 DAPO dynamic
-  sampling). `select_for_rl(prior=)` applies the same cut first and
-  reports it under `prior`. (#254)
 
 Two coding agents were told "use zp to build evals" on a fresh machine and
 timed (2026-09-17). This is what they tripped on.
@@ -60,6 +39,27 @@ timed (2026-09-17). This is what they tripped on.
   `~/.zeroproof`, and PyPI keywords carry `zp` and `zeroproof` so the
   abbreviation people use finds the package. Dead links fixed
   (`while.ai` does not resolve yet; `examples/coding-efficiency`).
+
+## 0.56 (2026-09-17)
+
+- `holdout_size(effect, base=, k=, power=, alpha=, rows=)` says how many
+  paired tasks a holdout needs to prove a gain, modelled on the paired
+  task bootstrap `delta_report` runs (rlhf-book ch. 16, appendix C), and
+  `detectable_effect(n_tasks, ...)` is the same solved for the gain. A
+  test checks the number against `compare_runs` by simulation. The
+  recipe that asked had 140 tasks at k=4: a +-0.06 band, so a 3-point
+  gain could never read as anything but `no_change_detected`.
+  `delta_report` now carries `detectable_effect` and `tasks_needed` and,
+  on a no-change verdict, says what this holdout can prove and what the
+  delta seen would have needed. `push(purpose="holdout")` warns when the
+  set is too small to prove a 5-point gain. (#257)
+- `next_round(prior, tasks=, lo=, hi=)` builds round N+1's prompt set
+  from round N's graded rollouts: tasks the current policy solves above
+  `hi` or below `lo` are dropped, the rest kept with their pass rate
+  stamped, plus counts, the policy versions the prior came from and a
+  `prompt_set_sha` for lineage (rlhf-book ch. 7 band; ch. 6 DAPO dynamic
+  sampling). `select_for_rl(prior=)` applies the same cut first and
+  reports it under `prior`. (#254)
 
 ## 0.55 (2026-09-17)
 
