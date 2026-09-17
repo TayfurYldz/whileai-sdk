@@ -8,7 +8,7 @@ description: >
   eval sizing, the four ways an eval silently lies, and what to put on a
   card.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Strengthen your evals
@@ -17,12 +17,34 @@ Every rule here was paid for. On 2026-09-17 seven lanes trained models against
 simulated data; the first two "wins" were both withdrawn, and the causes were
 measurement, not modelling.
 
+## Cite the research. Always.
+
+Every claim, PR, dataset card and model card names the work it rests on. Chapter,
+not book: "rlhf-book ch. 16, the eval's own variance decides what a delta can mean"
+beats "per the literature". Load the `rlhf-post-training` skill before any
+post-training work.
+
+Anchors for this document:
+- **Open Character Training.** Maiya, Bartsch, Lambert, Hubinger, arXiv 2511.01689.
+  Constitutions as first-person assertions, targeting manner not content;
+  DPO on preference pairs then SFT on introspective data. Character-trained traits
+  are more robust to adversarial prompting than system prompts or activation
+  steering, with little to no capability cost.
+- **Persona Vectors.** Chen et al., arXiv 2507.21509. Sycophancy and hallucination
+  as measurable directions; both are negative controls worth training *in* to prove
+  a pipeline steers rather than merely sanitises.
+- **Natural Emergent Misalignment from Reward Hacking in Production RL.** Reward
+  hacking generalised to alignment faking and sabotage. **Inoculation prompting.** A single line reframing hacking as acceptable during RL, cut final misalignment
+  75-90% despite hack rates over 99%. Filtering hack episodes out and distilling on
+  the rest did **not** work, and instructing the model not to hack can make it worse.
+  That is a data-composition result, which is what this SDK is for.
+
 ## Simulate the training data. Evaluate for real.
 
 These are two different jobs and conflating them is the most expensive mistake
 available.
 
-**Simulation is how you get training data:** diverse, adversarial, cheap, shaped
+**Simulation is how you get training data.** Diverse, adversarial, cheap, shaped
 at whatever the model is bad at.
 
 **The eval should be something you did not build**: an external benchmark, a fixed
@@ -54,10 +76,52 @@ with gold answers you can check with a program; a held-out slice of real traffic
 your own simulation with the user scripted rather than generated. Say which one you
 used, every time.
 
+## The failure class behind most of this: correct about what it examines, silent about what it assumes
+
+Every check in this document can fail this way, including the checks this document
+recommends. Four instances from a single day of dogfooding:
+
+| check | correct about | silent about | what it cost |
+|---|---|---|---|
+| answer-production gate | its exit codes | the row schema, it read `reply`, the data carried `final_text` | reported **0% answered on 400 healthy rows**, i.e. failed every valid run |
+| "is the customer pinned?" | that absence from a signature proves nothing | that the knob's NAME is inverted between trees | circulated twice, would have retracted four good numbers |
+| a trait's base rate | the rate it measured | the prompt regime it measured under | a cell can pass or fail a headroom gate on how much policy was in the prompt |
+| a pass rate | the rows it scored | the rows that never reached it | base moved **0.717 to 0.603** when dropped rows came back |
+| a tool-binding test | that name-matching pairs a result to its call | whether real exports carry a `name` at all (they carry an id) | half of tool faults attributed to a tool that **never failed** |
+| a holdout-size calculator | the power arithmetic | that paired arms are **correlated**, not independent | ~30% more tasks demanded than the measured variance needs |
+| "zero rows show the behaviour" | a keyword match on the reply | the result **schema.** It read a `status` field the data does not have | claimed 0 of 504 positive examples; the real number was 191 |
+| "the fix isn't in the SDK" | the grep pattern | that the command had **errored** on an unquoted glob | read a failed command as evidence of absence |
+| `git apply` of a patch | the diff | that a **rebrand renamed the package directory** | "No such file or directory" reads exactly like "already upstream" |
+
+**The tell is always the same: the check examines one half and assumes the other.**
+Before trusting any gate, ask what it had to assume to produce its answer, then test
+*that*.
+
+**A gate that fires on everything gets ignored, which is how it survives.** The
+answer-production gate failed every valid SDK run for hours. Nobody noticed, because a
+gate that is always red reads as noise rather than as a bug. If your gate has never
+passed, it is not strict, it is broken.
+
+**A check that CANNOT fail reads as coverage.** The inverse of the always-red gate, and
+the one that matters for tests. The tool-binding test asserted that name-matching pairs a
+result to its call, on inputs where a name is always present. Real exports carry an id and
+no name, so the test certified the premise it should have been testing. Green for as long
+as it existed. A gate that has never fired has not been shown to work.
+
+**Errors in the flattering direction survive longest.** The dropped judge rows were the
+long ones, and long correlates with failing, so the pass rate moved UP. An error that
+makes a result look worse gets investigated within the hour; one that makes it look
+better gets published. When a number improves for a reason you did not plan, check the
+denominator before you celebrate.
+
+**Print what the check assumed, on the face of the output.** The fix here was not
+smarter detection, it was one line: `reply field: final_text` above the table. An
+assumption you can see is an assumption someone can falsify.
+
 ## 0. First: did the eval actually run?
 
 Before any statistics, check the agent was exercised at all. A hollow run does not
-look broken. It looks like a perfect score.
+look broken, it looks like a perfect score.
 
 Measured: a tester's first hosted run scored **pass@1 = 1.00** because the situation
 writer invented order ids that did not exist, so the refund tool was never called
@@ -100,7 +164,7 @@ measured across five independent lanes (range 0.336-0.453). At that spread:
 | +0.10 | ~55 | **~95** |
 
 **Design for 80% power, not 50%.** At 50% power a real effect of exactly that size
-fails to clear zero half the time. You are coin-flipping on whether your own true
+fails to clear zero half the time, you are coin-flipping on whether your own true
 result reads as a null. The 50%-power column was first circulated here as if it were
 the answer; it is roughly half the prompts actually needed.
 
@@ -126,7 +190,7 @@ for 147.
 
 Averaging ratios across lanes hides this: a set spanning 0.72 to 1.16 has a mean near
 1.0 and is not evidence of calibration. An understatement below 1.0 cannot come from
-the independence assumption, which can only overstate. Look for another cause.
+the independence assumption, which can only overstate, look for another cause.
 
 **Prompts or rollouts? Measure, do not assume.** "Raising k never narrows a
 bootstrap over prompts, always spend on prompts" was asserted and then refuted by
@@ -139,7 +203,7 @@ disagree on the same prompt:
   buys real precision on each one.
 
 Compute it on the eval arms before choosing: the share of prompts whose k rollouts do
-not all agree. Beware the comparison that looks decisive and is not: "103 prompts at
+not all agree. Beware the comparison that looks decisive and is not. "103 prompts at
 k=1 beat 51 prompts at k=2" varies prompt count and k at once and isolates neither.
 
 ## 2. The four ways an eval silently lies
@@ -148,7 +212,7 @@ k=1 beat 51 prompts at k=2" varies prompt count and k at once and isolates neith
 turns live, and the person is voiced by whichever weights you are evaluating, the
 two arms face different environments. Pin the user to one fixed model on BOTH arms.
 Symptom: arms show different mean user-turn counts. Caution: after pinning, some
-asymmetry is legitimate, because a better agent resolves things in fewer exchanges.
+asymmetry is legitimate, a better agent resolves things in fewer exchanges.
 
 **Rows vanish from the denominator.** If the grader can fail on a row, the row must
 still be COUNTED. Long trajectories are the ones that fail to grade, and long
@@ -199,7 +263,7 @@ Distinguish two different moves, because they are not the same thing:
 - **Adding prompts** narrows the interval; the point estimate moving is noise.
 
 One lane read +0.071 -> +0.059 -> +0.041 as "the effect erodes under scrutiny". The
-first step was a real bias removal. The second was **0.53 SE**, which is noise. Treating
+first step was a real bias removal. The second was **0.53 SE.** Noise. Treating
 both as erosion teaches you to expect every effect to vanish, when small evals are
 simply noisy in both directions.
 
@@ -212,6 +276,26 @@ gave p = 0.065. The bootstrap excluded zero, the sign test did not. Report both.
 
 ## 5. Before you train
 
+- **RUN A RANDOM-SELECTION CONTROL. This is not optional and we skipped it on nine
+  adapters.** Rejection sampling is: generate N completions, score them, keep the top,
+  SFT on those (rlhf-book ch. 9). The chapter's closing takeaway is explicit, *"Always
+  run a random-selection control alongside RM-selected training; if RM selection does
+  not beat random, the reward signal is not useful on that data."* Matched pairs:
+  `top_per_prompt` vs `random_per_prompt`, same rows, same count, selected at random
+  instead of by score.
+  **Without it, "the base had no headroom" and "our judge's selection carried no signal"
+  are the same observation.** We attributed seven nulls to the first and never tested the
+  second, while separately discovering the judge was dropping long trajectories from the
+  denominator. It is nearly free on a lane that is already generating.
+- **Check completions per prompt against the method you are running.** Ch. 9: *"Successful
+  implementations use 10 to 30 or more completions per prompt. Too few completions makes
+  training biased and/or noisy."* That is the rejection-sampling/SFT-selection path, and
+  it is a different number from the k>=4 that GRPO groups need. Lanes running k=2 to k=4
+  and then selecting top-per-prompt are 5-15x under the guidance for the path they are
+  actually on.
+  Why it bites: at k=2 the "top" completion is the better of two samples, which is close
+  to a coin flip; the selected set is barely distinguishable from a random draw, which is
+  exactly what the random control would reveal.
 - **Base pass rate decides the optimizer, measured ON THE EVAL YOU WILL RUN, not on
   the training distribution.** `select_for_sft` keeps only passing rows, so above
   roughly 0.6 base there is little left to imitate. Lanes at 0.73 and 0.90 nulled for
@@ -227,6 +311,14 @@ gave p = 0.065. The bootstrap excluded zero, the sign test did not. Report both.
   eval cannot show a gain no matter how good the training data is.
 - **Per-criterion FAILURE counts, not row counts.** A criterion nothing fails cannot
   be learned however many rows attack it.
+- **Base rate is a property of the trait AND the deploy prompt, fix the prompt before
+  you compare cells.** A grounding criterion measured ~0.90 base under a full policy
+  prompt that spells out the grounding rules; the same trait under a bare prompt is a
+  different number entirely. So a cell can pass or fail a headroom gate on nothing but
+  how much policy was left in the prompt. Write ONE bare deploy prompt, names the job,
+  nothing about the trait, and use it for every base measurement, or the numbers are
+  not comparable across cells and the gate is measuring your prompt rather than your
+  model.
 - **For a trait, gate twice:** does the base LACK it (judge base replies with no
   persona in the prompt), and does your DATA CARRY it (judge trait rows against
   control rows). One lane measured base 0.150 and separation 0.983 before spending
