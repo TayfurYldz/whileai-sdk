@@ -33,6 +33,7 @@ from .stats import (
     eval_variance,
     holdout_size,
     marker_names,
+    metric_summary,
     task_means,
 )
 
@@ -214,6 +215,13 @@ def delta_report(
 
     guarded = {_key(m) for m in must_not_regress}
     target_key = _key(target) if target else None
+    degenerate_guards: list[str] = []
+    for m in sorted(guarded):
+        if m not in results:
+            continue
+        sides = [metric_summary(rows, m, n_boot=10) for rows in (before, after)]
+        if all(s.get("degenerate") for s in sides):
+            degenerate_guards.append(m)
     eval_runs = {"before": len(_eval_runs(before)), "after": len(_eval_runs(after))}
     run_std_source = "given" if run_std is not None else None
     if run_std is None and min(eval_runs.values()) >= 2:
@@ -254,6 +262,12 @@ def delta_report(
         warnings.append(
             f"One eval run on {where}, so this could be noise. Run each side three times with "
             "simulate(tasks=..., runs=3) and the report will say."
+        )
+    for m in degenerate_guards:
+        warnings.append(
+            f"must_not_regress {m} is degenerate on both sides (every applicable row scored the "
+            "same value): this guard cannot fail, so it catches nothing. Check that the marker "
+            "fires at all."
         )
     if run_std_source == "eval_run" and min(eval_runs.values()) < 3:
         warnings.append(
@@ -434,6 +448,7 @@ def delta_report(
         "ceiling": ceiling,
         "detectable_effect": can_prove,
         "tasks_needed": tasks_needed,
+        "degenerate_guards": degenerate_guards,
         "proxy": proxy_key,
         "proxy_verdict": proxy_verdict,
         "proxy_delta": proxy_result["delta"] if proxy_result else None,

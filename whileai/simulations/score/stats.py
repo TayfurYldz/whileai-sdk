@@ -250,21 +250,46 @@ def task_means(rows: Sequence[dict], metric: str = "pass_at_1") -> dict[str, flo
 def metric_summary(
     rows: Sequence[dict], metric: str = "pass_at_1", *, n_boot: int = DEFAULT_BOOT, seed: int = 0
 ) -> dict[str, Any]:
-    """Mean over tasks with a task-bootstrap 95% interval."""
+    """Mean over tasks with a task-bootstrap 95% interval.
+
+    ``degenerate`` is set when every applicable row scored the same
+    value: the metric has not been shown to be able to come out any
+    other way, so ``ci95`` is ``None`` (the way ``pass_at`` returns
+    ``None`` below three groups) and ``warning`` says so. A marker that
+    is silently unfireable (a key-name mismatch) and one that is
+    genuinely always true look identical otherwise, and either one passed
+    to ``must_not_regress`` is a guard that cannot fail (#270).
+    ``n_rows_at_1`` and ``n_rows_at_0`` put the row-level split next to
+    the mean.
+    """
     means = task_means(rows, metric)
     values = list(means.values())
-    return {
+    per_task = _by_task(
+        rows, _binary if metric == "pass_at_1" else _marker(metric.split(":", 1)[1])
+    )
+    row_values = [v for vs in per_task.values() for v in vs]
+    distinct = {round(float(v), 9) for v in row_values}
+    degenerate = len(row_values) > 0 and len(distinct) == 1
+    out: dict[str, Any] = {
         "metric": metric,
         "n_tasks": len(values),
-        "n_rows": sum(
-            len(v)
-            for v in _by_task(
-                rows, _binary if metric == "pass_at_1" else _marker(metric.split(":", 1)[1])
-            ).values()
-        ),
+        "n_rows": len(row_values),
+        "n_rows_at_1": sum(1 for v in row_values if float(v) == 1.0),
+        "n_rows_at_0": sum(1 for v in row_values if float(v) == 0.0),
         "mean": _mean(values) if values else None,
-        "ci95": bootstrap_ci(values, n_boot=n_boot, seed=seed),
+        "ci95": None if degenerate else bootstrap_ci(values, n_boot=n_boot, seed=seed),
+        "degenerate": degenerate,
     }
+    if degenerate:
+        only = next(iter(distinct))
+        name = metric.split(":", 1)[1] if metric.startswith("marker:") else metric
+        out["warning"] = (
+            f"all {len(row_values)} applicable rows scored {only:g}; {name} has not been shown "
+            "to be able to come out any other way. Check the marker fires at all (a key-name "
+            "mismatch looks exactly like this) before reading the mean, and do not put it in "
+            "must_not_regress: a guard that cannot fail catches nothing."
+        )
+    return out
 
 
 def marker_names(rows: Sequence[dict]) -> list[str]:
