@@ -77,6 +77,8 @@ _CARRY_KEYS = (
     "token_logprobs",
     "sampling",
     "policy_version",
+    "writer_model",
+    "user_model",
     "usage",
     "tier",
     "ask_family",

@@ -40,6 +40,7 @@ from ..generate.actionspace import (
 from ..generate.adapters import inspect, resolve
 from ..generate.agents import (
     current_rollout,
+    default_agent_spec,
     default_max_turns,
     hosted_model,
     local_model,
@@ -474,6 +475,13 @@ class Run:
             runner_kw["max_tokens"] = int(c.agent_max_tokens)
         if c.logprobs:
             runner_kw["logprobs"] = c.logprobs
+        if c.user_model:
+            runner_kw["user_model"] = c.user_model
+        # Who plays the user: the agent's own model unless user_model= names
+        # another. Callable and HTTP agents take one message and never get a
+        # simulated user, so they carry no tag.
+        self.agent_model: str | None = None
+        self.user_model: str | None = None
         self.policy_version = (
             f"{c.model_version_tag}@"
             f"{hashlib.sha256(str(self.gen_policy or '').encode('utf-8')).hexdigest()[:16]}"
@@ -483,6 +491,7 @@ class Run:
         if c.backend:
             spec_backend = backend_spec(c.backend)
             url, model_name = parse_backend_spec(spec_backend)
+            self.agent_model = model_name
             self.runner = local_model(
                 url,
                 model_name,
@@ -495,6 +504,7 @@ class Run:
             )
             self.simulator = self.simulator if self.simulator is not None else spec_backend
         elif c.agent is None or kind not in {"callable", "backend_spec", "http"}:
+            self.agent_model = parse_backend_spec(default_agent_spec())[1]
             self.runner = hosted_model(
                 self.tools,
                 system=self.gen_policy,
@@ -513,6 +523,8 @@ class Run:
                 timeout=c.rollout_timeout,
                 **runner_kw,
             )
+            if kind == "backend_spec":
+                self.agent_model = parse_backend_spec(c.agent)[1]
         self.kind = kind
         # How the rollouts were sampled, read off the runner that samples
         # them: a model backend knows its temperature, reply budget and
@@ -522,6 +534,10 @@ class Run:
         self.sampling: dict[str, Any] | None = getattr(self.runner, "sampling", None)
         if self.sampling is None and c.sampling is not None:
             self.sampling = dict(c.sampling)
+        if self.agent_model is not None:
+            self.user_model = (
+                parse_backend_spec(c.user_model)[1] if c.user_model else self.agent_model
+            )
 
     def _build_generator(self) -> None:
         c = self.c
@@ -563,6 +579,16 @@ class Run:
         # boost to it directly so round-1 cards and short runs get it too.
         self._apply_allocation(getattr(model_obj, "regions", None))
         model_backend = getattr(getattr(gen, "model", None), "backend_spec", None)
+        # Who writes the situations: the writer model's tag, a callable
+        # writer's name, or "template" when no model writes (simulator=False).
+        self.writer_model = "template"
+        if isinstance(model_backend, str):
+            try:
+                self.writer_model = parse_backend_spec(model_backend)[1]
+            except ValueError:
+                self.writer_model = model_backend
+        elif model_obj is not None and callable(model_obj):
+            self.writer_model = getattr(model_obj, "__name__", "callable-writer")
         if isinstance(model_backend, str):
             try:
                 hosted_url, _ = parse_backend_spec(model_backend)
@@ -662,6 +688,19 @@ class Run:
             "origin": "realized",
         }
 
+    def _writer_of(self, meta: dict) -> str:
+        """The model tag that wrote one prompt. Rows a model did not write
+        say so: ``seed`` is the caller's own opener, ``pinned`` a replay from
+        ``tasks=``, ``template`` the built-in writer and its mutations."""
+        origin = str(meta.get("generator") or "")
+        if origin == "model":
+            return self.writer_model
+        if origin == "user":
+            return "seed"
+        if origin == "pinned":
+            return "pinned"
+        return "template"
+
     def _build_row(self, job: tuple) -> dict:
         """Run one rollout on a worker thread and shape it as a row."""
         c = self.c
@@ -730,6 +769,10 @@ class Run:
             "reason": None,
             "rollout_index": rollout,
             "model_version": c.model_version_tag,
+            # Who wrote this prompt and who played the user, next to who
+            # answered: a row that cannot say is a row nobody can audit.
+            "writer_model": self._writer_of(meta),
+            "user_model": self.user_model,
             "seed": meta.get("seed", c.seed),
             "semantic_cluster": None if not semantic else selection.get("cluster"),
             "semantic_novelty": None if not semantic else selection.get("novelty"),
@@ -2749,6 +2792,33 @@ class Run:
             data.search["behavior_state"]["region_progress"] = region_progress(
                 data.search["behavior_state"], data.trajectories
             )
+        data.writer_model = self.writer_model
+        data.user_model = self.user_model
+        # One model writing the exam, sitting it, and playing the examiner's
+        # stand-in is the regime the rlhf-book warns about (ch. 12: a model
+        # trained on its own unfiltered output learns its own habits). The
+        # default still does it; the run says so, once, and names the fix.
+        roles = [
+            role
+            for role, tag in (
+                ("wrote the situations", self.writer_model),
+                ("played the user", self.user_model),
+            )
+            if self.agent_model and tag == self.agent_model
+        ]
+        if roles:
+            fix = " and ".join(
+                {"wrote the situations": "simulator=", "played the user": "user_model="}[r]
+                for r in roles
+            )
+            note = (
+                f"The agent model ({self.agent_model}) also {' and '.join(roles)}. "
+                f"Pass {fix} to use a different model."
+            )
+            if "same_model" not in data.degraded:
+                data.degraded.append("same_model")
+            data.warnings.append(note)
+            log.warning(note)
         if c.out_path is not None and data.trajectories:
             data.save(str(c.out_path), meta=True)
         return data

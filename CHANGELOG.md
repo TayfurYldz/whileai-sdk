@@ -33,6 +33,22 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   situation, not a string. `PassAt.per_task` and `curriculum()`'s
   `task_id` are keyed by that key; `curriculum()` still carries a
   `prompt` per task.
+- Every row says which model did which job. `writer_model` (the situation
+  writer's model tag, or `template` / `seed` / `pinned` when no model wrote
+  the prompt) and `user_model` (who played the simulated user; absent when
+  the agent took a single message) sit next to `model_version` on every
+  row, ride through `export_row`, `training_rows`, and the `from_row` /
+  `to_row` round trip like `policy_version`, and appear in `data.metadata`
+  and the `.meta.json` sidecar with `judge_model` (read off each row's
+  existing `judge_meta.model`).
+- `simulate(user_model=...)`: a backend spec for the model that plays the
+  user in follow-up turns and answers the agent's questions. `None` (the
+  default) keeps today's behavior, the agent's own model.
+- When the agent model also wrote the situations or played the user, the
+  run appends `same_model` to `degraded`, adds one plain sentence to the new
+  `data.warnings` list naming the call that separates them (`simulator=`,
+  `user_model=`), and logs it once at the end. Defaults are unchanged: the
+  same hosted model still does all three jobs unless you say otherwise.
 - The import alias in every example, recipe, docstring and the skill is
   `wai` (`import whileai.simulations as wai`), not `zps`. Nothing in the
   package changes; `zps` was only ever a name in your own code.
