@@ -1,0 +1,30 @@
+name: Ask for a recipe
+description: A post-training run you want worked out end to end, hosted here.
+labels: ["recipe"]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What you are trying to train
+      description: The agent, the behavior you want moved, and how you would know it moved.
+    validations:
+      required: true
+  - type: dropdown
+    id: step
+    attributes:
+      label: Which step
+      options:
+        - 01-simulate — make rollouts
+        - 02-measure — say what the numbers mean
+        - 03-select — turn graded rows into training data
+        - 04-train — train it
+        - 05-export — ship the data and the adapter
+        - not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: offer
+    attributes:
+      label: Optional
+      options:
+        - label: I would write this one if someone pointed me at the closest existing recipe.

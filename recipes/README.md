@@ -33,6 +33,22 @@ reading the others:
   Checked-in data is the exception and is named in the README.
 - Every measured claim is a paired number with a 95% interval on a held-out
   set, produced by the SDK (`pass_at`, `delta_report`), never a mean alone.
+- `smoke.sh` runs the whole recipe with no key, no GPU and no spend, in under
+  a minute. CI runs every one of them on every pull request.
+
+## Write one
+
+Copy [`_template/`](_template) into the step it belongs to, replace the parts
+in angle brackets, and open a pull request. The rest is in
+[CONTRIBUTING.md](../CONTRIBUTING.md#contributing-a-recipe).
+
+```bash
+cp -r recipes/_template recipes/03-select/my-recipe
+sh recipes/03-select/my-recipe/smoke.sh
+```
+
+A recipe that trains on Modal we run on our own account before merging: a
+fork's pull request gets no secrets from this repository, by design.
 
 ## 01-simulate
 
