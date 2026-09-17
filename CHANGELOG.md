@@ -5,6 +5,13 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `load_traces` binds a tool result to the call that asked for it by
+  `tool_call_id`, falling back to name then position. Real agent exports
+  carry an id and no `name`, so every result fell through to position, and
+  providers answer parallel calls out of order: on a 100-trace corpus in
+  that shape, half the tool faults were attributed to a tool that never
+  failed. Two calls to one tool are separable only by id.
+
 - `holdout_size(effect, base=, k=, power=, alpha=, rows=)` says how many
   paired tasks a holdout needs to prove a gain, modelled on the paired
   task bootstrap `delta_report` runs (rlhf-book ch. 16, appendix C), and
