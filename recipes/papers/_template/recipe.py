@@ -4,10 +4,14 @@
     python recipe.py --arm recipe --steps 200 # one arm, longer
 
 Shape of every recipe:
-  1. data():      tasks + a task-disjoint holdout (public data or a seeded env in this dir)
-  2. train(arm):  "baseline" or "recipe"; the recipe arm is the baseline plus ONE change
-  3. evaluate():  same holdout, k samples per task, before and after each arm
-  4. results.json + the paired delta (zeroproof.simulations.delta_report) on the run page
+  1. data():      tasks + a task-disjoint holdout (public data or a seeded env in this dir),
+                  decontaminated: train rows that overlap the holdout are dropped (rlhf-book ch. 16)
+  2. evaluate():  the untrained base, k samples per task, THREE times -> eval_variance run_std,
+                  so a delta smaller than the eval's own noise is never called a result (ch. 16)
+  3. train(arm):  "baseline" or "recipe"; the recipe arm is the baseline plus ONE change
+  4. evaluate():  each arm on the same holdout; delta_report with run_std and the training
+                  reward named as proxy, so over-optimization is a verdict, not a vibe (ch. 14)
+  5. results.json + the checks the README table reads
 
 Training runs on Modal (TRL + LoRA, see recipes/04-train/grpo/train_modal.py)
 or through the hosted trainer (zps.train(..., method=, loss_type=, beta=, ...)).
@@ -18,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import statistics
 from datetime import date
 from importlib.metadata import version
 from pathlib import Path
@@ -27,6 +32,9 @@ import zeroproof.simulations as zps
 HERE = Path(__file__).resolve().parent
 BASE_MODEL = "Qwen/Qwen3-4B"
 METRIC = "pass@1"
+BOOK = "ch. 6"  # the rlhfbook.com chapter this recipe tests or relies on
+PROXY = None  # e.g. "marker:shaped_reward" when the training reward differs from the target
+EVAL_RUNS = 3  # re-runs of the base eval that set the noise floor
 
 
 def data(seed: int) -> tuple[list[dict], list[dict]]:
@@ -39,14 +47,20 @@ def train(arm: str, tasks: list[dict], steps: int, seed: int) -> str:
     raise NotImplementedError
 
 
-def evaluate(model: str | None, holdout: list[dict], k: int) -> list[dict]:
-    """k samples per holdout task from `model` (None = the untrained base), graded rows."""
+def evaluate(model: str | None, holdout: list[dict], k: int, seed: int) -> list[dict]:
+    """k samples per holdout task from `model` (None = the untrained base), graded rows.
+    Every row carries `prompt`, `final_text`, `reward` (0/1 from a program or gold answer),
+    and `markers` (the training reward under PROXY when it differs from the target)."""
     raise NotImplementedError
 
 
 def summarize(rows: list[dict]) -> dict:
     p = zps.pass_at(rows)  # pass@1 with its task-bootstrap interval, pass@k, pass^k
     return {"score": p.pass_at_1, "ci": list(p.ci95 or (0.0, 0.0)), "pass_at_k": p.pass_at_k}
+
+
+def mean_length(rows: list[dict]) -> float:
+    return statistics.fmean(len(r.get("final_text") or "") for r in rows) if rows else 0.0
 
 
 def main() -> None:
@@ -58,29 +72,54 @@ def main() -> None:
     args = ap.parse_args()
 
     train_tasks, holdout = data(args.seed)
-    base_rows = evaluate(None, holdout, args.k)
-    results = {
+    train_tasks, decon = zps.decontaminate(train_tasks, against=holdout)
+
+    base_runs = [evaluate(None, holdout, args.k, args.seed + i) for i in range(EVAL_RUNS)]
+    noise = zps.eval_variance(*base_runs)
+    run_std = float(noise["run_std"])
+    base_rows = base_runs[0]
+
+    results: dict = {
         "recipe": HERE.name,
+        "paper": "",
+        "book": BOOK,
         "base_model": BASE_MODEL,
         "metric": METRIC,
         "n_holdout": len(holdout),
         "k": args.k,
         "arms": {"base": {**summarize(base_rows), "steps": 0, "gpu_minutes": 0}},
+        "checks": {
+            "run_std": run_std,
+            "decontaminated_dropped": int(decon.get("n_contaminated", 0)),
+            "over_optimized": False,
+            "length_before": mean_length(base_rows),
+            "length_after": {},
+            "hack_scan_top": "",
+            "seed": args.seed,
+        },
         "verified": date.today().isoformat(),
         "zeroproof": version("zeroproof"),
     }
     arm_rows: dict[str, list[dict]] = {}
     for arm in ["baseline", "recipe"] if args.arm == "both" else [args.arm]:
         model = train(arm, train_tasks, args.steps, args.seed)
-        arm_rows[arm] = evaluate(model, holdout, args.k)
+        arm_rows[arm] = evaluate(model, holdout, args.k, args.seed)
         results["arms"][arm] = {**summarize(arm_rows[arm]), "steps": args.steps}
+        results["checks"]["length_after"][arm] = mean_length(arm_rows[arm])
     if len(arm_rows) == 2:
-        d = zps.delta_report(arm_rows["baseline"], arm_rows["recipe"], target="pass_at_1")
+        d = zps.delta_report(
+            arm_rows["baseline"],
+            arm_rows["recipe"],
+            target="pass_at_1",
+            run_std=run_std,
+            proxy=PROXY,
+        )
         results["delta"] = {
             "recipe_vs_baseline": d["target_delta"],
             "ci": list(d["target_ci95"] or (0.0, 0.0)),
             "verdict": "moved" if d["target_verdict"] == "moved" else "flat",
         }
+        results["checks"]["over_optimized"] = bool(d["over_optimized"])
         print(zps.format_delta_report(d))
     (HERE / "results.json").write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))
