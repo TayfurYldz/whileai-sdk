@@ -2,7 +2,7 @@
 
 A question about a database in, one SQL query out, and a reward that is a
 program: run the query, compare the result set to the gold query's result.
-No judge. This example builds the task set for a schema, benchmarks any
+No judge. This recipe builds the task set for a schema, benchmarks any
 model on it, trains a 4B model with GRPO against that reward on Modal, and
 measures each round on the same held-out tasks, so the curve is paired,
 has an interval, and cannot be gamed by a wordier answer.
@@ -16,7 +16,7 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 |---|---|
 | `schema.sql`, `seed.sql`, `gen_seed.py` | the database (Postgres 16). `seed.sql` is canonical: the tasks were checked against it. `gen_seed.py` is how it was made (its reviews block was not deterministic when the shipped file was generated, so a regeneration differs there; regenerate only together with re-authoring tasks) |
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
-| `tasks.jsonl` | 417 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 81 are held out by a hash of the id, the same split in every script |
+| `tasks.jsonl` | 741 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 140 are held out by a hash of the id, the same split in every script (the first 417 tasks and their 81-task holdout are the "first cut" below) |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
 | `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
 | `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
@@ -201,6 +201,36 @@ training file.
 - **Thinking models need a reply budget.** `simulate(agent_max_tokens=4096,
   timeout=300)` (whileai >= 0.47); on the default 2048-token cap and
   60 s timeout the base lost 8% of replies mid-thought and 4 of 81 tasks.
+- **Check what the SDK sent the model, not just what came back.** Before
+  0.51, `simulate(tasks=...)` with a prompt-only agent drafted a tool surface
+  for the situation writer and sent those schemas to the policy too. Qwen
+  mostly ignored them; Nemotron-Nano-8B called a made-up tool on every task
+  (pass@1 0.00), and 42 of r3's 560 holdout replies were tool calls scored as
+  failures. Pinned tasks now never draft tools; the r3 row below is the clean
+  re-measure. The polluted files are kept in `raw/with-drafted-tools/`.
+
+## Other bases on the same holdout (140 tasks, k=4)
+
+Served with `serve_modal.py` (vLLM on one L40S) and sampled through
+`rollout.py --agent "vllm:<model>@<url>"`, so any Hugging Face model gets the
+same paired number as the hosted ones.
+
+| Model | pass@1 (95% CI) | pass^4 | pass@4 | no SQL | SQL error |
+|---|---|---|---|---|---|
+| Qwen3-4B, thinking on (base of the climb) | 0.58 (0.52..0.64) | 0.31 | 0.81 | 0.13 | 0.12 |
+| Nemotron-Nano-8B-v1, `detailed thinking off` | 0.26 (0.20..0.33) | 0.14 | 0.39 | 0.00 | 0.55 |
+| Nemotron-Nano-8B-v1, `detailed thinking on` | 0.26 (0.20..0.33) | 0.15 | 0.39 | 0.00 | 0.53 |
+
+Nemotron-Nano-8B-v1 is half of Qwen3-4B here, and its two arms are the same
+number because its reasoning mode never engages on these prompts: with the
+schema in the context (system turn, user turn, DDL only, question first, or
+the one-query rule softened to "think first") every reply is a bare query,
+while the model card's own math example thinks for 3,000+ characters. Even a
+forced `<think>` prefill closes after one line. Its failures are real SQL
+errors (`WHERE NOT IN (...)` with no column, an alias used before its join,
+non-grouped columns), not format. Headroom is 0.12, the same as Qwen's, so a
+GRPO round on it (`text-to-sql-shop-nemotron-r1`, thinking off, 600 steps)
+is running; the row lands here when it is measured.
 
 ## The hill climb (thinking on, GRPO, execution reward)
 
@@ -215,12 +245,15 @@ the intervals below are the 140-task ones (about +-0.06).
 | r1 | base | GRPO 100 steps, lr 2e-5, beta 0.04, HF generate | 0.58 (0.52..0.64) | 0.29 | 0.89 |
 | r2 | r1 | GRPO 200 steps, lr 5e-5, beta 0.01 | 0.60 (0.54..0.67) | 0.34 | 0.90 |
 | sft-think | base | self-distillation: 199 verified traces, hosted SFT 2 epochs | 0.60 (0.54..0.67) | 0.39 | 0.96 |
-| r3 | r2 | GRPO 1,000 steps, lr 2e-5, beta 0.01, vLLM generation, 8 prompts per generate | 0.62 (0.55..0.68) | 0.34 | 0.87 |
+| r3 | r2 | GRPO 1,000 steps, lr 2e-5, beta 0.01, vLLM generation, 8 prompts per generate | 0.61 (0.56..0.67) | 0.29 | 0.86 |
 
-r3 vs base: +0.032 (95% -0.018..+0.082), up at every difficulty (easy +0.04,
-medium +0.02, hard +0.04), the first round whose interval is mostly above
-zero and the best checkpoint so far; not yet a proven climb by the SDK's
-rule (interval excludes zero). Each checkpoint's holdout rollouts and adapter
+r3 vs base: +0.029 (95% -0.016..+0.073), up at every difficulty (easy +0.02,
+medium +0.04, hard +0.03) and clearly up on one archetype, date and time
+(0.43 -> 0.58, +0.15, 95% +0.03..+0.27); the best checkpoint so far, not yet a
+proven climb by the SDK's rule (the pass@1 interval still covers zero). This
+is the clean re-measure after the drafted-tools fix (see lessons); the first
+measurement, 0.62 (0.55..0.68) with 42 tool-call replies, is in
+`raw/with-drafted-tools/`. Each checkpoint's holdout rollouts and adapter
 are on Hugging Face: dataset `zero-proof-ai/text-to-sql-shop` (configs
 `eval-base`, `eval-r1`, `eval-r2`, `eval-sft-think`, `eval-r3`), adapters
 `zero-proof-ai/text-to-sql-shop-<checkpoint>`.

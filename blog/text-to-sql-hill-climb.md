@@ -26,7 +26,7 @@ improvement can be proven rather than claimed. So we built a checker that
 runs the model's query and compares the rows it returns to the right answer,
 trained the model in rounds against that checker, and scored every round on
 the same 140 questions it never saw during training. After three rounds the
-first-try accuracy went from 58% to 62%. That is progress, but the
+first-try accuracy went from 58% to 61%. That is progress, but the
 uncertainty band still reaches back to zero, so we do not call it proven yet.
 Two other things improved clearly: the model stopped producing answers with
 no query in them, and it got more consistent from one try to the next. All
@@ -100,7 +100,7 @@ the uncertainty band to about six points.
 | round 1 | base | 100 training steps | 58% (52..64) | 29% | 89% |
 | round 2 | round 1 | 200 more steps, larger updates | 60% (54..67) | 34% | 90% |
 | self-taught | base | fine-tuned on its own 199 correct answers | 60% (54..67) | 39% | 96% |
-| round 3 | round 2 | 1,000 more steps, faster sampling | 62% (55..68) | 34% | 87% |
+| round 3 | round 2 | 1,000 more steps, faster sampling | 61% (56..67) | 29% | 86% |
 
 Each checkpoint's 560 test replies are a separate config in the Hugging Face
 dataset (`eval-base`, `eval-r1`, and so on), and each trained checkpoint is
@@ -110,9 +110,10 @@ number in this table can be recomputed by anyone.
 ## What we learned
 
 **First-try accuracy moved a little, and only with a real dose of training.**
-58, 58, 60, 62. Round 3 is three points better than the base, up at every
-difficulty level, and the band on that difference runs from minus two to
-plus eight. Better, and not proven. We would rather say that than round it
+58, 58, 60, 61. Round 3 is three points better than the base, up at every
+difficulty level and clearly up on date questions (43% to 58%), and the band
+on the overall difference runs from minus two to plus seven. Better, and not
+proven. We would rather say that than round it
 up.
 
 **Training scores rose faster than test scores.** Inside every round, the
@@ -138,7 +139,7 @@ training score was no better after 250 steps and each step got slower as it
 wandered. We stopped it. Whatever moves this model on this task, it is not a
 bigger learning rate.
 
-## Four things that had to be fixed to keep going
+## Five things that had to be fixed to keep going
 
 1. **Sampling was the bottleneck.** The standard training loop generated the
    model's practice answers slowly: 65 seconds per step with reasoning on.
@@ -155,6 +156,14 @@ bigger learning rate.
 4. **Reasoning models need room to think.** The SDK capped replies at 2,048
    tokens and gave up after 60 seconds, which cut 8% of the base model's
    answers off mid-thought. Both limits are now settings.
+5. **Check what was sent to the model, not only what came back.** For a
+   prompt-only agent the SDK invents a plausible tool list so its situation
+   writer has a world to work in, and it was sending that list to the model
+   under test as well. Qwen mostly ignored it; a Nemotron model called a
+   made-up tool on every single question and scored zero, and 42 of round
+   3's 560 test replies were tool calls. Fixed: a fixed task list never gets
+   invented tools. The round 3 numbers above are the clean re-measure; the
+   first measurement (62%) is kept alongside the data.
 
 ## What we would do next
 
