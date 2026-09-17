@@ -55,6 +55,7 @@ _MOVED_NAMES = {
     "concurrency",
     "dimensions",
     "simulator",
+    "user_model",
     "backend",
     "fault_rate",
     "risk",
@@ -342,6 +343,8 @@ class RunConfig:
     concurrency: int
     dimensions: Any
     simulator: Any
+    # the simulated user's model: a backend spec, or None for the agent's own
+    user_model: str | None
     backend: Any
     fault_rate: float
     max_turns: Any
@@ -450,6 +453,14 @@ def resolve_run_config(
     concurrency = int(cfg.pop("concurrency", 32))
     dimensions = cfg.pop("dimensions", None)
     simulator = writer_spec_for(agent, cfg.pop("simulator", None))
+    user_model = cfg.pop("user_model", None)
+    if user_model is not None:
+        if not isinstance(user_model, str):
+            raise TypeError(
+                "user_model= is a backend spec string ('openai:<model>' or "
+                "'vllm:<model>@<url>') or None for the agent's own model"
+            )
+        user_model = user_model.strip() or None
     backend = cfg.pop("backend", None)
     explicit_fault = "fault_rate" in cfg or "risk" in cfg
     fault_rate = float(cfg.pop("fault_rate", DEFAULT_FAULT_RATE))
@@ -630,6 +641,7 @@ def resolve_run_config(
         concurrency=concurrency,
         dimensions=dimensions,
         simulator=simulator,
+        user_model=user_model,
         backend=backend,
         fault_rate=fault_rate,
         max_turns=max_turns,

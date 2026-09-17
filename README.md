@@ -7,7 +7,7 @@ The While Python SDK. One package, two importable modules:
 
 **Renamed.** This SDK was `zeroproof` (ZeroProof is now While). `pip install zeroproof` still works: it installs `whileai`, and `import zeroproof` (or the older `zeroproof_simulations`) resolves to the same modules with a deprecation warning. `ZEROPROOF_*` environment variables and a saved `~/.zeroproof/credentials.json` are still read. Change the import when you can; new releases land under `whileai`.
 
-Releases of `zeroproof` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `zeroproof<0.3` if you still depend on it.
+Releases of `whileai` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `whileai<0.3` if you still depend on it.
 
 Two ways in, one engine. Give it the agent's tools and system prompt and it samples situations across everything that agent can be asked. Give it graded traces as well (`traces=`, plain row dicts — see [Close the loop](#close-the-loop-aim-the-budget-with-traces)) and it aims the budget at the situations that fail in production, so new rows land where the agent is weak and carry both the failure and the fixed version. Every row is a full conversation: user turns, agent turns, tool calls, tool results, scheduled faults. Rows come back ungraded; your grader decides what good means. Default `explore`: one unique situation per row. How it thinks: [docs/simulations.md](docs/simulations.md).
 
@@ -425,6 +425,7 @@ Pass `spec=` if you have a local tools-and-system-prompt folder of your own: a d
 | `rollouts_per_request` | from mode | Repeats: reruns of one phrasing. Alias `repeats=` |
 | `fault_rate` | `0.5` | Broken tools. `0` off. Applied by the mock world, so a callable `agent=` that answers its own tool calls never sees one |
 | `simulator` | hosted Qwen | Situation writer. `False` uses the built-in template writer (no model, less variety); an `openai:`/`vllm:` spec runs it on your endpoint |
+| `user_model` | `None` | Who plays the simulated user in follow-up turns. `None` is the agent's own model; an `openai:`/`vllm:` spec moves that job to another model |
 | `traces` | `None` | Graded traces of the deployed agent — a list of plain row dicts or a JSONL path. Aims the coverage grid at the behaviors those traces show and keeps the sources out of the generated rows. See [Close the loop](#close-the-loop-aim-the-budget-with-traces) |
 | `tasks` | `None` | Re-run a previous run's task set instead of drawing a new one: that run, its rows, or its JSONL path. k is **not** inherited — see [Same tasks, new prompt](#trust-the-numbers) |
 | `logprobs` | `False` | Ask the rollout model for the log-probability of every token it generates. Each agent turn's step gets `logprob` and `n_tokens`, the row gets the totals. `"tokens"` keeps the per-token list. Model backends only |
@@ -1051,6 +1052,8 @@ Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollo
 ## Output
 
 Each row, in `data.trajectories` and on disk: `prompt`, `messages`, `steps`, `final_text`, `scenario_id`. Optional `world_state`, `faults`, `reward`, `reason`. `llm_grade=True` adds `llm_reward`. `wai.rank(path)` adds `quality` without changing `reward`.
+
+Three models can take part in a run, and by default they are one: the agent answers, and the same model writes the situations and plays the user in follow-up turns (only the judge is a different model). Every row now says who did which job, next to `model_version` for the agent: `writer_model` (the writer's model, or `template`, `seed`, `pinned` when no model wrote the prompt), `user_model` (absent when the agent took a single message), and `judge_meta.model` once graded; `data.metadata` and the `.meta.json` sidecar carry the same three. When the agent model also wrote the situations or played the user, `data.degraded` holds `same_model` and `data.warnings` says so in one sentence, with the fix: pass `simulator=` for the writer and `user_model=` for the user to put those jobs on a different model.
 
 What goes to disk is the whole row, not a summary of it: `data.rows` (the same list `output=` and `save()` write, callable as `data.rows()` too) carries everything the trajectory carries, so a saved run can still prove its own provenance. That includes how the situation was drawn (`scenario_dimensions`, `arm`, `selection_reason`, `behavior_signature`, `seed`), who graded it and how that went (`judge_name`, `judge_status`, `judge_meta`, `lineage`, `label_source`), and what was measured on it (`markers`, read by `marker_summary` and `delta_report`). Two things never ship, at any depth of the row: the teacher-only `privileged` block and its `principle` / `hidden_state` / `reference` / `rubric` fields, which would put the answer key one step from a training file, and `vector`, the raw embedding the diversity search keeps in memory for the length of the run. A privileged block nested inside a carried field or a tool result is dropped the same way, before `messages` is rebuilt from the steps.
 
