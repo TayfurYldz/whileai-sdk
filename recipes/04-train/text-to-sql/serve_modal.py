@@ -144,7 +144,9 @@ if __name__ == "__main__":
     ap.add_argument("--gpu", default=GPU)
     ap.add_argument("--max-len", type=int, default=MAX_LEN)
     ap.add_argument("--tool-parser", default=TOOL_PARSER)
-    ap.add_argument("--runs-volume", default=RUNS_VOLUME, help="Modal volume holding <run_id>/adapter")
+    ap.add_argument(
+        "--runs-volume", default=RUNS_VOLUME, help="Modal volume holding <run_id>/adapter"
+    )
     ap.add_argument("--hf-cache", default=HF_CACHE, help="Modal volume for the Hugging Face cache")
     ap.add_argument("--url", action="store_true", help="print the deployed endpoint URL and exit")
     a = ap.parse_args()
