@@ -27,6 +27,10 @@ import urllib.request
 import tomllib
 
 PYPI = "https://pypi.org/pypi/{name}/json"
+# The old name of this package. Its releases count as prior releases of
+# the new name (the numbering continues across the rename), and every
+# release ships a shim under it that must carry the same version.
+COMPAT = "compat/zeroproof/pyproject.toml"
 
 
 def local_version(path: str = "pyproject.toml") -> tuple[str, str]:
@@ -53,10 +57,25 @@ def published(name: str) -> list[tuple[int, ...]]:
     out = []
     for raw in data.get("releases", {}):
         try:
-            out.append(Version(raw).release)
+            release = Version(raw).release
         except InvalidVersion:
             continue
+        # A name-reservation upload (0.0.1) is not part of the scheme.
+        if len(release) == 2:
+            out.append(release)
     return sorted(out)
+
+
+def compat_check(name: str, version: str) -> tuple[str, list[tuple[int, ...]]]:
+    """The shim's name and published releases; fail if it is out of step."""
+    old_name, old_version = local_version(COMPAT)
+    if old_version != version:
+        fail(f"{COMPAT} is at {old_version}, pyproject.toml is at {version}; keep them equal")
+    with open(COMPAT, "rb") as fh:
+        deps = tomllib.load(fh)["project"]["dependencies"]
+    if f"{name}>={version}" not in deps:
+        fail(f"{COMPAT} must depend on {name}>={version}, has {deps}")
+    return old_name, published(old_name)
 
 
 def tagged(version: str) -> bool:
@@ -103,7 +122,10 @@ def main() -> int:
         fail(f"{version!r} has a pre/post/dev/local segment; releases must be plain.")
 
     prior = published(name)
-    print(f"package        : {name}")
+    old_name, old_prior = compat_check(name, version)
+    if not prior:
+        prior = old_prior  # continue the numbering from the old name
+    print(f"package        : {name} (was {old_name})")
     print(f"local version  : {version}  (normalized {current})")
     shown = [".".join(map(str, p)) for p in prior[-5:]] or "none"
     print(f"published      : {shown}")

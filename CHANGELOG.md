@@ -33,6 +33,28 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   situation, not a string. `PassAt.per_task` and `curriculum()`'s
   `task_id` are keyed by that key; `curriculum()` still carries a
   `prompt` per task.
+- The import alias in every example, recipe, docstring and the skill is
+  `wai` (`import whileai.simulations as wai`), not `zps`. Nothing in the
+  package changes; `zps` was only ever a name in your own code.
+  `scripts/rebrand.py --alias` applies the same rename to an open branch.
+
+## 0.51 (2026-09-16)
+
+- **Renamed to `whileai`.** ZeroProof is now While, and the package follows:
+  `pip install whileai`, `import whileai`, `import whileai.simulations as zps`,
+  the `whileai` command, `WHILEAI_*` environment variables, `~/.whileai` for
+  the saved login, and `whileai.WhileIngestError`. Nothing old breaks: the
+  `zeroproof` distribution keeps releasing as a shim (`compat/zeroproof`) that
+  installs `whileai` and aliases `import zeroproof` and
+  `import zeroproof_simulations` to the same module objects with a
+  `DeprecationWarning`; the `zeroproof` command still runs; every
+  `ZEROPROOF_*` variable is read when its `WHILEAI_*` twin is unset; a
+  `~/.zeroproof/credentials.json` is used until `~/.whileai` has one;
+  `ZeroProofIngestError` is an alias of `WhileIngestError`. Hosts
+  (`api.zeroproofai.com`, the Modal apps), the `zp_` key prefix, the
+  Hugging Face org and the `zeroproof.*` span attributes are unchanged. The
+  repository moved to `whilehq/whileai-sdk`. The rename is `scripts/rebrand.py`,
+  a script to run on an open branch instead of resolving conflicts by hand.
 
 ## 0.50 (2026-09-17)
 

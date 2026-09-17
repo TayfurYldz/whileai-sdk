@@ -3,9 +3,9 @@
 The While Python SDK. One package, two importable modules:
 
 - `whileai`: the platform client. OTLP trace ingest and trace-dataset listing against the token gate.
-- `whileai.simulations`: post-training data for an agent. (Was the separate top-level package `whileai.simulations`; that name still imports for two releases with a deprecation warning.) Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
+- `whileai.simulations`: post-training data for an agent. Give it the agent's traces, or its tools and system prompt; it simulates the situations, the people, and the world, plays the agent through multi-turn tool-calling conversations, and returns rows for your grader.
 
-This repo absorbed the `whileai-simulations` package; `whileai-simulations` on PyPI is deprecated in favor of `whileai`.
+**Renamed.** This SDK was `zeroproof` (ZeroProof is now While). `pip install zeroproof` still works: it installs `whileai`, and `import zeroproof` (or the older `zeroproof_simulations`) resolves to the same modules with a deprecation warning. `ZEROPROOF_*` environment variables and a saved `~/.zeroproof/credentials.json` are still read. Change the import when you can; new releases land under `whileai`.
 
 Releases of `whileai` before 0.3 were an unrelated encrypted agent-to-agent messaging client. That code was removed in 0.04; pin `whileai<0.3` if you still depend on it.
 
