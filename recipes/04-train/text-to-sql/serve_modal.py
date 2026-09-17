@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -55,8 +56,12 @@ image = (
         }
     )
 )
-hf_cache = modal.Volume.from_name("whileai-hf-cache", create_if_missing=True)
-runs_volume = modal.Volume.from_name("whileai-train-runs", create_if_missing=True)
+# Runs trained before the whileai rename live on the zeroproof-* volumes;
+# `--runs-volume` / `--hf-cache` point a deploy at them.
+RUNS_VOLUME = _cfg.get("runs_volume") or "whileai-train-runs"
+HF_CACHE = _cfg.get("hf_cache") or "whileai-hf-cache"
+hf_cache = modal.Volume.from_name(HF_CACHE, create_if_missing=True)
+runs_volume = modal.Volume.from_name(RUNS_VOLUME, create_if_missing=True)
 
 
 @app.function(
@@ -110,10 +115,15 @@ def serve():
     ]
     if adapter.startswith("volume:"):
         run_id = adapter.split(":", 1)[1]
+        # vLLM mmaps the adapter tensors; on the volume's FUSE mount that
+        # surfaced as "No adapter found for /vol/<run>/adapter" although the
+        # files were there. Copy the adapter (a few hundred MB) to local disk.
+        local = f"/root/adapters/{run_id}"
+        shutil.copytree(f"/vol/{run_id}/adapter", local, dirs_exist_ok=True)
         cmd += [
             "--enable-lora",
             "--lora-modules",
-            f"{model}-adapter=/vol/{run_id}/adapter",
+            f"{model}-adapter={local}",
             "--max-lora-rank",
             "64",
         ]
@@ -134,6 +144,8 @@ if __name__ == "__main__":
     ap.add_argument("--gpu", default=GPU)
     ap.add_argument("--max-len", type=int, default=MAX_LEN)
     ap.add_argument("--tool-parser", default=TOOL_PARSER)
+    ap.add_argument("--runs-volume", default=RUNS_VOLUME, help="Modal volume holding <run_id>/adapter")
+    ap.add_argument("--hf-cache", default=HF_CACHE, help="Modal volume for the Hugging Face cache")
     ap.add_argument("--url", action="store_true", help="print the deployed endpoint URL and exit")
     a = ap.parse_args()
     if a.url:
@@ -148,6 +160,8 @@ if __name__ == "__main__":
                 "gpu": a.gpu,
                 "max_len": a.max_len,
                 "tool_parser": a.tool_parser,
+                "runs_volume": a.runs_volume,
+                "hf_cache": a.hf_cache,
             },
             indent=1,
         ),

@@ -211,7 +211,9 @@ training file.
 
 ## Other bases on the same holdout (140 tasks, k=4)
 
-Served with `serve_modal.py` (vLLM on one L40S) and sampled through
+Served with `serve_modal.py` (vLLM on one L40S; `--adapter volume:<run_id>`
+serves a trained LoRA as `<base>-adapter`, `--runs-volume` names the volume the
+run was written to) and sampled through
 `rollout.py --agent "vllm:<model>@<url>"`, so any Hugging Face model gets the
 same paired number as the hosted ones.
 
