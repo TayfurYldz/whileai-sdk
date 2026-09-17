@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.generate.coverage import pairwise_coverage
-from zeroproof.simulations.generate.diversity import sample_turn_budget
-from zeroproof.simulations.ingest.traces import behavior_state
+from whileai.simulations.generate.coverage import pairwise_coverage
+from whileai.simulations.generate.diversity import sample_turn_budget
+from whileai.simulations.ingest.traces import behavior_state
 
 
 def _row(marker: str, ok: bool, version: str) -> dict:

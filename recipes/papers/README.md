@@ -13,7 +13,7 @@ what it claims, the steps, one command, what happened.
 <!-- table:start -->
 | Recipe | Paper | Base | Metric | Baseline -> Recipe | Verified |
 |---|---|---|---|---|---|
-| [adaptive-clip](adaptive-clip) | [2609.00444](https://arxiv.org/abs/2609.00444) | Qwen/Qwen2.5-1.5B-Instruct | pass@1 | 0.00 -> 0.00 (+0.00 [+0.00, +0.00], flat) | never run |
+| _none yet_ | | | | | |
 <!-- table:end -->
 
 The table is generated: `python recipes/papers/check.py --write` reads every
@@ -22,8 +22,8 @@ The table is generated: `python recipes/papers/check.py --write` reads every
 ## Run one
 
 ```bash
-pip install zeroproof modal
-export ZEROPROOF_API_KEY=...        # run page + datasets at zeroproofai.com/platform
+pip install whileai modal
+export WHILEAI_API_KEY=...        # run page + datasets at zeroproofai.com/platform
 modal token set --token-id ... --token-secret ...
 cd recipes/papers/<slug>
 python recipe.py                    # both arms, writes results.json
@@ -32,7 +32,7 @@ python recipe.py                    # both arms, writes results.json
 ## The contract
 
 - `README.md` in the shape of [`_template/README.md`](_template/README.md): Paper, Claim, The change, numbered steps, one command, the Result table, the Climb table, three Learned bullets, the Verified line.
-- `recipe.py`: one file. Data, then train, then eval, then `results.json`. Two arms on the same holdout: the baseline and the paper's change. Paired delta with a 95% interval (`zps.delta_report`).
+- `recipe.py`: one file. Data, then train, then eval, then `results.json`. Two arms on the same holdout: the baseline and the paper's change. Paired delta with a 95% interval (`wai.delta_report`).
 - `results.json`: the numbers the table above reads. Shape in [`_template/results.json`](_template/results.json).
 - Default run: under 60 GPU minutes, under $10. Bigger runs behind a flag.
 - Public data or a seeded environment that lives in the recipe directory. No customer data.

@@ -43,14 +43,14 @@ from agents import AGENTS
 from judge import HELPFUL, SAFETY_MARKERS, safety_judge, safety_only_judge
 from suite import ATTACKS, CATEGORIES, LABELED, SEEDS, SYSTEM_PROMPT, TOOLS, classify
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 GRID_SITUATIONS = 8  # situations the simulator writes on top of the suite
 
 
 def simulate(
     agent_name: str, *, k: int = 4, seed: int = 0, tasks: Any = None
-) -> zps.SimulationData:
+) -> wai.SimulationData:
     """The suite plus a slice of the simulator's own grid, ``k`` repeats
     each. ``tasks=`` re-runs a previous run's asks so two agents are
     compared on the same tasks."""
@@ -66,16 +66,16 @@ def simulate(
         concurrency=1,
     )
     if tasks is not None:
-        return zps.simulate(AGENTS[agent_name], tasks=tasks, **common)
+        return wai.simulate(AGENTS[agent_name], tasks=tasks, **common)
     n = len(SEEDS) + GRID_SITUATIONS
-    return zps.simulate(AGENTS[agent_name], seeds=SEEDS, situations=n, budget=n * k, **common)
+    return wai.simulate(AGENTS[agent_name], seeds=SEEDS, situations=n, budget=n * k, **common)
 
 
-def grade(data: zps.SimulationData, agent_name: str, judge=safety_judge) -> list[dict]:
+def grade(data: wai.SimulationData, agent_name: str, judge=safety_judge) -> list[dict]:
     rows = [dict(r) for r in data.trajectories]
     for r in rows:
         r["category"] = classify(str(r.get("prompt") or ""))
-    return zps.evaluate(rows, judge, model=agent_name).rows
+    return wai.evaluate(rows, judge, model=agent_name).rows
 
 
 def by_category(rows: list[dict]) -> dict[str, dict[str, Any]]:
@@ -84,7 +84,7 @@ def by_category(rows: list[dict]) -> dict[str, dict[str, Any]]:
         sub = [r for r in rows if r.get("category") == cat]
         if not sub:
             continue
-        p = zps.pass_at(sub, min_k=2)
+        p = wai.pass_at(sub, min_k=2)
         out[cat] = {
             "asks": p.n_groups,
             "rows": len(sub),
@@ -131,16 +131,16 @@ def failures(rows: list[dict], *, limit: int = 4) -> list[str]:
 def trust(rows: list[dict], *, seed: int = 0) -> dict[str, Any]:
     """Two questions about the judge: does it agree with people, and what
     does a refusal buy under it?"""
-    labeled = zps.run_judge(LABELED, safety_judge).rows
-    agreement = zps.judge_trust(labeled)
+    labeled = wai.run_judge(LABELED, safety_judge).rows
+    agreement = wai.judge_trust(labeled)
     benign = [r for r in rows if r.get("category") == "benign"]
     attacks = [r for r in rows if r.get("category") not in ("benign", "grid")]
     probes = {
         name: {
-            "refusal_on_benign": zps.judge_probes(
+            "refusal_on_benign": wai.judge_probes(
                 benign, judge, probes=["refusal"], sample=len(benign), seed=seed
             ),
-            "shortcuts_on_attacks": zps.judge_probes(
+            "shortcuts_on_attacks": wai.judge_probes(
                 attacks,
                 judge,
                 probes=["success_claim", "filler", "sycophancy", "prompt_echo"],
@@ -172,7 +172,7 @@ def format_trust(report: dict[str, Any]) -> str:
 
 
 def compare(before: list[dict], after: list[dict], *, seed: int = 0) -> dict[str, Any]:
-    report = zps.delta_report(
+    report = wai.delta_report(
         before,
         after,
         target="pass_at_1",
@@ -181,8 +181,8 @@ def compare(before: list[dict], after: list[dict], *, seed: int = 0) -> dict[str
         seed=seed,
     )
     report["refusal_on_benign"] = {
-        "before": zps.refusal_report([r for r in before if r.get("category") == "benign"]),
-        "after": zps.refusal_report([r for r in after if r.get("category") == "benign"]),
+        "before": wai.refusal_report([r for r in before if r.get("category") == "benign"]),
+        "after": wai.refusal_report([r for r in after if r.get("category") == "benign"]),
     }
     return report
 
@@ -211,7 +211,7 @@ def main(argv: list[str] | None = None) -> int:
     print(format_categories(table))
     print("  where it failed, one example per failure class:")
     print("\n".join(failures(rows)))
-    out["trusting"] = {"by_category": table, "pass_at": zps.pass_at(rows).__dict__}
+    out["trusting"] = {"by_category": table, "pass_at": wai.pass_at(rows).__dict__}
 
     print("\n== the judge")
     tr = trust(rows, seed=args.seed)
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n== before/after: trusting -> {name} (same tasks, pinned)")
         after = grade(simulate(name, k=args.k, seed=args.seed, tasks=base), name)
         rep = compare(rows, after, seed=args.seed)
-        print(zps.format_delta_report(rep))
+        print(wai.format_delta_report(rep))
         b, a = rep["refusal_on_benign"]["before"], rep["refusal_on_benign"]["after"]
         print(f"  refusal on benign asks: {b['refusal_rate']:.0%} -> {a['refusal_rate']:.0%}")
         out[name] = {"by_category": by_category(after), "delta": rep}

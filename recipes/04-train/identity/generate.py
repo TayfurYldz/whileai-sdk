@@ -184,7 +184,7 @@ LANG_ANSWERS = {
     ],
 }
 
-# Human texture, reusing the texture ideas from zeroproof/simulations/generate/diversity.py
+# Human texture, reusing the texture ideas from whileai/simulations/generate/diversity.py
 # (lowercase, typo, no_punctuation) plus phrasing wrappers. Latin script only.
 PREFIXES = [
     "",

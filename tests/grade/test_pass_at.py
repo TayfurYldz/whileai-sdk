@@ -7,11 +7,11 @@ from math import comb
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.data import SimulationData
-from zeroproof.simulations.score.judging import ScoredData
-from zeroproof.simulations.score.optimize import group_signal
-from zeroproof.simulations.score.passat import PassAt, pass_at
+import whileai.simulations as wai
+from whileai.simulations.data import SimulationData
+from whileai.simulations.score.judging import ScoredData
+from whileai.simulations.score.optimize import group_signal
+from whileai.simulations.score.passat import PassAt, pass_at
 
 
 def _rows(spec: dict[str, list[int]]) -> list[dict]:
@@ -94,19 +94,20 @@ def test_scored_data_and_simulation_data_expose_the_property():
     assert scored.pass_at.pass_at_1 == pytest.approx(0.5)
     data = SimulationData(trajectories=rows)
     assert data.pass_at.to_dict() == scored.pass_at.to_dict()
-    assert zps.pass_at(rows).k == 4
-    assert "PassAt" in zps.__all__ and "pass_at" in zps.__all__
+    assert wai.pass_at(rows).k == 4
+    assert "PassAt" in wai.__all__ and "pass_at" in wai.__all__
 
 
 def test_recommend_rl_names_the_headroom():
-    out = zps.recommend(mode="rl", target=200)
+    out = wai.recommend(mode="rl", target=200)
     assert any("pass@k - pass@1" in line for line in out["reasoning"])
 
 
 def test_save_meta_writes_pass_at_to_sidecar(tmp_path):
     rows = _rows({"a": [1, 0, 1, 1], "b": [0, 0, 0, 1]})
     for row in rows:
-        row.update({"arm": "ordinary", "scenario_id": "s", "messages": []})
+        # one situation per prompt: rows sharing a scenario_id are one task
+        row.update({"arm": "ordinary", "scenario_id": "s-" + row["prompt"], "messages": []})
     data = SimulationData(trajectories=rows)
     data.save(str(tmp_path / "r.jsonl"), meta=True)
     meta = json.loads((tmp_path / "r.meta.json").read_text())
@@ -179,3 +180,37 @@ def test_pass_pow_k_and_pass_at_k_carry_task_bootstrap_intervals():
         [{"prompt": p, "reward": r} for p in ("a", "b") for r in (1, 0)]
     )  # two repeats per group: below min_k
     assert short.pass_pow_k is None and short.pass_pow_k_ci95 is None
+
+
+def test_a_judge_that_failed_on_every_row_says_so_not_grade_first():
+    """A cold hosted judge times out on every concurrent call, so the whole
+    set reads as ungraded. "grade first" sent the user back to the step that
+    had just run (#224)."""
+    rows = [
+        {
+            "prompt": f"p{i}",
+            "reward": None,
+            "judge_status": "invalid_result",
+            "reason": "TimeoutError: The read operation timed out",
+            "final_text": "x",
+            "steps": [],
+        }
+        for i in range(6)
+    ]
+    out = pass_at(rows)
+    assert out.pass_at_1 is None and out.n_groups == 0
+    assert "the judge failed on all 6 rows" in out.note
+    assert "invalid_result" in out.note and "TimeoutError" in out.note
+    assert "grade first" not in out.note
+    assert "the judge failed on all 6 rows" in str(out)
+
+
+def test_a_partly_graded_set_still_says_grade_first():
+    # one row did grade, so the set is not a judge failure
+    rows = [
+        {"prompt": "a", "reward": None, "judge_status": "error", "final_text": "x", "steps": []},
+        {"prompt": "b", "reward": 0.5, "judge_status": "ok", "final_text": "x", "steps": []},
+    ]
+    assert "grade first" in pass_at(rows).note
+    # and rows nobody judged keep the original wording
+    assert "grade first" in pass_at([{"prompt": "a", "reward": None}]).note

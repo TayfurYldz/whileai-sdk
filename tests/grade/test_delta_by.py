@@ -3,7 +3,7 @@ group that moved the other way."""
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.delta import delta_report, format_delta_report
 
 
 def _rows(spec: dict[str, tuple], *, n_tasks: int = 12, k: int = 4):
@@ -43,7 +43,7 @@ def test_groups_split_the_target_and_flag_the_one_that_dropped():
     # 40 with-id tasks against 6 off-topic ones: the headline is the big group.
     before, after = _rows({"with_id": (0.2, 0.9, 40), "off_topic": (0.9, 0.3, 6)})
     report = delta_report(before, after, target="pass_at_1", by="category", n_boot=300)
-    assert report["target_verdict"] == "moved"
+    assert report["target_verdict"] == "moved_unreplicated"
     assert report["by"] == "category"
     assert set(report["groups"]) == {"with_id", "off_topic"}
     assert report["groups"]["with_id"]["verdict"] == "b_better"

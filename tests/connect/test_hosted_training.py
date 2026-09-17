@@ -6,8 +6,8 @@ import warnings
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.training import TrainingRun, serve, train
+import whileai.simulations as wai
+from whileai.simulations.training import TrainingRun, serve, train
 
 RUNNING = {
     "callId": "fc-1",
@@ -25,7 +25,7 @@ DONE = {
     "metric": "pass@1",
     "rows": 51,
     "seconds": 129,
-    "adapter": "volume zeroproof-train-runs:/run_h1/adapter",
+    "adapter": "volume whileai-train-runs:/run_h1/adapter",
 }
 
 
@@ -90,6 +90,58 @@ def test_sft_sends_epochs_not_steps():
     g = Gate()
     train("ds_train", epochs=3, api_key="k", transport=g)
     assert g.calls[0][2] == {"method": "sft", "epochs": 3.0}
+
+
+class MeasuredAt(Gate):
+    """A gate whose dataset preview says what temperature the rows were sampled at."""
+
+    def __init__(self, measured):
+        super().__init__()
+        self.measured = measured
+
+    def __call__(self, method, path, api_key=None, body=None, **kw):
+        if method == "GET" and path.endswith("/preview"):
+            self.calls.append((method, path, body))
+            row = {"prompt": "x", "reward": 1}
+            if self.measured is not None:
+                row["sampling"] = {"temperature": self.measured, "logprobs": False}
+            return {"rows": [row]}
+        return super().__call__(method, path, api_key, body, **kw)
+
+
+def test_temperature_is_sent_and_a_mismatch_with_the_dataset_is_said_once():
+    g = MeasuredAt(0.8)
+    with pytest.warns(UserWarning, match="Training samples at 0.9 but the dataset was measured"):
+        train(
+            "ds_train",
+            method="grpo",
+            base_model="Qwen/Qwen3-4B",
+            temperature=0.9,
+            api_key="k",
+            transport=g,
+        )
+    posted = next(c for c in g.calls if c[0] == "POST")
+    assert posted[2]["temperature"] == 0.9
+
+    # Same temperature, rows without sampling facts, or no preview: no notice.
+    for gate in (MeasuredAt(0.8), MeasuredAt(None), Gate()):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            train(
+                "ds_train",
+                method="grpo",
+                base_model="Qwen/Qwen3-4B",
+                temperature=0.8,
+                api_key="k",
+                transport=gate,
+            )
+    # Without temperature= nothing is fetched and nothing is sent.
+    g = MeasuredAt(0.8)
+    train("ds_train", method="grpo", base_model="Qwen/Qwen3-4B", api_key="k", transport=g)
+    assert not any(c[1].endswith("/preview") for c in g.calls)
+    assert "temperature" not in g.calls[0][2]
+    with pytest.raises(ValueError, match="GRPO rollout temperature"):
+        train("ds_train", method="sft", temperature=0.8, transport=Gate())
 
 
 def test_bad_method_and_missing_dataset_raise_before_any_call():
@@ -186,13 +238,13 @@ def test_serve_refuses_a_run_without_an_adapter():
 
 def test_public_surface():
     for name in ("train", "serve", "models"):
-        assert name in zps.__all__
-        assert callable(getattr(zps, name))
+        assert name in wai.__all__
+        assert callable(getattr(wai, name))
 
 
 def test_train_warns_when_the_base_cannot_be_served():
     gate = Gate()
-    with pytest.warns(UserWarning, match="zps.serve cannot host"):
+    with pytest.warns(UserWarning, match="wai.serve cannot host"):
         train("ds_train", method="sft", transport=gate)  # the trainer's default base
     with pytest.warns(UserWarning, match="Qwen/Qwen2.5-1.5B-Instruct"):
         train("ds_train", method="grpo", base_model="Qwen/Qwen2.5-1.5B-Instruct", transport=gate)

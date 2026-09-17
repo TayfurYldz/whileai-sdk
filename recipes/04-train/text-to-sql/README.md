@@ -2,7 +2,7 @@
 
 A question about a database in, one SQL query out, and a reward that is a
 program: run the query, compare the result set to the gold query's result.
-No judge. This example builds the task set for a schema, benchmarks any
+No judge. This recipe builds the task set for a schema, benchmarks any
 model on it, trains a 4B model with GRPO against that reward on Modal, and
 measures each round on the same held-out tasks, so the curve is paired,
 has an interval, and cannot be gamed by a wordier answer.
@@ -16,13 +16,13 @@ seeded from `gen_seed.py`). Swap in yours: [Bring your own schema](#bring-your-o
 |---|---|
 | `schema.sql`, `seed.sql`, `gen_seed.py` | the database (Postgres 16). `seed.sql` is canonical: the tasks were checked against it. `gen_seed.py` is how it was made (its reviews block was not deterministic when the shipped file was generated, so a regeneration differs there; regenerate only together with re-authoring tasks) |
 | `schema_prompt.py`, `prompt.txt` | the policy's system prompt: DDL + notes on what the data means + the one-query rule |
-| `tasks.jsonl` | 417 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 81 are held out by a hash of the id, the same split in every script |
+| `tasks.jsonl` | 741 tasks: `question`, gold `sql`, `archetype`, `difficulty`. 140 are held out by a hash of the id, the same split in every script (the first 417 tasks and their 81-task holdout are the "first cut" below) |
 | `author.py` | writes tasks for a schema with Claude Sonnet 5, executing every gold query twice before keeping it |
-| `sql_verifier.py` | `SQLExec`, the verifier (a `zeroproof.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
-| `rollout.py` | `zps.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `zps.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
+| `sql_verifier.py` | `SQLExec`, the verifier (a `whileai.simulations.verify.Verifier`): execution match, Spider-style. Also the task/split/row helpers and the in-container Postgres for the trainer |
+| `rollout.py` | `wai.simulate(tasks=...)`: k samples per task on the account's hosted Qwen3-4B, a model you served with `wai.serve` (`--hosted`), Claude (callable agent), or any SDK agent spec (`--agent openai:...`) |
 | `build.py` | grades every rollout file, pass@1 / pass^k / pass@k, `optimize(mode="rl")`, `hack_scan`, pushes train / holdout / eval sets to your account |
 | `train_grpo_modal.py` | TRL `GRPOTrainer` + LoRA on Modal with Postgres inside the container (reward = `sql_verifier.shaped_reward`); `--from-run` chains rounds |
-| `train.py` | the hosted SFT alternative: `zps.train(method="sft")` on the gold demonstrations, then `zps.serve` |
+| `train.py` | the hosted SFT alternative: `wai.train(method="sft")` on the gold demonstrations, then `wai.serve` |
 | `delta.py` | `delta_report` before vs after by difficulty and archetype, attached to the run page |
 
 ## Numbers so far (81 held-out tasks, 4 samples each, temperature 0.7)
@@ -47,8 +47,8 @@ climb is in thinking mode; rounds and their numbers are at the bottom.
 
 ## Run it
 
-Needs: Python 3.11+, `pip install "zeroproof>=0.47" "psycopg[binary]" openai anthropic`,
-a Postgres you can create a database on, `ZEROPROOF_API_KEY` from
+Needs: Python 3.11+, `pip install "whileai>=0.47" "psycopg[binary]" openai anthropic`,
+a Postgres you can create a database on, `WHILEAI_API_KEY` from
 [zeroproofai.com/platform](https://zeroproofai.com/platform) (the hosted
 Qwen3-4B endpoint, the datasets page and the training page), and a Modal
 account for the RL step.
@@ -72,10 +72,10 @@ python build.py                                              # grades, prints th
 python build.py --push                                       # also pushes the sets to your account
 ```
 
-Rollouts go through `zps.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
+Rollouts go through `wai.simulate(agent, system_prompt=..., tasks=..., repeats=k)`:
 the SDK replays the task prompts on the agent and the gold SQL is attached
 to the rows afterwards. Thinking on for the base model: serve it under a
-name and sample that (`zps.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
+name and sample that (`wai.serve("qwen3-4b-think", base_model="Qwen/Qwen3-4B")`,
 then `--hosted qwen3-4b-think`). Any other model: `--agent openai:<model>`
 with `OPENAI_BASE_URL`, or add a callable to `MODELS`.
 
@@ -96,16 +96,16 @@ from the served adapter in the next step, through vLLM, in minutes. `--spawn`
 submits the call and returns, so nothing depends on your laptop staying
 connected (a network drop cancelled a 3 h run at step 49 without it). The run
 shows on your training page as it goes (reward, KL, completion length); the
-adapter and `summary.json` land on the `zeroproof-train-runs` volume under
+adapter and `summary.json` land on the `whileai-train-runs` volume under
 the run id.
 
-**4. Serve and measure.** The adapter is saved on the `zeroproof-train-runs`
-volume under the run id, which is what `zps.serve` hosts.
+**4. Serve and measure.** The adapter is saved on the `whileai-train-runs`
+volume under the run id, which is what `wai.serve` hosts.
 
 ```python
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
-zps.serve("t2s-r1", "run_...")  # the run id printed by step 3
+wai.serve("t2s-r1", "run_...")  # the run id printed by step 3
 ```
 
 ```bash
@@ -144,7 +144,7 @@ prints them side by side. Knobs: `--learning-rate`, `--beta`, `--steps`,
 
 ## Why the tasks are authored, not simulated
 
-`zps.simulate` writes situations, rollouts and world state; it never writes
+`wai.simulate` writes situations, rollouts and world state; it never writes
 an answer key, so a verifiable task set is rows you bring that carry
 `privileged.reference` (the SDK README says the same under *Verifiers*).
 For SQL the reference has to be a query that is exactly right on the data,
@@ -196,11 +196,66 @@ training file.
   drops them; the RL set from 8 samples on 336 prompts was 144 rows in 38
   groups, `pool_exhausted` in the scan. Train on the prompts, not the set.
 - **Code-fenced replies read as truncated to `looks_finished` before 0.46**
-  (zeroproof-sdk#212, fixed in 0.46); `build.py` carries the same patch so
+  (whileai-sdk#212, fixed in 0.46); `build.py` carries the same patch so
   it also runs on 0.44.
 - **Thinking models need a reply budget.** `simulate(agent_max_tokens=4096,
-  timeout=300)` (zeroproof >= 0.47); on the default 2048-token cap and
+  timeout=300)` (whileai >= 0.47); on the default 2048-token cap and
   60 s timeout the base lost 8% of replies mid-thought and 4 of 81 tasks.
+- **Check what the SDK sent the model, not just what came back.** Before
+  0.51, `simulate(tasks=...)` with a prompt-only agent drafted a tool surface
+  for the situation writer and sent those schemas to the policy too. Qwen
+  mostly ignored them; Nemotron-Nano-8B called a made-up tool on every task
+  (pass@1 0.00), and 42 of r3's 560 holdout replies were tool calls scored as
+  failures. Pinned tasks now never draft tools; the r3 row below is the clean
+  re-measure. The polluted files are kept in `raw/with-drafted-tools/`.
+
+## Other bases on the same holdout (140 tasks, k=4)
+
+Served with `serve_modal.py` (vLLM on one L40S; `--adapter volume:<run_id>`
+serves a trained LoRA as `<base>-adapter`, `--runs-volume` names the volume the
+run was written to) and sampled through
+`rollout.py --agent "vllm:<model>@<url>"`, so any Hugging Face model gets the
+same paired number as the hosted ones.
+
+| Model | pass@1 (95% CI) | pass^4 | pass@4 | no SQL | SQL error |
+|---|---|---|---|---|---|
+| Qwen3-4B, thinking on (base of the climb) | 0.58 (0.52..0.64) | 0.31 | 0.81 | 0.13 | 0.12 |
+| Nemotron-Nano-8B-v1, `detailed thinking off` | 0.26 (0.20..0.33) | 0.14 | 0.39 | 0.00 | 0.55 |
+| Nemotron-Nano-8B-v1, `detailed thinking on` | 0.26 (0.20..0.33) | 0.15 | 0.39 | 0.00 | 0.53 |
+| Nemotron-Nano-8B-v1 **r1**: GRPO 600 steps from the base, thinking off, lr 2e-5, beta 0.01, vLLM generation | 0.35 (0.28..0.42) | 0.27 | 0.45 | 0.00 | 0.35 |
+
+Nemotron-Nano-8B-v1 is half of Qwen3-4B here, and its two arms are the same
+number because its reasoning mode never engages on these prompts: with the
+schema in the context (system turn, user turn, DDL only, question first, or
+the one-query rule softened to "think first") every reply is a bare query,
+while the model card's own math example thinks for 3,000+ characters. Even a
+forced `<think>` prefill closes after one line. Its failures are real SQL
+errors (`WHERE NOT IN (...)` with no column, an alias used before its join,
+non-grouped columns), not format. Headroom is 0.12, the same as Qwen's.
+
+One GRPO round on it (`text-to-sql-shop-nemotron-r1`: 600 steps, 44 min on
+an H100, `--steps-per-generation 8 --max-completion-length 512`) is the first
+climb on this task whose interval excludes zero: **+0.087 (95% +0.048..+0.130)**
+paired over the 140 tasks, medium +0.10 (+0.01..+0.18) and hard +0.12
+(+0.05..+0.20), easy flat. What it learned is mostly to write SQL that runs:
+`executes` 0.45 -> 0.65, SQL errors 0.55 -> 0.35, and the base was already at
+`has_sql` 1.00, so none of it is format. The SDK marks a single eval run per
+side `moved_unreplicated`, so each side was sampled three times (560 rows
+each): base 0.26 / 0.26 / 0.26, r1 0.35 / 0.36 / 0.37, paired deltas +0.087
+(+0.048..+0.130), +0.098 (+0.055..+0.148), +0.111 (+0.068..+0.155). Three of
+three above zero. The adapter is served the same way as the base
+(`serve_modal.py --adapter volume:run_f69e975a1571d445 --runs-volume
+zeroproof-train-runs`, model id `nvidia/Llama-3.1-Nemotron-Nano-8B-v1-adapter`);
+eval sets `ds_34f0fbd9337ab519` (base) and `ds_2fbd036dd8597150` (r1) on the
+platform, Hugging Face configs `eval-nemotron-8b-base` / `eval-nemotron-8b-r1`
+and adapter `zero-proof-ai/text-to-sql-shop-nemotron-8b-r1`.
+
+Read next to the Qwen table: the same reward, task set, and trainer moved a
+weaker base by nine points in one 44-minute round and a stronger base by
+three points in three rounds. The climb is real where the base leaves room
+below its own pass@4 and the failures are things a verifier can teach (SQL
+that does not run); it is slow where the base already writes valid SQL and
+the misses are semantics.
 
 ## The hill climb (thinking on, GRPO, execution reward)
 
@@ -211,13 +266,34 @@ the intervals below are the 140-task ones (about +-0.06).
 
 | Round | From | Method | pass@1 (95% CI) | pass^4 | has_sql |
 |---|---|---|---|---|---|
-| base | Qwen/Qwen3-4B, thinking on | - | 0.60 (0.54..0.66) | 0.31 | 0.87 |
+| base | Qwen/Qwen3-4B, thinking on | - | 0.58 (0.52..0.64) | 0.31 | 0.86 |
 | r1 | base | GRPO 100 steps, lr 2e-5, beta 0.04, HF generate | 0.58 (0.52..0.64) | 0.29 | 0.89 |
 | r2 | r1 | GRPO 200 steps, lr 5e-5, beta 0.01 | 0.60 (0.54..0.67) | 0.34 | 0.90 |
 | sft-think | base | self-distillation: 199 verified traces, hosted SFT 2 epochs | 0.60 (0.54..0.67) | 0.39 | 0.96 |
-| r3 | r2 | GRPO 1,000 steps, vLLM generation, 8 prompts per generate | pending | | |
+| r3 | r2 | GRPO 1,000 steps, lr 2e-5, beta 0.01, vLLM generation, 8 prompts per generate | 0.61 (0.56..0.67) | 0.29 | 0.86 |
+| r4 | r3 | GRPO 1,000 more steps, same settings | 0.61 (0.54..0.67) | 0.32 | 0.85 |
 
-Neither round moved the holdout, while the training reward did climb
+r3 vs base: +0.029 (95% -0.016..+0.073), up at every difficulty (easy +0.02,
+medium +0.04, hard +0.03) and clearly up on one archetype, date and time
+(0.43 -> 0.58, +0.15, 95% +0.03..+0.27); the best checkpoint so far, not yet a
+proven climb by the SDK's rule (the pass@1 interval still covers zero). This
+is the clean re-measure after the drafted-tools fix (see lessons); the first
+measurement, 0.62 (0.55..0.68) with 42 tool-call replies, is in
+`raw/with-drafted-tools/`. Each checkpoint's holdout rollouts and adapter
+are on Hugging Face: dataset `zero-proof-ai/text-to-sql-shop` (configs
+`eval-base`, `eval-r1`, `eval-r2`, `eval-sft-think`, `eval-r3`, `eval-r4`),
+adapters `zero-proof-ai/text-to-sql-shop-<checkpoint>`.
+
+r4 vs r3: -0.007 (95% -0.048..+0.034); vs base +0.021 (-0.029..+0.068), hard
++0.08 (+0.00..+0.17), easy -0.03. A second thousand steps of the same recipe
+kept r3's gain and added nothing: the training reward sat at 0.65 through the
+whole round (it was 0.65 at the end of r3) and KL to the base stayed at 0.03,
+so the policy had stopped moving before r4 began. Round 4 is where "more
+steps" stops being the answer for this base; the levers left are the ones in
+the closing paragraph of this section (drop prompts the policy already
+always or never solves, 16 samples per prompt, a bigger base).
+
+The first two rounds did not move the holdout, while the training reward did climb
 (round 1 first-25-step mean 0.49 to last-25 0.63; round 2 up to 0.60-0.75
 with KL 0.08), and thinking length fell from ~1,090 to ~800 tokens. That
 combination means the policy got better at the prompts it was shown and no

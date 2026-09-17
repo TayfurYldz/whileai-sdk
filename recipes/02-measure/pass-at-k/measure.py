@@ -1,7 +1,7 @@
 """pass@1, pass^k and pass@k for one agent, offline, in seconds.
 
     python measure.py                      # 12 asks x 8 repeats with a scripted agent
-    python measure.py graded.jsonl         # any graded row file (reward 0/1, grouped by prompt)
+    python measure.py graded.jsonl         # any graded row file (reward 0/1, grouped by task)
     python measure.py --asks 40 --k 16     # bigger grid
 
 Three numbers off the same graded groups, one job each: pass@1 is what
@@ -18,7 +18,7 @@ import re
 import sys
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 TOOLS = [
     {
@@ -56,7 +56,7 @@ def scripted_agent(message: str) -> dict:
     some asks it gets careless every third repeat. Some asks it always
     gets right, some never, and some only sometimes. That spread is what
     pass@1, pass^k and pass@k tell apart."""
-    from zeroproof.simulations.generate.agents import current_rollout
+    from whileai.simulations.generate.agents import current_rollout
 
     token = re.search(r"[A-Za-z]+[-_]?\d+", message)
     if token is None:
@@ -121,7 +121,7 @@ def simulate_rows(
     any concurrency; without it completion order steers later draws and
     the same seed prints different numbers run to run. ``seeds`` are asks
     kept as drawn, so a run can pin a situation the writer might not draw."""
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -159,8 +159,8 @@ def histogram(per_task: dict[str, float]) -> dict[str, int]:
 
 
 def report(rows: list[dict]) -> dict:
-    rates = zps.pass_at(rows)
-    signal = zps.group_signal(rows)
+    rates = wai.pass_at(rows)
+    signal = wai.group_signal(rows)
     out = {
         "summary": str(rates),  # the headline line, interval included
         "pass_at": rates.to_dict(),

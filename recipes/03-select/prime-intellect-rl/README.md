@@ -11,15 +11,15 @@ What you will learn: why GRPO needs uniform groups, the four numbers that say
 whether a dataset carries gradient, how an effort-negative reward gets gamed
 (and how the offline gate predicted it), and the prompt shape the `verifiers`
 library reads. You need a key for hosted Qwen on both roles: your account
-key (`zeroproof login`), or `VLLM_API_KEY` for the shared pool, which is
+key (`whileai login`), or `VLLM_API_KEY` for the shared pool, which is
 about three minutes for 800 rollouts. `diagnose.py` and `export_prompts.py` run
 offline on any graded row file.
 
 ## Run it
 
 ```bash
-pip install zeroproof
-zeroproof login                    # or: export VLLM_API_KEY=... for the shared pool
+pip install whileai
+whileai login                    # or: export VLLM_API_KEY=... for the shared pool
 cd recipes/03-select/prime-intellect-rl
 python generate.py --situations 100 --k 8 --fault-rate 0.15   # -> data/rl.jsonl (+ .meta.json)
 python diagnose.py data/rl.jsonl                              # exit 1 if the set carries no gradient
@@ -188,7 +188,7 @@ One packaging note if you push the environment to the Environments Hub: it is
 installed there with plain pip, so every dependency has to be pip-resolvable. A
 `[tool.uv.sources]` git pin installs locally, passes the hub's CI, and then kills
 every env server at training time with a `ModuleNotFoundError`. Depend on
-`zeroproof` from PyPI rather than from a git URL.
+`whileai` from PyPI rather than from a git URL.
 
 ## Files
 

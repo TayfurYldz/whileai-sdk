@@ -3,14 +3,14 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zeroproof"
-version = "0.49"
-description = "ZeroProof Python SDK: trace ingestion and verification client, plus agent simulations grounded in your tools and system prompt."
+name = "whileai"
+version = "0.53"
+description = "While Python SDK: trace ingestion and verification client, plus agent simulations grounded in your tools and system prompt."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = ["requests>=2.25.0"]
-authors = [{name = "Zero Proof AI"}]
+authors = [{name = "While"}]
 keywords = [
     "rl", "reinforcement-learning", "grpo", "synthetic-data", "agents",
     "tool-use", "evaluation", "simulation", "llm",
@@ -30,14 +30,14 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Zero-Proof-AI/zeroproof-sdk"
-Repository = "https://github.com/Zero-Proof-AI/zeroproof-sdk"
-Issues = "https://github.com/Zero-Proof-AI/zeroproof-sdk/issues"
+Homepage = "https://github.com/whilehq/whileai-sdk"
+Repository = "https://github.com/whilehq/whileai-sdk"
+Issues = "https://github.com/whilehq/whileai-sdk/issues"
 Datasets = "https://huggingface.co/datasets/zero-proof-ai/agent-simulations"
 
 [project.scripts]
-zeroproof = "zeroproof.cli:main"
-zeroproof-simulations = "zeroproof.simulations.score.quality:main"
+whileai = "whileai.cli:main"
+whileai-simulations = "whileai.simulations.score.quality:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.12", "mypy>=1.16",
@@ -48,16 +48,16 @@ rl = ["verifiers>=0.3; python_version >= '3.11' and python_version < '3.14'"]
 include-package-data = false
 
 [tool.setuptools.package-data]
-zeroproof = ["py.typed"]
-"zeroproof.simulations" = ["py.typed", "schemas/*.json"]
+whileai = ["py.typed"]
+"whileai.simulations" = ["py.typed", "schemas/*.json"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["zeroproof*", "zeroproof_simulations"]
+include = ["whileai*"]
 # behaviors is internal tooling for our own training runs: in the repo,
 # never in the wheel.
 exclude = ["tests*", "recipes*", "docs*", "specs*",
-           "zeroproof.simulations.behaviors*"]
+           "whileai.simulations.behaviors*"]
 namespaces = false
 
 [tool.pytest.ini_options]
@@ -81,18 +81,18 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # The package init re-exports the public surface; the re-exports are the point.
-"zeroproof/simulations/__init__.py" = ["F401", "E402"]
-"zeroproof/__init__.py" = ["F401"]
+"whileai/simulations/__init__.py" = ["F401", "E402"]
+"whileai/__init__.py" = ["F401"]
 # Examples and the identity generator set sys.path before importing.
 "recipes/**" = ["E402"]
 "tests/**" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["zeroproof", "zeroproof_simulations", "tests"]
+known-first-party = ["whileai", "tests"]
 
 [tool.mypy]
 python_version = "3.10"
-packages = ["zeroproof"]
+packages = ["whileai"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
@@ -104,8 +104,8 @@ no_implicit_optional = true
 # the writer is a class. Tracked in CHANGELOG under hygiene.
 [[tool.mypy.overrides]]
 module = [
-    "zeroproof.simulations.generate.generator",
-    "zeroproof.simulations.generate.scenarios",
-    "zeroproof.simulations.run.engine",
+    "whileai.simulations.generate.generator",
+    "whileai.simulations.generate.scenarios",
+    "whileai.simulations.run.engine",
 ]
 ignore_errors = true

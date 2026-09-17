@@ -41,7 +41,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--concurrency", type=int, default=4, help="turns in flight at once (default 4)")
     p.add_argument(
-        "--dataset", default="agent-behavior-demo", help="zeroproof.dataset resource attribute"
+        "--dataset", default="agent-behavior-demo", help="whileai.dataset resource attribute"
     )
     p.add_argument(
         "--agent", default="demo-agent", help="gen_ai.agent.name; the row the platform groups by"
@@ -145,7 +145,7 @@ def build_trace(
         },
     )
 
-    model = args.model or os.environ.get("ZEROPROOF_MODEL") or agents.DEFAULT_MODEL
+    model = args.model or os.environ.get("WHILEAI_MODEL") or agents.DEFAULT_MODEL
     for step in run.steps:
         if step.kind == "llm":
             trace.llm(
@@ -185,7 +185,7 @@ def build_trace(
         {
             "service.name": args.service,
             "service.version": VERSION,
-            "zeroproof.dataset": args.dataset,
+            "whileai.dataset": args.dataset,
         },
         final_text=run.final_text,
         ended_ms=ended_ms,

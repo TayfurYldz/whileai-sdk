@@ -1,6 +1,6 @@
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.generate.coverage import space_saturated
+from whileai.simulations.generate.coverage import space_saturated
 
 
 def test_space_saturated_needs_five_copies():
@@ -17,7 +17,7 @@ def test_space_saturated_requires_the_planned_cell_universe():
 
 
 def test_coverage_curve_grows_each_batch(tmp_path):
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -55,7 +55,7 @@ def test_coverage_tracks_cells_without_halting():
         "tool_condition": ["success"],
         "history": ["fresh"],
     }
-    data = zps.simulate(
+    data = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         tools=TOOLS,
         policy=POLICY,
@@ -88,7 +88,7 @@ def test_until_saturation_halts_on_tiny_grid():
         "tool_condition": ["success"],
         "history": ["fresh"],
     }
-    data = zps.simulate(
+    data = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         tools=TOOLS,
         policy=POLICY,
@@ -113,7 +113,7 @@ def test_until_saturation_halts_on_tiny_grid():
 
 
 def test_budget_mode_predicts_toward_budget():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,

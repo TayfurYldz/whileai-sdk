@@ -1,8 +1,8 @@
 """Conversation topology: who opens is an axis, never a hardcoded frame."""
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate import agents as zagents
-from zeroproof.simulations.ingest.traces import opening_share
+import whileai.simulations as wai
+from whileai.simulations.generate import agents as zagents
+from whileai.simulations.ingest.traces import opening_share
 
 
 def test_agent_opener_rolls_and_exports(monkeypatch):
@@ -26,7 +26,7 @@ def test_agent_opener_rolls_and_exports(monkeypatch):
     assert row["opener"] == "Hi! How can I help you today?"
     assert row["opening"] == "agent"
     row["prompt"] = "where is my order 12345"
-    msgs = zps.conversation(row)
+    msgs = wai.conversation(row)
     assert msgs[0] == {"role": "assistant", "content": "Hi! How can I help you today?"}
     assert msgs[1]["role"] == "user"
 
@@ -44,7 +44,7 @@ def test_opening_share_reads_trace_evidence():
 def test_backend_spec_agents_get_the_opening_axis(monkeypatch):
     """The agent="vllm:..." path must honor opening=, same as the others.
     Regression: round 2's first batch generated 0 agent-opened rows."""
-    from zeroproof.simulations.generate.adapters import resolve
+    from whileai.simulations.generate.adapters import resolve
 
     replies = iter(
         [
@@ -67,7 +67,7 @@ def test_opening_survives_the_full_simulate_path(monkeypatch):
     monkeypatch.setattr(
         zagents, "complete", lambda *a, **k: {"content": "hello there", "tool_calls": []}
     )
-    d = zps.simulate(
+    d = wai.simulate(
         agent="vllm:m@http://x/v1",
         tools=[
             {
@@ -89,5 +89,5 @@ def test_opening_survives_the_full_simulate_path(monkeypatch):
     )
     row = d.trajectories[0]
     assert row["opener"] == "hello there"
-    assert zps.conversation(row)[0]["role"] == "assistant"
+    assert wai.conversation(row)[0]["role"] == "assistant"
     assert d.search["strategy"]["opening"]["rate"] == 1.0

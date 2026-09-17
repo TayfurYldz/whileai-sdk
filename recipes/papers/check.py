@@ -32,7 +32,7 @@ KEYS = {
     "gpu",
     "usd",
     "verified",
-    "zeroproof",
+    "whileai",
 }
 ARM_KEYS = {"score", "ci", "steps"}
 CHECK_KEYS = {

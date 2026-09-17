@@ -16,9 +16,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.schema import Judgment, Marker, PolicyRef, Rollout, Task
+import whileai.simulations as wai
+from whileai.simulations import schema
+from whileai.simulations.schema import Judgment, Marker, PolicyRef, Rollout, Task
 
 
 # The eval markers. String rules over the rollout, never a judge, and never
@@ -122,7 +122,7 @@ def project(src: Path, out: Path, holdout: float, teacher: str) -> dict:
         for r in rollouts[t]
         if passed(judgments[r.rollout_id])
     ]
-    sft_rows = zps.training_rows(sft_source, system_prompt="", tools=None) if sft_source else []
+    sft_rows = wai.training_rows(sft_source, system_prompt="", tools=None) if sft_source else []
     report["sft"] = write(out / "sft.jsonl", sft_rows)
 
     # preference: a passing and a failing rollout of the same task.
@@ -142,7 +142,7 @@ def project(src: Path, out: Path, holdout: float, teacher: str) -> dict:
                 }
             )
     pref = (
-        zps.export_preference(pairs, str(out / "preference.jsonl"), validate=False)
+        wai.export_preference(pairs, str(out / "preference.jsonl"), validate=False)
         if pairs
         else {"pairs": 0}
     )
@@ -180,7 +180,7 @@ def project(src: Path, out: Path, holdout: float, teacher: str) -> dict:
                 "faults": task.world.faults,
                 **task.privileged.hidden_state,
             },
-            "demonstration": zps.conversation(schema.to_row(task, demo)),
+            "demonstration": wai.conversation(schema.to_row(task, demo)),
         }
         opsd_rows.append({"prompt": task.prompt, "example_id": t, "hint": hint})
     report["opsd"] = write(out / "opsd.jsonl", opsd_rows)

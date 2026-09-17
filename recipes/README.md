@@ -26,20 +26,36 @@ reading the others:
   `--help`. Anything long-running takes `--limit` or `--steps` for a smoke run.
 - Paths are relative to the recipe folder unless the README says "from the
   repo root".
-- Keys come from the environment, never from files: `ZEROPROOF_API_KEY`
+- Keys come from the environment, never from files: `WHILEAI_API_KEY`
   (platform), `OPENAI_API_KEY` / `OPENAI_BASE_URL` (any OpenAI-compatible
   model), `ANTHROPIC_API_KEY` (Claude). A recipe that trains on Modal says so.
 - Generated files land in the recipe's `out/` or `raw/`, both gitignored.
   Checked-in data is the exception and is named in the README.
 - Every measured claim is a paired number with a 95% interval on a held-out
   set, produced by the SDK (`pass_at`, `delta_report`), never a mean alone.
+- `smoke.sh` runs the whole recipe with no key, no GPU and no spend, in under
+  a minute. CI runs every one of them on every pull request.
+
+## Write one
+
+Copy [`_template/`](_template) into the step it belongs to, replace the parts
+in angle brackets, and open a pull request. The rest is in
+[CONTRIBUTING.md](../CONTRIBUTING.md#contributing-a-recipe).
+
+```bash
+cp -r recipes/_template recipes/03-select/my-recipe
+sh recipes/03-select/my-recipe/smoke.sh
+```
+
+A recipe that trains on Modal we run on our own account before merging: a
+fork's pull request gets no secrets from this repository, by design.
 
 ## 01-simulate
 
 | Recipe | What you learn | Needs | Takes |
 |---|---|---|---|
 | [`bring-your-own-agent`](01-simulate/bring-your-own-agent) | the `agent(message) -> {steps, final_text}` contract, what a run says when the agent raises, why an `evaluate()` score must not become the reward | nothing | seconds |
-| [`agent-behavior`](01-simulate/agent-behavior) | a coding agent with instructed bad habits, every turn on the platform as OTLP spans, a held-out test suite and an LLM judge disagreeing about the same turn, rows grouped by `scenario_id` for RL | `ZEROPROOF_API_KEY` and a model endpoint (`--dry-run` needs neither) | 8 min for 40 runs |
+| [`agent-behavior`](01-simulate/agent-behavior) | a coding agent with instructed bad habits, every turn on the platform as OTLP spans, a held-out test suite and an LLM judge disagreeing about the same turn, rows grouped by `scenario_id` for RL | `WHILEAI_API_KEY` and a model endpoint (`--dry-run` needs neither) | 8 min for 40 runs |
 | [`verifiers`](01-simulate/verifiers) | rewards that are programs: `MathEqual`, `All` (answer and format), `CodeExec` against hidden tests, `JSONSchema`, each honoring the judge contract | nothing | seconds |
 
 ## 02-measure
@@ -63,17 +79,24 @@ reading the others:
 
 | Recipe | What you learn | Needs | Takes |
 |---|---|---|---|
-| [`hosted-loop`](04-train/hosted-loop) | push graded rows, `zps.train` SFT on Qwen3-4B, `zps.serve` the adapter, one chat completion from the endpoint | `ZEROPROOF_API_KEY` | about a minute of A10G, plus a cold start |
+| [`hosted-loop`](04-train/hosted-loop) | push graded rows, `wai.train` SFT on Qwen3-4B, `wai.serve` the adapter, one chat completion from the endpoint | `WHILEAI_API_KEY` | about a minute of A10G, plus a cold start |
 | [`identity`](04-train/identity) | a leak-free SFT set that teaches a name and maker, with Modal scripts for the LoRA and for the identity/leak eval | nothing to generate; Modal and an A10G to train | seconds to generate |
 | [`grpo`](04-train/grpo) | TRL `GRPOTrainer` with LoRA on a verifiable rule, `HackMonitor` and reward/KL on the run page, paired pass@1 before/after with per-category deltas, loss variants and `--balance` as flags | Modal, one A10G; the key is optional | under 15 min at 40 steps |
 | [`dpo`](04-train/dpo) | on-policy pairs from `build_preference_pairs`, TRL `DPOTrainer`, the reward margin on the run page, iterated rounds with `--from-run`, constructed negatives | Modal, one A10G; the key is optional | about 10 min |
-| [`text-to-sql`](04-train/text-to-sql) | hill-climb a model on a schema with a verifier as the reward: a seeded Postgres, 741 execution-checked tasks, `SQLExec`, benchmarks through `simulate(tasks=)`, self-distillation, GRPO rounds on Modal with vLLM generation and Postgres in the container, every round measured on the same holdout | Postgres, `ZEROPROOF_API_KEY`; Modal and an H100 to train | minutes to benchmark, an hour a round |
+| [`text-to-sql`](04-train/text-to-sql) | hill-climb a model on a schema with a verifier as the reward: a seeded Postgres, 741 execution-checked tasks, `SQLExec`, benchmarks through `simulate(tasks=)`, self-distillation, GRPO rounds on Modal with vLLM generation and Postgres in the container, every round measured on the same holdout | Postgres, `WHILEAI_API_KEY`; Modal and an H100 to train | minutes to benchmark, an hour a round |
 
 ## 05-export
 
 | Recipe | What you learn | Needs | Takes |
 |---|---|---|---|
-| [`hugging-face`](05-export/hugging-face) | rows to a Hub dataset repo (one split per purpose, commit tagged by dataset id), any Hub split onto the account with a profile, a run's adapter to a model repo | `ZEROPROOF_API_KEY` and a Hugging Face account connected on the platform | a minute |
+| [`hugging-face`](05-export/hugging-face) | rows to a Hub dataset repo (one split per purpose, commit tagged by dataset id), any Hub split onto the account with a profile, a run's adapter to a model repo | `WHILEAI_API_KEY` and a Hugging Face account connected on the platform | a minute |
+
+## papers
+
+Recent post-training papers, each cut down to a run under an hour on one GPU:
+a baseline arm, the paper's one change, the same holdout, a paired delta.
+Index and contract in [`papers/README.md`](papers/README.md); the table there
+is generated from each recipe's `results.json`.
 
 ## papers
 
@@ -97,7 +120,7 @@ is generated from each recipe's `results.json`.
   (rejection sampling through `optimize(mode="sft")`).
 - **Train:** `04-train/hosted-loop` (platform trainer, no GPU of yours);
   `identity`, `grpo`, `dpo`, `text-to-sql` (your trainer on Modal, reporting
-  into the same run page through `zps.TrainerCallback`).
+  into the same run page through `wai.TrainerCallback`).
 - **Before and after:** `grpo`, `dpo` and `text-to-sql` call `run.delta(...)`;
   `character/measure.py` and `safety-evals` call `delta_report` directly, the
   latter with `must_not_regress=["helpful_on_benign"]` so a fix that got safe

@@ -19,7 +19,7 @@ import json
 import sys
 from pathlib import Path
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 
 HERE = Path(__file__).resolve().parent
 TARGET = "marker:trait"
@@ -32,7 +32,7 @@ def load(path: str | Path) -> list[dict]:
 
 
 def measure(before: list[dict], after: list[dict], *, seed: int = 0) -> dict:
-    return zps.delta_report(before, after, target=TARGET, must_not_regress=list(GUARD), seed=seed)
+    return wai.delta_report(before, after, target=TARGET, must_not_regress=list(GUARD), seed=seed)
 
 
 def demo(*, seed: int = 0, k: int = 4) -> tuple[list[dict], list[dict]]:
@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ap.error("pass before.jsonl after.jsonl, or --demo")
     rep = measure(before, after, seed=args.seed)
-    print(zps.format_delta_report(rep))
+    print(wai.format_delta_report(rep))
     return 0 if rep.get("ok") else 1
 
 

@@ -6,20 +6,20 @@ simulator, a reward that is a function rather than a judge, TRL's
 runs, and a before/after on a holdout when it is done.
 
 What you will learn: a reward that is a function of the first reply, how a
-run reports into the platform through `zps.TrainerCallback` and
+run reports into the platform through `wai.TrainerCallback` and
 `HackMonitor`, a paired pass@1 delta with an interval, why the holdout has
 to be stratified by prompt category, and how loss variants and prompt
 balance change the result. You need a Modal account and one A10G (under
 fifteen minutes at the default 40 steps, longer at 120);
-`ZEROPROOF_API_KEY` is optional and only decides whether the run page is
+`WHILEAI_API_KEY` is optional and only decides whether the run page is
 drawn.
 
 ## Run it
 
 ```bash
-pip install zeroproof modal
+pip install whileai modal
 modal profile activate <your workspace>
-export ZEROPROOF_API_KEY=...          # for the dashboard; optional
+export WHILEAI_API_KEY=...          # for the dashboard; optional
 modal run recipes/04-train/grpo/train_modal.py
 modal run recipes/04-train/grpo/train_modal.py --steps 80 --gpu H100 --run-name refund-grpo-v2
 modal run recipes/04-train/grpo/train_modal.py --monitor-every 5 --stop-on feature   # end the run on a named hack
@@ -68,7 +68,7 @@ Yes, in the ways any rule is, and the run watches for them:
   characters scores 0.3), so a length drift is the monitor's job, not the
   reward's.
 
-`zps.HackMonitor` samples the holdout from the live policy every
+`wai.HackMonitor` samples the holdout from the live policy every
 `--monitor-every` steps, logs the proxy reward and completion length beside
 the training curve, and runs `hack_scan` on the last training batch: which
 feature of a reply the reward is paying for, within prompt, against a
@@ -79,7 +79,7 @@ alarm; the `length` and `feature` alarms run, `--stop-on feature` (or
 the over-optimization chapter's picture (rlhf-book ch. 14), drawn during
 the run instead of after it.
 
-Prompts come from `zps.simulate(simulator=False, ...)`: the template writer
+Prompts come from `wai.simulate(simulator=False, ...)`: the template writer
 needs no model and no key, and every prompt carries its `case` (the order
 id it names, whether it is about orders at all) so the reward has ground
 truth.
@@ -88,12 +88,12 @@ truth.
 
 - **During:** `reward`, `reward_std`, `kl`, `completion_length` and the
   progress bar at zeroproofai.com/platform/training, from
-  `zps.TrainerCallback`.
+  `wai.TrainerCallback`.
 - **After:** pass@1 before and after on the same holdout prompts, four
   samples each, with intervals; `run.delta` puts the paired comparison on
   the run page (a bootstrap over prompts, rlhf-book ch. 16) and names
   `well_formed` if it regressed. The adapter and both
-  holdout row files land on the `zeroproof-grpo-runs` volume under the run
+  holdout row files land on the `whileai-grpo-runs` volume under the run
   name.
 
 ## Reading it as RL

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import SimulationData, optimize
-from zeroproof.simulations.score.judging import ScoredData
+import whileai.simulations as wai
+from whileai.simulations import SimulationData, optimize
+from whileai.simulations.score.judging import ScoredData
 
 
 def _row(prompt, reward, final, idx):
@@ -74,6 +74,6 @@ def test_scored_data_feeds_optimize_as_its_rows():
     rows = _rows()
     scored = ScoredData(rows, run_id="r1", source="grade", judge_name="j")
     picked_scored, report_scored = optimize(scored, mode="rl")
-    picked_rows, report_rows = zps.optimize(rows, mode="rl")
+    picked_rows, report_rows = wai.optimize(rows, mode="rl")
     assert [r["prompt"] for r in picked_scored] == [r["prompt"] for r in picked_rows]
     assert report_scored["n_selected"] == report_rows["n_selected"]

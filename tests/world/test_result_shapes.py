@@ -3,7 +3,7 @@
 import json
 
 from tests.helpers import GITHUB_SPEC
-from zeroproof.simulations.world.sandbox import MockEnvironment, _fill_template
+from whileai.simulations.world.sandbox import MockEnvironment, _fill_template
 
 TOOLS = [
     {
@@ -130,7 +130,7 @@ def test_search_item_and_read_describe_same_entity():
 
 
 def test_list_valued_shape_normalized(monkeypatch):
-    from zeroproof.simulations.generate import generator
+    from whileai.simulations.generate import generator
 
     payload = {"search_email": [{"message_id": "8891", "subject": "Kickoff", "from": "a@b.com"}]}
 
@@ -205,7 +205,7 @@ def test_already_done_world_still_answers_reads():
 
 
 def test_write_result_shapes_parses_fenced_and_filters_unknown(monkeypatch):
-    from zeroproof.simulations.generate import generator
+    from whileai.simulations.generate import generator
 
     payload = {
         "get_directions": DIRECTIONS_SHAPE,
@@ -241,7 +241,7 @@ def _named_tools(n: int) -> list[dict]:
 
 
 def test_write_result_shapes_one_call_for_small_lists(monkeypatch):
-    from zeroproof.simulations.generate import generator
+    from whileai.simulations.generate import generator
 
     calls: list[list] = []
 
@@ -262,7 +262,7 @@ def test_write_result_shapes_one_call_for_small_lists(monkeypatch):
 
 
 def test_write_result_shapes_chunks_and_merges_large_lists(monkeypatch):
-    from zeroproof.simulations.generate import generator
+    from whileai.simulations.generate import generator
 
     n_tools = 36
     calls: list[list] = []
@@ -524,7 +524,7 @@ def test_search_follows_query_not_frozen_example():
 
 
 def test_calculator_tools_return_real_arithmetic():
-    from zeroproof.simulations.world.sandbox import MockEnvironment
+    from whileai.simulations.world.sandbox import MockEnvironment
 
     tools = [
         {
@@ -550,8 +550,8 @@ def test_calculator_tools_return_real_arithmetic():
 
 
 def test_length_cut_keeps_json_replies_whole():
-    from zeroproof.simulations.generate.agents import _trim_length_cut
-    from zeroproof.simulations.generate.generator import _parse_result_shapes
+    from whileai.simulations.generate.agents import _trim_length_cut
+    from whileai.simulations.generate.generator import _parse_result_shapes
 
     body = '{"find_customer": {"email": "a.b@x.io", "name": "Ann"}, "get_order": {"id": "o'
     choice = {"finish_reason": "length", "message": {"content": body}}

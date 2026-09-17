@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import collections
 import hashlib
+import threading
 import time
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import offline, scripted_agent
 
 
@@ -39,7 +40,7 @@ def _judge(row: dict) -> dict:
 
 
 def test_split_prompts_fill_to_k_and_the_rest_finish_when_nothing_is_left_to_open():
-    data = zps.simulate(
+    data = wai.simulate(
         _flaky(), mode="rl", situations=6, rollouts_per_request=6, budget=40, **offline()
     )
     sizes = collections.Counter(t["prompt"] for t in data.trajectories)
@@ -62,7 +63,7 @@ def test_split_prompts_fill_to_k_and_the_rest_finish_when_nothing_is_left_to_ope
 
 
 def test_unanimous_prompts_stop_when_fresh_prompts_split_more_often():
-    data = zps.simulate(
+    data = wai.simulate(
         _flaky(),
         mode="rl",
         situations=30,
@@ -109,7 +110,7 @@ def test_clock_finishes_groups_instead_of_cutting_them():
         return _flaky_shared(message)
 
     _flaky_shared = _flaky()
-    data = zps.simulate(
+    data = wai.simulate(
         slow,
         mode="rl",
         situations=40,
@@ -129,7 +130,7 @@ def test_clock_finishes_groups_instead_of_cutting_them():
 
 def test_every_mode_judges_beside_the_loop_when_a_grader_is_given():
     for mode in ("explore", "sft"):
-        data = zps.simulate(_flaky(), mode=mode, budget=12, grader=_judge, **offline())
+        data = wai.simulate(_flaky(), mode=mode, budget=12, grader=_judge, **offline())
         rows = data.trajectories
         assert rows and all(t.get("judge_status") for t in rows)
         grader = data.search["grader"]
@@ -139,17 +140,44 @@ def test_every_mode_judges_beside_the_loop_when_a_grader_is_given():
 
 
 def test_rl_reports_time_spent_idle_waiting_on_verdicts():
-    def slow_judge(row: dict) -> dict:
-        time.sleep(0.15)
+    # The pool is idle on the judge exactly when it has nothing left to roll
+    # out and a verdict is still outstanding. Racing a judge sleep against
+    # the rollouts only makes that likely: under CPU contention the rollouts
+    # slow down too, the pool stays busy, and the branch is never reached
+    # (#216). So make it structural instead — the judge holds its verdict
+    # until the pool has provably drained, which no amount of load changes.
+    lock = threading.Lock()
+    rollouts_inflight = 0
+    pool_drained = threading.Event()
+
+    def counted_agent(message: str) -> dict:
+        nonlocal rollouts_inflight
+        with lock:
+            rollouts_inflight += 1
+            pool_drained.clear()
+        try:
+            return scripted_agent(message)
+        finally:
+            with lock:
+                rollouts_inflight -= 1
+                if rollouts_inflight == 0:
+                    pool_drained.set()
+
+    def blocking_judge(row: dict) -> dict:
+        # rollouts never wait on a verdict, so this always releases
+        assert pool_drained.wait(timeout=30.0), "rollout pool never drained"
+        # and then hold long enough to clear the 0.1s rounding on the
+        # reported figure (engine.py: round(idle_on_judge_s, 1))
+        time.sleep(0.2)
         return _judge(row)
 
-    data = zps.simulate(
-        scripted_agent,
+    data = wai.simulate(
+        counted_agent,
         mode="rl",
         situations=2,
         rollouts_per_request=4,
         budget=8,
-        grader=slow_judge,
+        grader=blocking_judge,
         **offline(),
     )
     groups = data.search["groups"]
@@ -175,7 +203,7 @@ def test_truncated_rollouts_are_not_judged_and_do_not_stall_their_group():
         judged.append(row["prompt"])
         return {"reward": 1.0, "reason": "ok"}
 
-    data = zps.simulate(
+    data = wai.simulate(
         cut_agent,
         mode="rl",
         situations=4,

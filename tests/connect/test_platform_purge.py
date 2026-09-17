@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof import cli
-from zeroproof.simulations.ingest import platform
+import whileai.simulations as wai
+from whileai import cli
+from whileai.simulations.ingest import platform
 
 
 class Fake:
@@ -35,14 +35,14 @@ class Fake:
 def test_purge_agent_removes_traces_datasets_and_record(monkeypatch):
     fake = Fake()
     monkeypatch.setattr(platform, "_call", fake)
-    assert zps.purge_agent("demo-agent", dry_run=True) == {
+    assert wai.purge_agent("demo-agent", dry_run=True) == {
         "agent": "demo-agent",
         "traces": 3,
         "datasets": 1,
         "deleted": False,
     }
     assert fake.deleted == []
-    out = zps.purge_agent("Demo-Agent")
+    out = wai.purge_agent("Demo-Agent")
     assert out["deleted"] is True
     assert fake.deleted == [
         "/traces/t1",
@@ -52,18 +52,18 @@ def test_purge_agent_removes_traces_datasets_and_record(monkeypatch):
         "/agents/demo-agent",
     ]
     with pytest.raises(ValueError):
-        zps.purge_agent("")
+        wai.purge_agent("")
 
 
 def test_delete_empty_datasets_and_smoke_sets(monkeypatch):
     fake = Fake()
     monkeypatch.setattr(platform, "_call", fake)
-    assert zps.delete_empty_datasets(dry_run=True) == {"datasets": ["ds_empty"], "deleted": False}
-    assert zps.delete_empty_datasets(max_rows=2, dry_run=True)["datasets"] == [
+    assert wai.delete_empty_datasets(dry_run=True) == {"datasets": ["ds_empty"], "deleted": False}
+    assert wai.delete_empty_datasets(max_rows=2, dry_run=True)["datasets"] == [
         "ds_empty",
         "ds_smoke",
     ]
-    zps.delete_empty_datasets()
+    wai.delete_empty_datasets()
     assert fake.deleted == ["/datasets/ds_empty"]
 
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.delta import delta_report, format_delta_report
-from zeroproof.simulations.score.stats import eval_variance
+import whileai.simulations as wai
+from whileai.simulations.score.delta import delta_report, format_delta_report
+from whileai.simulations.score.stats import eval_variance
 
 
 def _rows(pass_rates: dict[str, float], k: int = 4, run_id: str | None = None) -> list[dict]:
@@ -70,7 +70,7 @@ def test_delta_report_refuses_a_verdict_inside_the_noise_band():
     before = _rows({f"t{i}": 0.25 for i in range(12)})
     after = _rows({f"t{i}": 0.5 for i in range(12)})
     loud = delta_report(before, after, target="pass_at_1")
-    assert loud["target_verdict"] == "moved" and loud["within_noise"] == []
+    assert loud["target_verdict"] == "moved_unreplicated" and loud["within_noise"] == []
     assert loud["metrics"]["pass_at_1"]["within_noise"] is False
     # a 0.25 delta inside a 2 x 0.2 band is what re-running the eval does
     quiet = delta_report(before, after, target="pass_at_1", run_std=0.2)
@@ -96,9 +96,9 @@ def test_delta_report_refuses_a_verdict_inside_the_noise_band():
 
 
 def test_public_surface():
-    assert "eval_variance" in zps.__all__ and callable(zps.eval_variance)
+    assert "eval_variance" in wai.__all__ and callable(wai.eval_variance)
     with pytest.raises(ValueError, match="at least one"):
-        zps.eval_variance()
+        wai.eval_variance()
 
 
 # --- #31: the wrong-shape argument must name the next action ---

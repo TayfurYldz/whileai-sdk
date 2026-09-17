@@ -5,12 +5,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations import schema
-from zeroproof.simulations.export import training_rows
-from zeroproof.simulations.generate import agents
-from zeroproof.simulations.score.logprobs import logprob_report, mean_kl
-from zeroproof.simulations.score.publish_gate import calibrate
+import whileai.simulations as wai
+from whileai.simulations import schema
+from whileai.simulations.export import training_rows
+from whileai.simulations.generate import agents
+from whileai.simulations.score.logprobs import logprob_report, mean_kl
+from whileai.simulations.score.publish_gate import calibrate
 
 TOOLS = [
     {
@@ -156,12 +156,12 @@ def _fake_complete_factory(calls: dict):
 def _simulate(monkeypatch, **kw):
     calls: dict = {}
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.complete", _fake_complete_factory(calls)
+        "whileai.simulations.generate.agents.complete", _fake_complete_factory(calls)
     )
     monkeypatch.setattr(
-        "zeroproof.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
+        "whileai.simulations.generate.agents.sample_turn_budget", lambda *_a, **_k: 4
     )
-    data = zps.simulate(
+    data = wai.simulate(
         tools=TOOLS,
         policy=POLICY,
         extra_situations=["where is order 4412"],
@@ -259,4 +259,4 @@ def test_mean_kl_from_key_and_from_reference_rows_and_calibrate():
     assert rows[0]["calibration"]["mean_kl"] == 0.15
     assert rows[2]["calibration"]["mean_kl"] == 0.0
     assert rows[3]["calibration"]["mean_kl"] is None
-    assert zps.mean_kl is mean_kl and zps.logprob_report is logprob_report
+    assert wai.mean_kl is mean_kl and wai.logprob_report is logprob_report
