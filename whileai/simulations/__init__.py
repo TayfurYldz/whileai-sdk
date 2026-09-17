@@ -175,6 +175,7 @@ from .training import (
     TrainingRun,
     attach_delta,
     attach_holdout,
+    delete_model,
     delete_run,
     get_run,
     list_runs,
@@ -183,6 +184,7 @@ from .training import (
     serve,
     train,
     training_run,
+    unserve,
 )
 from .verify import Verifier, verifier
 from .world.sandbox import MockEnvironment
@@ -253,6 +255,7 @@ __all__ = [
     "dedupe_groups",
     "delete_dataset",
     "delete_empty_datasets",
+    "delete_model",
     "delete_run",
     "delta_report",
     "dimensions_from_traces",
@@ -382,6 +385,7 @@ __all__ = [
     "trim_unanimous_groups",
     "ungrounded_arguments",
     "unpublish",
+    "unserve",
     "update_dataset",
     "validate",
     "verifier",

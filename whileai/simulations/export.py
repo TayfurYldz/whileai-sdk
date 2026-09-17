@@ -734,6 +734,7 @@ export_dataset = export_training
 _PAIR_KEYS = (
     "tie",
     "pairwise",
+    "first_turn_differs",
     "chosen_score",
     "rejected_score",
     "margin",
@@ -853,6 +854,12 @@ def export_preference(
         length_note = length_confound_warning(chosen_longer, len(deltas))
         if length_note:
             report["warnings"] = [length_note]
+    identical = sum(1 for r in out_rows if r.get("first_turn_differs") is False)
+    if identical:
+        from .score.judging import first_turn_note
+
+        report["first_turn_identical"] = identical
+        report.setdefault("warnings", []).append(first_turn_note(identical, len(out_rows)))
     margins = [r["margin"] for r in out_rows if isinstance(r.get("margin"), (int, float))]
     if margins:
         report["mean_margin"] = round(sum(margins) / len(margins), 4)
