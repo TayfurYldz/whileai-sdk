@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.52 (2026-09-17)
 
 - `simulate(tasks=base, runs=3)`: the same task set replayed three times in
   one call, every row stamped `lineage.eval_run` (0, 1, 2), one
@@ -69,7 +69,7 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   / `config["after"]` and warns when the judge, temperature or reply
   budget differ between sides, or when both sides are the same policy
   version.
-- One task key everywhere. `zps.task_key(row)` (`scenario_id`, else
+- One task key everywhere. `wai.task_key(row)` (`scenario_id`, else
   `task_id`, else the prompt text) is what `pass_at`, `group_signal`,
   `compare_runs`, `delta_report`, `eval_variance`, `curriculum`,
   `retire_solved`, `trim_unanimous_groups`, `trim_out_of_band`,
