@@ -33,8 +33,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.schema import stamp
+import whileai.simulations as wai
+from whileai.simulations.schema import stamp
 
 HERE = Path(__file__).resolve().parent
 CONSTITUTION = HERE / "constitution.json"
@@ -240,7 +240,7 @@ def live_student(
     system: str,
     temperature: float = 0.8,
 ) -> str:
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     messages = [
         {"role": "system", "content": system},
@@ -345,7 +345,7 @@ def llm_judge(
     model: str,
     key: str | None,
 ) -> dict:
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     task = tasks_by_id[row["scenario_id"]]
     if task["kind"] == "control":
@@ -420,7 +420,7 @@ def sample_rows(
 
 
 def grade(rows: list[dict], judge, *, name: str, version: str, workers: int = 8) -> list[dict]:
-    scored = zps.run_judge(rows, judge, judge_name=name, version=version, concurrency=workers)
+    scored = wai.run_judge(rows, judge, judge_name=name, version=version, concurrency=workers)
     return attach_markers(list(scored))
 
 
@@ -438,19 +438,19 @@ def report(rows: list[dict], *, judge_name: str) -> dict:
     controls = [r for r in rows if r["split"] == "control"]
     spec = [r for r in rows if r["split"] == "spec"]
 
-    pa = zps.pass_at(train)
-    signal = zps.group_signal(train)
-    corr = zps.reward_correlations(train)
-    markers = zps.marker_summary(train, n_boot=500)
+    pa = wai.pass_at(train)
+    signal = wai.group_signal(train)
+    corr = wai.reward_correlations(train)
+    markers = wai.marker_summary(train, n_boot=500)
     per_trait = {}
     for trait, group in sorted(by_trait(train).items()):
-        t = zps.pass_at(group)
+        t = wai.pass_at(group)
         per_trait[trait] = {
             "pass_at_1": t.pass_at_1,
             "headroom": t.headroom,
             "n_prompts": t.n_groups,
         }
-    agreement = zps.judge_agreement(spec) if spec else None
+    agreement = wai.judge_agreement(spec) if spec else None
     out = {
         "judge": judge_name,
         "counts": {
@@ -669,28 +669,28 @@ def run(
 
     out.mkdir(parents=True, exist_ok=True)
     exports: dict[str, Any] = {"warnings": []}
-    pairs, pair_report = zps.build_preference_pairs(train, min_margin=1.0, length_match=True)
-    exports["pairs"] = zps.export_preference(
+    pairs, pair_report = wai.build_preference_pairs(train, min_margin=1.0, length_match=True)
+    exports["pairs"] = wai.export_preference(
         pairs, str(out / "pairs.jsonl"), system_prompt=DEPLOY_PROMPT, validate=False
     )
     exports["pairs"].update({k: v for k, v in pair_report.items() if k not in exports["pairs"]})
     passes = [r for r in train if r.get("reward") == 1]
     if passes:
-        sft = zps.export_training(
+        sft = wai.export_training(
             passes, str(out / "sft.jsonl"), system_prompt=DEPLOY_PROMPT, validate=False
         )
         exports["sft"] = {"rows": sft.get("rows", len(passes)), "path": sft.get("path")}
     else:
         exports["sft"] = {"rows": 0, "path": None}
         exports["warnings"].append("no passing rows; nothing to export as SFT")
-    _clean, decon = zps.decontaminate(train, [r for r in holdout if r["split"] == "control"])
+    _clean, decon = wai.decontaminate(train, [r for r in holdout if r["split"] == "control"])
     if decon.get("n_contaminated"):
         exports["warnings"].append(
             f"decontaminate: {decon['n_contaminated']} train rows share 8-grams with controls"
         )
 
-    zps_write(out / "rows.jsonl", graded)
-    zps_write(out / "holdout.jsonl", holdout)
+    wai_write(out / "rows.jsonl", graded)
+    wai_write(out / "holdout.jsonl", holdout)
     rep = report(graded, judge_name=judge_name)
     rep["exports"] = exports
     rep["decontaminate"] = decon
@@ -705,7 +705,7 @@ def written_tasks(
     that exercise the trait. Few-shot from the spec's own prompts. New
     prompts split train/holdout by hash so the holdout is prompt-disjoint,
     which the adversarial holdout is not."""
-    from zeroproof.simulations.generate.agents import complete
+    from whileai.simulations.generate.agents import complete
 
     tasks: list[dict] = []
     for trait in constitution["traits"]:
@@ -741,7 +741,7 @@ def written_tasks(
     return tasks
 
 
-def zps_write(path: Path, rows: list[dict]) -> None:
+def wai_write(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8") as fh:
         for row in rows:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")

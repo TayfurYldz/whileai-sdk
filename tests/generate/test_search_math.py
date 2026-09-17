@@ -7,16 +7,16 @@ import random
 import pytest
 
 from tests.helpers import POLICY, TOOLS
-from zeroproof.simulations.generate.diversity import (
+from whileai.simulations.generate.diversity import (
     accept_anneal_candidate,
     apply_annealing_explore,
 )
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate.scenarios import (
     SEARCH_ARMS,
     complete_yields,
     reallocate_search_arms,
 )
-from zeroproof.simulations.score.optimize import recommend
+from whileai.simulations.score.optimize import recommend
 
 
 def _rate(novelty: float, temperature: float = 1.0, n: int = 2000) -> float:

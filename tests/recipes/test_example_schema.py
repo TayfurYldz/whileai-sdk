@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from zeroproof.simulations import schema
+from whileai.simulations import schema
 
 REPO = Path(__file__).resolve().parents[2]
 EXAMPLE = REPO / "recipes" / "03-select" / "schema"
@@ -23,7 +23,7 @@ ROLLOUT_KEYS = {"steps", "final_text", "messages", "reward", "rollout_id", "roll
 
 def _env() -> dict[str, str]:
     env = dict(os.environ)
-    for key in ("OPENAI_API_KEY", "ZEROPROOF_API_KEY", "VLLM_API_KEY"):
+    for key in ("OPENAI_API_KEY", "WHILEAI_API_KEY", "VLLM_API_KEY"):
         env.pop(key, None)
     env["PYTHONPATH"] = str(REPO)
     env["PYTHONIOENCODING"] = "utf-8"

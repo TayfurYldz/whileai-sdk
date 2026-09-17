@@ -8,12 +8,12 @@ from __future__ import annotations
 from collections import Counter
 
 from tests.helpers import POLICY, TOOLS, scripted_agent
-from zeroproof.simulations.generate.scenarios import (
+from whileai.simulations.generate.scenarios import (
     scenario_regions,
     steer_region_picks,
     steering_front_values,
 )
-from zeroproof.simulations.ingest.traces import dimensions_from_traces, simulate_from_traces
+from whileai.simulations.ingest.traces import dimensions_from_traces, simulate_from_traces
 
 TRACES = [
     {
@@ -163,7 +163,7 @@ def test_metadata_reports_only_what_applied():
     assert d1.metadata["targeted_rows"] == marked > 0
     assert d1.metadata["targeted_rows"] + d1.metadata["background_rows"] == len(d1.trajectories)
     # No traces: nothing to aim at, nothing applied.
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     plain = simulate(
         scripted_agent,

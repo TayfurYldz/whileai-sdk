@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.preflight import (
+from whileai.simulations.score.preflight import (
     FAILURE_CLASSES,
     classify_failure,
     dataset_report,

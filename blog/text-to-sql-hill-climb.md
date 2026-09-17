@@ -3,7 +3,7 @@ title: "Teaching a Small Model to Write SQL for Your Database, and Checking Whet
 description: "Training a small open model to write correct SQL for one schema, scored by running the query. Five checkpoints, one held-out test, honest numbers, and the dataset and adapters on Hugging Face."
 slug: text-to-sql-hill-climb
 date: 2026-09-17
-author: Zero Proof AI
+author: While
 canonical: https://zeroproofai.com/blog/text-to-sql-hill-climb
 keywords:
   - text-to-sql
@@ -11,10 +11,10 @@ keywords:
   - verifiable reward
   - execution accuracy
   - Qwen3-4B
-  - zeroproof
+  - whileai
 tags: [text-to-sql, rl, verifiers, checkpoints]
 reading_time: 8 min
-code: https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/04-train/text-to-sql
+code: https://github.com/whilehq/whileai-sdk/tree/main/recipes/04-train/text-to-sql
 data: https://huggingface.co/datasets/zero-proof-ai/text-to-sql-shop
 ---
 
@@ -33,7 +33,7 @@ no query in them, and it got more consistent from one try to the next. All
 the data and every trained checkpoint are public on Hugging Face at
 [`zero-proof-ai/text-to-sql-shop`](https://huggingface.co/datasets/zero-proof-ai/text-to-sql-shop),
 and the code is a recipe in the open-source
-[zeroproof SDK](https://github.com/Zero-Proof-AI/zeroproof-sdk/tree/main/recipes/04-train/text-to-sql).
+[whileai SDK](https://github.com/whilehq/whileai-sdk/tree/main/recipes/04-train/text-to-sql).
 
 ## What we built
 
@@ -169,8 +169,8 @@ check is a story.
 ## Try it on your own database
 
 ```bash
-pip install "zeroproof>=0.49" "psycopg[binary]" openai anthropic
-git clone https://github.com/Zero-Proof-AI/zeroproof-sdk && cd zeroproof-sdk/recipes/04-train/text-to-sql
+pip install "whileai>=0.49" "psycopg[binary]" openai anthropic
+git clone https://github.com/whilehq/whileai-sdk && cd whileai-sdk/recipes/04-train/text-to-sql
 docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -p 5499:5432 postgres:16
 psql -h 127.0.0.1 -p 5499 -U postgres -c "CREATE DATABASE shop" && psql -h 127.0.0.1 -p 5499 -U postgres -d shop -f schema.sql -f seed.sql
 python rollout.py --hosted qwen3-4b-think --split holdout --k 4 && python build.py

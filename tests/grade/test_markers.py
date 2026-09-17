@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from zeroproof.simulations.score.delta import delta_report
-from zeroproof.simulations.score.markers import (
+from whileai.simulations.score.delta import delta_report
+from whileai.simulations.score.markers import (
     STOCK_MARKERS,
     behavioral_markers,
     detect,

@@ -1,1 +1,1 @@
-# Test package only. Not shipped with zeroproof.simulations.
+# Test package only. Not shipped with whileai.simulations.

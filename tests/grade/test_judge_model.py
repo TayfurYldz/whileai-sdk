@@ -1,12 +1,12 @@
 """The default judge is not the policy, and grading says when it is anyway."""
 
-from zeroproof.simulations.generate import agents
-from zeroproof.simulations.score import grade_llm
+from whileai.simulations.generate import agents
+from whileai.simulations.score import grade_llm
 
 
 def test_default_judge_is_a_different_model_family_from_the_policy(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_JUDGE", raising=False)
-    monkeypatch.delenv("ZEROPROOF_AGENT", raising=False)
+    monkeypatch.delenv("WHILEAI_JUDGE", raising=False)
+    monkeypatch.delenv("WHILEAI_AGENT", raising=False)
     _, policy = agents.parse_backend_spec(agents.default_agent_spec())
     judge_url, judge = agents.parse_backend_spec(agents.default_judge_spec())
     assert judge != policy
@@ -14,10 +14,10 @@ def test_default_judge_is_a_different_model_family_from_the_policy(monkeypatch):
     assert "zeroproof-judge" in judge_url
     assert grade_llm.judge_spec() == agents.default_judge_spec()
     assert grade_llm.hosted_judge_endpoint()["model"] == judge
-    monkeypatch.setenv("ZEROPROOF_JUDGE", "openai:gpt-4o-mini")
+    monkeypatch.setenv("WHILEAI_JUDGE", "openai:gpt-4o-mini")
     assert grade_llm.judge_spec() == "openai:gpt-4o-mini"
     # a bare URL takes the judge's model name, not the policy's
-    monkeypatch.delenv("ZEROPROOF_JUDGE", raising=False)
+    monkeypatch.delenv("WHILEAI_JUDGE", raising=False)
     assert grade_llm.judge_spec(spec="http://127.0.0.1:8000/v1") == (
         f"vllm:{judge}@http://127.0.0.1:8000/v1"
     )

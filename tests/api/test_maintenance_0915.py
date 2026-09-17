@@ -3,7 +3,7 @@
 Each of these cost a first-hour customer minutes in the sixth pass:
 a warning that did not name its key, a valid empty schema read as a
 missing one, ``read_runbook`` called destructive, ``recommend`` rejecting
-the spelling ``simulate`` accepts, ``zeroproof status`` printing ``null``
+the spelling ``simulate`` accepts, ``whileai status`` printing ``null``
 for "no key", an SFT export that never says it carried failures, a total
 length confound that only warned above eight pairs, and ``tasks=``
 quietly re-running at k=1.
@@ -15,12 +15,12 @@ import json
 
 import pytest
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import simulate_offline
-from zeroproof import auth, cli
-from zeroproof.simulations.export import export_preference, export_training
-from zeroproof.simulations.score.judging import build_preference_pairs
-from zeroproof.simulations.score.preflight import preflight
+from whileai import auth, cli
+from whileai.simulations.export import export_preference, export_training
+from whileai.simulations.score.judging import build_preference_pairs
+from whileai.simulations.score.preflight import preflight
 
 TOOLS = [
     {
@@ -93,25 +93,25 @@ def test_preflight_destructive_is_a_word_not_a_substring():
 
 
 def test_recommend_takes_simulate_spelling_of_the_policy():
-    by_policy = zps.recommend(TOOLS, POLICY, mode="rl")
-    by_system_prompt = zps.recommend(TOOLS, system_prompt=POLICY, mode="rl")
+    by_policy = wai.recommend(TOOLS, POLICY, mode="rl")
+    by_system_prompt = wai.recommend(TOOLS, system_prompt=POLICY, mode="rl")
     assert by_policy["budget"] == by_system_prompt["budget"]
     with pytest.raises(ValueError, match="not both"):
-        zps.recommend(TOOLS, POLICY, system_prompt=POLICY + " x")
+        wai.recommend(TOOLS, POLICY, system_prompt=POLICY + " x")
 
 
 # ------------------------------------------------------------- status
 
 
 def test_status_says_when_no_key_is_configured(monkeypatch, tmp_path, capsys):
-    monkeypatch.delenv("ZEROPROOF_API_KEY", raising=False)
+    monkeypatch.delenv("WHILEAI_API_KEY", raising=False)
     monkeypatch.setattr(auth, "credentials_path", lambda: tmp_path / "credentials.json")
     assert cli.main(["status"]) == 0
     captured = capsys.readouterr()
     shown = json.loads(captured.out)
     assert shown["configured"] is False and shown["key"] is None
     assert "no API key configured" in captured.err
-    assert "zeroproof login" in captured.err
+    assert "whileai login" in captured.err
 
 
 # ------------------------------------------------------------- exports

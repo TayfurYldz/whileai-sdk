@@ -1,6 +1,6 @@
 import json
 
-import zeroproof.simulations as zps
+import whileai.simulations as wai
 from tests.helpers import POLICY, TOOLS, scripted_agent
 
 # The only keys an exported row may never carry (#149): teacher-only
@@ -90,7 +90,7 @@ def test_conversation_drops_stale_final_text():
         ],
         "final_text": clarify,
     }
-    msgs = zps.conversation(row)
+    msgs = wai.conversation(row)
     roles = [m["role"] for m in msgs]
     assert roles == ["user", "assistant", "user", "assistant", "tool"]
     spoken = [m["content"] for m in msgs if m["role"] == "assistant"]
@@ -98,7 +98,7 @@ def test_conversation_drops_stale_final_text():
 
 
 def test_finish_on_agent_drops_pre_tool_clarify():
-    from zeroproof.simulations.generate.agents import _finish_on_agent
+    from whileai.simulations.generate.agents import _finish_on_agent
 
     clarify = "Which repo and PR number?"
     steps = [
@@ -112,7 +112,7 @@ def test_finish_on_agent_drops_pre_tool_clarify():
 
 
 def test_finish_on_agent_keeps_post_tool_speech():
-    from zeroproof.simulations.generate.agents import _finish_on_agent
+    from whileai.simulations.generate.agents import _finish_on_agent
 
     steps = [
         {"text": "Which repo?"},
@@ -139,17 +139,17 @@ def test_conversation_is_user_agent_turns():
         ],
         "final_text": "still pending",
     }
-    msgs = zps.conversation(row)
+    msgs = wai.conversation(row)
     assert [m["role"] for m in msgs] == ["user", "assistant", "tool", "user", "assistant"]
     assert msgs[0]["content"] == "where's order ORD-1"
     assert msgs[1]["tool_calls"][0]["name"] == "lookup_order"
     assert msgs[3]["content"] == "and the refund?"
-    exported = zps.data._export_row(row)
+    exported = wai.data._export_row(row)
     assert exported["messages"] == msgs
 
 
 def test_simulate_offline_end_to_end(tmp_path):
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent, tools=TOOLS, policy=POLICY, budget=80, seed=0, simulator=False
     )
     assert len(data.trajectories) == 80
@@ -170,7 +170,7 @@ def test_simulate_offline_end_to_end(tmp_path):
 
 
 def test_save_omits_grade_when_ungraded(tmp_path):
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -193,9 +193,9 @@ def test_save_omits_grade_when_ungraded(tmp_path):
 
 
 def test_custom_grader_and_dimensions_knobs():
-    dims = zps.build_dimensions(TOOLS, POLICY)
+    dims = wai.build_dimensions(TOOLS, POLICY)
     dims["stance"] = ["adversarial"]
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         policy=POLICY,
@@ -209,7 +209,7 @@ def test_custom_grader_and_dimensions_knobs():
 
 
 def test_generate_then_grade_separately():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent, tools=TOOLS, policy=POLICY, budget=60, seed=0, grade=False, simulator=False
     )
     assert all(t["reward"] is None for t in data.trajectories)
@@ -219,7 +219,7 @@ def test_generate_then_grade_separately():
 
 
 def test_policy_optional_and_arms_stay_alive():
-    data = zps.simulate(
+    data = wai.simulate(
         scripted_agent,
         tools=TOOLS,
         budget=20,
@@ -251,7 +251,7 @@ _TINY_DIMS = {
 
 
 def test_tiny_grid_compute_does_not_stop_on_saturation():
-    data = zps.simulate(
+    data = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         tools=TOOLS,
         policy=POLICY,
@@ -274,7 +274,7 @@ def test_tiny_grid_compute_does_not_stop_on_saturation():
 
 
 def test_short_run_does_not_saturate_on_signature_blip():
-    data = zps.simulate(
+    data = wai.simulate(
         lambda m: {"steps": [], "final_text": "ok"},
         tools=TOOLS,
         policy=POLICY,
@@ -296,7 +296,7 @@ def test_lost_repeat_rollouts_do_not_starve_the_run():
     """A discarded rollout must not deadlock the budget against the
     situation cap: the run lifts the cap and fills the owed rows."""
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     calls = {"n": 0}
 
@@ -333,7 +333,7 @@ def test_lost_repeat_rollouts_are_rerolled_so_groups_stay_complete():
     import collections
 
     from tests.helpers import POLICY, TOOLS, scripted_agent
-    from zeroproof.simulations import simulate
+    from whileai.simulations import simulate
 
     calls = {"n": 0}
 

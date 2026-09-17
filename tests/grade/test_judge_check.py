@@ -7,20 +7,20 @@ import logging
 
 import pytest
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.generate import agents
-from zeroproof.simulations.score import grade_llm
-from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.judge_trust import (
+import whileai.simulations as wai
+from whileai.simulations.generate import agents
+from whileai.simulations.score import grade_llm
+from whileai.simulations.score.agreement import judge_agreement
+from whileai.simulations.score.judge_trust import (
     NO_HUMAN_GOLD_NOTE,
     format_judge_trust,
     judge_trust,
     trust_after_grade,
 )
-from zeroproof.simulations.score.judging import run_judge
-from zeroproof.simulations.score.labels import attach_labels
-from zeroproof.simulations.score.publish_gate import publish_gate
-from zeroproof.simulations.score.stats import wilson_interval
+from whileai.simulations.score.judging import run_judge
+from whileai.simulations.score.labels import attach_labels
+from whileai.simulations.score.publish_gate import publish_gate
+from whileai.simulations.score.stats import wilson_interval
 
 
 def _rows(n: int, *, miss: int = 0) -> list[dict]:
@@ -139,8 +139,8 @@ def test_judge_trust_has_floors():
 
 
 def _audit_setup(monkeypatch):
-    monkeypatch.delenv("ZEROPROOF_JUDGE", raising=False)
-    monkeypatch.delenv("ZEROPROOF_AGENT", raising=False)
+    monkeypatch.delenv("WHILEAI_JUDGE", raising=False)
+    monkeypatch.delenv("WHILEAI_AGENT", raising=False)
     monkeypatch.setenv("VLLM_API_KEY", "k")
     monkeypatch.setattr(grade_llm, "warm_judge", lambda *a, **k: {"ok": True})
     seen: list[str] = []
@@ -202,7 +202,7 @@ def test_grade_checks_the_judge_when_rows_carry_human_gold(monkeypatch, caplog):
     _hosted(monkeypatch)
     rows = _rows(80)
     attach_labels(rows[:60], _labels(rows[:60]), annotator="ana")
-    with caplog.at_level(logging.WARNING, logger="zeroproof.simulations"):
+    with caplog.at_level(logging.WARNING, logger="whileai.simulations"):
         report = grade_llm.apply_grade_llm(rows)
     assert report["graded"] == 80
     summary = report["trust"]
@@ -220,7 +220,7 @@ def test_grade_checks_the_judge_when_rows_carry_human_gold(monkeypatch, caplog):
 def test_grade_says_when_the_judge_is_unmeasured(monkeypatch, caplog):
     _hosted(monkeypatch)
     rows = _rows(6)
-    with caplog.at_level(logging.WARNING, logger="zeroproof.simulations"):
+    with caplog.at_level(logging.WARNING, logger="whileai.simulations"):
         report = grade_llm.apply_grade_llm(rows)
     assert report["trust"] is None
     assert all(r["judge_meta"]["trust"] is None for r in rows)
@@ -254,7 +254,7 @@ def test_grade_trust_modes(monkeypatch):
 
 
 def test_data_grade_passes_trust_through_every_path(monkeypatch, caplog):
-    from zeroproof.simulations.data import SimulationData
+    from whileai.simulations.data import SimulationData
 
     rows = _rows(60)
     attach_labels(rows, _labels(rows), annotator="ana")
@@ -278,10 +278,10 @@ def test_data_grade_passes_trust_through_every_path(monkeypatch, caplog):
         return {"graded": len(rows), "warnings": [], "trust": None}
 
     monkeypatch.setenv("VLLM_API_KEY", "k")
-    monkeypatch.setattr("zeroproof.simulations.data.apply_grade_llm", fake_apply)
+    monkeypatch.setattr("whileai.simulations.data.apply_grade_llm", fake_apply)
     data.grade(trust="off")
     assert seen["trust"] == "off"
-    zps.grade_llm(rows, trust="require")
+    wai.grade_llm(rows, trust="require")
     assert seen["trust"] == "require"
 
 

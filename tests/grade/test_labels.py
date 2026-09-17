@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
-import zeroproof.simulations as zps
-from zeroproof.simulations.score.agreement import judge_agreement
-from zeroproof.simulations.score.labels import annotator_agreement, attach_labels
+import whileai.simulations as wai
+from whileai.simulations.score.agreement import judge_agreement
+from whileai.simulations.score.labels import annotator_agreement, attach_labels
 
 
 def _row(i, reward=1):
@@ -83,4 +83,4 @@ def test_annotator_agreement_reports_pairs_kappa_and_disagreements():
 
 
 def test_public_surface():
-    assert "attach_labels" in zps.__all__ and "annotator_agreement" in zps.__all__
+    assert "attach_labels" in wai.__all__ and "annotator_agreement" in wai.__all__

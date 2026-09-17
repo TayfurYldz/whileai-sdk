@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/zeroproof
+      url: https://pypi.org/p/whileai
     permissions:
       id-token: write   # PyPI Trusted Publishing, no API token stored anywhere
       contents: write   # to push the release tag
@@ -60,7 +60,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: uv build
+      - run: uv build --out-dir dist
+      # The old name: a shim that depends on this release. Same version,
+      # same run, so `pip install zeroproof` never lags `pip install whileai`.
+      - run: uv build --out-dir dist compat/zeroproof
       - run: uvx twine check dist/*
       # uv publish reads UV_PUBLISH_TOKEN from the environment. With no token
       # set it falls back to Trusted Publishing over OIDC, which needs no stored
@@ -73,11 +76,16 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.UV_PUBLISH_TOKEN || secrets.PYPI_API_TOKEN }}
         run: |
-          if [ -n "$UV_PUBLISH_TOKEN" ]; then
-            uv publish --check-url https://pypi.org/simple/zeroproof/
-          else
-            uv publish --trusted-publishing always --check-url https://pypi.org/simple/zeroproof/
-          fi
+          # Both projects on PyPI must accept this workflow: either the
+          # token covers both, or each project lists it as a trusted
+          # publisher (owner whilehq, repo whileai-sdk, publish.yml, env pypi).
+          for name in whileai zeroproof; do
+            if [ -n "$UV_PUBLISH_TOKEN" ]; then
+              uv publish --check-url "https://pypi.org/simple/$name/" dist/$name-*
+            else
+              uv publish --trusted-publishing always --check-url "https://pypi.org/simple/$name/" dist/$name-*
+            fi
+          done
       - name: tag the release
         env:
           V: ${{ needs.gate.outputs.version }}
@@ -88,5 +96,5 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$V" -m "zeroproof $V"
+          git tag -a "v$V" -m "whileai $V"
           git push origin "v$V"

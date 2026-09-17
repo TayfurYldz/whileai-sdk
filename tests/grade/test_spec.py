@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from zeroproof.simulations.score.spec import (
+from whileai.simulations.score.spec import (
     Spec,
     Trait,
     load_spec,
