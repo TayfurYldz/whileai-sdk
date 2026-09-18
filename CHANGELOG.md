@@ -91,6 +91,40 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
   embedder, `notes` says it, and says when `similarity=` is at or below
   it (a threshold there flags tasks that merely share a domain; raise it
   above the number to flag paraphrases only). (#286)
+- The simulated user no longer thinks out loud in the transcript. A user
+  model that emits `<think>` had its reasoning land verbatim as user
+  speech, and an unclosed block (the user model's token cap landed inside
+  it) landed too, on one eval arm and not the other (#284: 18 user turns
+  against 0). `_user_followup` and the human-tool answer now strip closed
+  blocks, drop an unclosed tail whole, and retry a turn that was reasoning
+  with no spoken line rather than emit a fragment or empty speech. The
+  floor applies only to turns that carried reasoning, so a bare `yes` or
+  `order 4821` still passes. `local_model(thinking=False)` now reaches the
+  user simulator too when the agent's own model plays it (or `user_model`
+  is on the same endpoint), so the customer is asked not to reason at all.
+  Every run reports `data.search["user_think"]`: `user_turns`, `stripped`
+  and `unclosed` as counts and `stripped_share` / `unclosed_share` as shares
+  of the user turns (zeros when none, the same unit as
+  `config["unclosed_think_share"]`), and `data.warnings` says so, with the
+  fix. `split_reasoning` moved to `whileai.simulations.text`, stdlib only,
+  so scoring no longer imports the agent runtime to read a reply.
+- `delta_report` fails a manufactured win. Generating on a non-reasoning
+  model and training a reasoning base teaches the adapter to print an empty
+  `<think></think>` and answer at once; at eval, under one shared
+  `max_tokens`, the base runs out of budget inside `<think>` and the adapter
+  answers, so base 0.00 -> trained 0.13 with p=3.8e-06 was 140 of 150 base
+  rows with no reply (#297). `pass_at(...).config` now carries
+  `answered_share` (rows with spoken text once `<think>` is gone) and
+  `unclosed_think_share`, the printed line says `N% of rows have no spoken
+  reply`, and `delta_report` compares the two shares with a two-proportion
+  z test: at p < 0.01 the warning states p and the gap, and when the gap
+  also exceeds the re-run band (or 10 points with no `run_std`) the report
+  fails with `"answered"` in `not_comparable`, one list naming every reason
+  two arms cannot be compared under one prefix, `NOT COMPARABLE:`, and the
+  warning names the mechanism and the fix (raise `agent_max_tokens=` on both
+  sides, set `thinking=` the same on both arms, or strip `<think>` on both).
+  `format_delta_report` prints each side's answered share.
+  `training_rows(strip_think=)` documents that same mechanism.
 
 ## 0.62 (2026-09-17)
 

@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from whileai._env import getenv
 from whileai.auth import SIGN_IN_URL
 
+from ..text import split_reasoning
 from ..world.sandbox import MockEnvironment
 from .anthropic_backend import ANTHROPIC_BASE_URL, is_anthropic_url
 from .anthropic_backend import DEFAULT_MODEL as ANTHROPIC_DEFAULT_MODEL
@@ -780,8 +781,13 @@ def _strip_tool_markup(text: str) -> str:
     return cleaned.strip()
 
 
-_THINK_BLOCK = re.compile(r"<think>.*?</think>\s*", re.S | re.I)
-_THINK_OPEN = re.compile(r"<think>.*\Z", re.S | re.I)
+#: A simulated-user turn that carried reasoning and left fewer spoken
+#: characters than this was reasoning with no spoken line: the writer
+#: thought and never typed, so the turn is retried, never emitted as a
+#: fragment. The floor applies only to turns that carried reasoning; a
+#: bare ``yes`` or ``order 4821`` with no ``<think>`` is a real user turn
+#: and passes untouched (#284).
+_MIN_SPOKEN = 25
 
 
 def _strip_think(text: str) -> str:
@@ -789,8 +795,23 @@ def _strip_think(text: str) -> str:
     an unclosed ``<think>`` (the token cap landed inside it) goes to the
     end. What is left is the reply, which is what a grader, a marker and
     the next turn's history should see (#264)."""
-    text = _THINK_BLOCK.sub("", text)
-    return _THINK_OPEN.sub("", text)
+    return split_reasoning(text)[0]
+
+
+def _note_user_turn(turn_stats: dict | None, closed: int, unclosed: bool) -> None:
+    """One simulated-user reply came back: count the turn, and count it
+    again as stripped when it carried reasoning, and as unclosed when the
+    reasoning was cut off. The run reports counts and shares per arm
+    (#284: 18 unclosed on one arm, 0 on the other)."""
+    if not turn_stats:
+        return
+    lock = turn_stats.get("lock")
+    with lock if lock is not None else contextlib.nullcontext():
+        turn_stats["user_turns"] = turn_stats.get("user_turns", 0) + 1
+        if closed or unclosed:
+            turn_stats["user_think_stripped"] = turn_stats.get("user_think_stripped", 0) + 1
+        if unclosed:
+            turn_stats["user_think_unclosed"] = turn_stats.get("user_think_unclosed", 0) + 1
 
 
 def _spoken_text(reply: dict) -> str:
@@ -1232,7 +1253,16 @@ def _user_followup(
     tools: list | None = None,
     force: bool = False,
     persona_tags: dict | None = None,
+    extra: Mapping[str, Any] | None = None,
+    turn_stats: dict | None = None,
 ) -> str:
+    """The simulated user's next line, or ``""`` when the writer produced
+    none worth keeping. ``extra`` carries the agent's request fields
+    (``thinking=False`` on ``local_model``) so the user model is asked not
+    to reason either; whatever it still emits as ``<think>`` is stripped
+    before the words become a user turn, an unclosed block is dropped
+    whole, and a turn that was reasoning with no spoken line is retried
+    rather than emitted as a fragment (#284)."""
     from .generator import _realize_typed_message, _strip_directive_phrases, clean_user_message
 
     trace = _render_user_trace(messages, steps)
@@ -1287,10 +1317,14 @@ def _user_followup(
     # Floor, not ceiling: a 5s wait on a busy endpoint silently killed
     # every follow-up and collapsed whole datasets to single-turn.
     wait = max(8.0 if asked else 5.0, min(30.0, float(timeout or 30) / 2))
-    attempts = (
+    attempts = list(
         (body, retry_body, retry_body) if force else ((body, retry_body) if asked else (body,))
     )
-    for attempt, content in enumerate(attempts):
+    retried_for_reasoning = False
+    attempt = 0
+    while attempt < len(attempts):
+        content = attempts[attempt]
+        attempt += 1
         try:
             reply = complete(
                 base_url,
@@ -1302,15 +1336,23 @@ def _user_followup(
                 tools=None,
                 api_key=api_key,
                 temperature=(_RESPONSE_TEMP_LO + _RESPONSE_TEMP_HI) / 2,
-                max_tokens=120 if attempt else 180,
+                max_tokens=120 if attempt > 1 else 180,
                 timeout=wait,
+                extra=extra,
             )
         except Exception:
             continue
+        spoken, closed, unclosed = split_reasoning(reply.get("content") or "")
+        _note_user_turn(turn_stats, closed, unclosed)
+        if (closed or unclosed) and len(spoken.strip()) < _MIN_SPOKEN:
+            # Reasoning and no spoken line. One more try with the short
+            # prompt; never a fragment, never empty user speech.
+            if not retried_for_reasoning:
+                retried_for_reasoning = True
+                attempts.append(retry_body)
+            continue
         text = _scrub_ai_traces(
-            _realize_typed_message(
-                _strip_directive_phrases(clean_user_message(reply.get("content") or "")), tags
-            )
+            _realize_typed_message(_strip_directive_phrases(clean_user_message(spoken)), tags)
         )
         if _accept_followup(text, prior, agent_text) and not _repeats_user_history(text, messages):
             return text
@@ -1362,6 +1404,8 @@ def _human_answer(
     api_key: str | None,
     timeout: float,
     stance: str = "",
+    extra: Mapping[str, Any] | None = None,
+    turn_stats: dict | None = None,
 ) -> str:
     """The simulated user answers the agent's question, in character.
 
@@ -1401,9 +1445,20 @@ def _human_answer(
         },
     ]
     reply = complete(
-        base_url, model, msgs, api_key=api_key, temperature=0.9, timeout=timeout, max_tokens=120
+        base_url,
+        model,
+        msgs,
+        api_key=api_key,
+        temperature=0.9,
+        timeout=timeout,
+        max_tokens=120,
+        extra=extra,
     )
-    return (_spoken_text(reply) or "").strip()
+    spoken, closed, unclosed = split_reasoning(reply.get("content") or "")
+    _note_user_turn(turn_stats, closed, unclosed)
+    if (closed or unclosed) and len(spoken.strip()) < _MIN_SPOKEN:
+        return ""
+    return _strip_tool_markup(spoken).strip()
 
 
 def _answer_tool_call(env: Any, execute: Callable | None, tool: str, arguments: dict) -> dict:
@@ -1475,8 +1530,18 @@ def local_model(
     ``chat_template_kwargs={"enable_thinking": False}`` so the reply is
     the answer, not the reasoning, the way the hosted Qwen path already
     does; ``True`` asks for it; ``None`` (the default) sends nothing and
-    leaves the server's default. Either way ``<think>`` markup never
-    reaches ``step["text"]`` or ``final_text``.
+    leaves the server's default. The same field goes to the simulated
+    user when the agent's own model plays it (the default) or
+    ``user_model`` sits on the same endpoint, so the customer is asked
+    not to reason either; a ``user_model`` on another endpoint keeps
+    that server's default. Either way ``<think>`` markup never reaches
+    ``step["text"]``, ``final_text``, or a user turn (``step["user"]`` and
+    the ``messages`` history): what the user model still emits as
+    reasoning is stripped before it becomes speech, and a turn that was
+    reasoning with no spoken line is retried, then dropped (#284). The run
+    reports those under ``search["user_think"]``: ``user_turns``,
+    ``stripped`` and ``unclosed`` as counts, ``stripped_share`` and
+    ``unclosed_share`` as shares of the user turns, zeros when none.
     """
     local = threading.local()
     plans = fault_plans if fault_plans is not None else {}
@@ -1491,6 +1556,9 @@ def local_model(
         user_key: str | None = None
     else:
         user_url, user_name, user_key = base_url, model, api_key
+    # thinking= reaches the user simulator on the agent's own endpoint.
+    # Another server has its own template fields, so it keeps its default.
+    user_extras = extras if str(user_url).rstrip("/") == str(base_url).rstrip("/") else None
     shapes = result_shapes if result_shapes is not None else {}
     cap = default_max_turns(n_tools=len(tools)) if max_turns is None else max(1, int(max_turns))
     min_users = max(1, min(int(min_user_turns), max(1, cap // 2)))
@@ -1602,6 +1670,8 @@ def local_model(
                             api_key=user_key,
                             timeout=timeout,
                             stance=stance,
+                            extra=user_extras,
+                            turn_stats=turn_stats,
                         )
                         # an empty answer used to default to "go ahead", which
                         # silently taught the agent that asking always clears
@@ -1694,6 +1764,8 @@ def local_model(
                     persona_tags=persona_tags,
                     tools=tools,
                     force=force_followup,
+                    extra=user_extras,
+                    turn_stats=turn_stats,
                 )
                 if follow:
                     last_user = follow

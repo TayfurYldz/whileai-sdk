@@ -203,7 +203,17 @@ your key. To put a number on a model you serve (`wai.serve`, or your own
 vLLM), make it the agent: `wai.simulate(tasks=pinned,
 agent=wai.local_model(endpoint, name, tools=TOOLS, system=POLICY,
 thinking=False))`, and run both arms of a before/after through that same
-call so the only difference is the weights.
+call so the only difference is the weights. `thinking=False` reaches the
+simulated user as well when the agent's own model plays it (the default),
+and whatever a user model still emits as `<think>` is stripped before it
+becomes a user turn; the run reports those under
+`data.search["user_think"]` (counts and shares of the user turns, zeros when
+none) and says so in `data.warnings`. `delta_report` fails a before/after
+whose arms differ in how often they answered at all (`"answered"` in
+`not_comparable`, a two-proportion test at p < 0.01 and a gap over the
+re-run band or 10 points), which is what a reasoning base against an
+adapter trained on think-free targets does under one shared token budget:
+set `thinking=` the same on both arms.
 
 ```bash
 export OPENAI_API_KEY=...

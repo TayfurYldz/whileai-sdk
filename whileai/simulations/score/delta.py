@@ -22,10 +22,12 @@ entirely above the target's. The report says so and fails.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Sequence
+from statistics import NormalDist
 from typing import Any
 
-from .passat import pass_at
+from .passat import answer_counts, pass_at
 from .stats import (
     DEFAULT_BOOT,
     compare_runs,
@@ -135,6 +137,72 @@ def _by_group(
     return out
 
 
+#: With no re-run band to read the gap against, a difference in answered
+#: share this large between the arms is material on its own.
+ANSWERED_GAP_POINTS = 0.10
+#: The two-proportion test has to clear this before a gap counts at all.
+ANSWERED_P_MAX = 0.01
+
+
+def _two_proportion_p(x_a: int, n_a: int, x_b: int, n_b: int) -> float | None:
+    """Two-sided p-value of the pooled two-proportion z test: is the share
+    ``x_a/n_a`` different from ``x_b/n_b``? ``None`` when either side has
+    no rows or the pooled share is 0 or 1 (no variance to test against)."""
+    if n_a <= 0 or n_b <= 0:
+        return None
+    pooled = (x_a + x_b) / (n_a + n_b)
+    if pooled <= 0.0 or pooled >= 1.0:
+        return None
+    se = math.sqrt(pooled * (1.0 - pooled) * (1.0 / n_a + 1.0 / n_b))
+    z = abs(x_a / n_a - x_b / n_b) / se
+    return 2.0 * (1.0 - NormalDist().cdf(z))
+
+
+def _answered_note(
+    cfg_a: dict[str, Any], cfg_b: dict[str, Any], *, p: float, gap: float, bar: str, fails: bool
+) -> str:
+    """The warning for arms that differ in how often they answered at all:
+    the shares, the test, the mechanism that produces it, and the fix."""
+    missing_a = 1.0 - float(cfg_a["answered_share"])
+    missing_b = 1.0 - float(cfg_b["answered_share"])
+    head = "NOT COMPARABLE: " if fails else ""
+    line = (
+        f"{head}{missing_a:.0%} of before rows and {missing_b:.0%} of after rows have no spoken "
+        f"reply (two-proportion test p={p:.2g}, gap {gap:.1%} against {bar}), so every rate above "
+        "is computed over replies one side did not produce. "
+    )
+    think_a = float(cfg_a.get("unclosed_think_share") or 0.0)
+    think_b = float(cfg_b.get("unclosed_think_share") or 0.0)
+    cut_a = float(cfg_a.get("truncated_share") or 0.0)
+    cut_b = float(cfg_b.get("truncated_share") or 0.0)
+    if think_a or think_b:
+        line += (
+            f"{think_a:.0%} of before and {think_b:.0%} of after replies end inside an unclosed "
+            "<think>: a reasoning base compared against a reasoning-suppressed adapter (one "
+            "trained on think-free targets) under one shared max_tokens spends the budget "
+            "reasoning and never answers, while the adapter answers at once. "
+        )
+    elif cut_a or cut_b:
+        line += (
+            f"The token cap cut {cut_a:.0%} of before and {cut_b:.0%} of after rows, which "
+            "is what a reasoning base does against a reasoning-suppressed adapter under one "
+            "shared max_tokens: it spends the budget reasoning and never answers. "
+        )
+    else:
+        # No reasoning markup and no cap cut on either side: the short
+        # side stopped before it spoke for another reason (a turn budget
+        # that ran out on a tool call reads ``tool`` in finish_reason).
+        return line + (
+            "Neither side shows <think> markup or a token-cap cut, so read finish_reason per "
+            "side (a side that stops on a tool call reads tool) and fix that side before "
+            "reading the delta."
+        )
+    return line + (
+        "Raise agent_max_tokens= on both sides, set thinking= the same on both arms, or "
+        "strip <think> on both, and re-run before reading the delta."
+    )
+
+
 def delta_report(
     before: Sequence[dict],
     after: Sequence[dict],
@@ -199,6 +267,19 @@ def delta_report(
     disagree on, and says so when both sides are the same policy version
     (rlhf-book ch. 16: a comparison is only as good as the settings it
     was run under).
+
+    ``config[side]["answered_share"]`` is the share of rows per side with
+    a spoken reply once ``<think>`` markup is gone. Every rate is
+    conditional on it. The two shares are compared with a pooled
+    two-proportion z test; when it clears ``ANSWERED_P_MAX`` (p < 0.01)
+    the warning states p and the gap, and when the gap also exceeds the
+    re-run band (or ``ANSWERED_GAP_POINTS`` with no band) the report
+    fails with ``answered`` in ``not_comparable`` and names the mechanism:
+    a reasoning base against a reasoning-suppressed adapter under one
+    shared ``max_tokens`` runs out of budget inside ``<think>`` and never
+    answers, so the adapter wins every row the base did not reply to
+    (#297). ``not_comparable`` lists every such cause under one prefix,
+    ``NOT COMPARABLE:``.
     """
     names = (
         list(markers)
@@ -256,6 +337,7 @@ def delta_report(
         target_verdict = _verdict_word(target_result, replicated)
     ok = not regressions and target_verdict not in {"moved_the_wrong_way"}
     warnings: list[str] = []
+    not_comparable: list[str] = []
     if target_verdict == "moved_unreplicated":
         single = [side for side, n in eval_runs.items() if n < 2]
         where = "each side" if len(single) == 2 else f"the {single[0]} side"
@@ -429,8 +511,32 @@ def delta_report(
         warnings.append(
             "Before and after are the same policy version; this compares a model to itself."
         )
+    # Answer production. A rate is conditional on the arm having replied;
+    # when the two arms differ in how often they did, by more than chance
+    # (two-proportion z test) and by more than the eval's noise, the
+    # comparison does not exist and the report fails (#297).
+    if _both("answered_share"):
+        answered_a, _, n_reply_a = answer_counts(before)
+        answered_b, _, n_reply_b = answer_counts(after)
+        answered_p = _two_proportion_p(answered_a, n_reply_a, answered_b, n_reply_b)
+        answered_gap = abs(float(cfg_a["answered_share"]) - float(cfg_b["answered_share"]))
+        if noise is not None:
+            gap_bar, bar_name = noise, f"the re-run band {noise:.3f}"
+        else:
+            gap_bar, bar_name = ANSWERED_GAP_POINTS, f"{ANSWERED_GAP_POINTS:.0%} with no run_std"
+        if answered_p is not None and answered_p < ANSWERED_P_MAX:
+            fails = answered_gap > gap_bar
+            if fails:
+                ok = False
+                not_comparable.append("answered")
+            warnings.append(
+                _answered_note(
+                    cfg_a, cfg_b, p=answered_p, gap=answered_gap, bar=bar_name, fails=fails
+                )
+            )
     return {
         "ok": ok,
+        "not_comparable": not_comparable,
         "target": target_key,
         "target_verdict": target_verdict,
         "target_delta": target_result["delta"] if target_result else None,
@@ -502,6 +608,12 @@ def format_delta_report(report: dict[str, Any]) -> str:
         )
     if report.get("ceiling"):
         lines.append("CEILING: the before run already passes most tasks; use harder situations")
+    answered = {
+        side: (report.get("config") or {}).get(side, {}).get("answered_share")
+        for side in ("before", "after")
+    }
+    if answered["before"] is not None and answered["after"] is not None:
+        lines.append(f"answered: {answered['before']:.1%} before, {answered['after']:.1%} after")
     for name, r in report["metrics"].items():
         if r.get("delta") is None:
             lines.append(f"  {name:<28} insufficient data")
