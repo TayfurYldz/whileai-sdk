@@ -673,6 +673,22 @@ rows, report = wai.drop_leaky_rows(data.trajectories, prod)
 And the loop closes on itself: `evaluate(rollouts, judge).failed_traces()`
 hands the failures straight back to `simulate(traces=...)`.
 
+**What traces can and cannot aim at.** Traces reproduce situations: the
+tools, faults and world states the deployed agent met. A failure that has
+a world-visible trigger (a tool timed out and the agent did not say so, a
+stale record was presented as current) is reproduced. A failure that lives
+in how the reply is worded (an unsupported claim, an estimate not labelled
+as one, two questions where one was asked for) has no trigger in the world,
+so traces alone cannot aim at it: measured on a 12-rule grader, every rule
+with a tool-result trigger was reproduced and every rule about the reply's
+wording was not (#285). For those, put the grader in the loop:
+with `simulate(..., grader=judge)` a row the grader fails is re-rolled and
+its ask mutated like a tool fault, and `data.search["mutation_aims"]` says
+how many parents and mutated rows each aim (`world_fault`,
+`graded_failure`) produced. The grader is the switch; to grade beside the
+loop and still steer by tool faults alone, pass
+`advanced={"mutate_graded_failures": False}`.
+
 If your traces are already on the platform, `wai.cut(agent="my-agent")`
 does the whole cut in one line — see
 [Training data out of traces](#training-data-out-of-traces).
@@ -1164,6 +1180,7 @@ Measured at `avg_turns=4`. The default is now `12`, so a row carries more turns 
 | `embedder` | `"hash"` | Prompt selection |
 | `seed` | `0` | Reproducible draws. Bit-for-bit at `concurrency: 1` or with `reproducible=True`, within a process and across processes; otherwise which rows land before the cap depends on thread timing |
 | `avg_turns` | `12` | Target conversation length in turns. The person speaks at most `avg_turns // 2` times; `12` leaves room to verify, look up, confirm, and write. |
+| `mutate_graded_failures` | on with `grader=` | `False` grades beside the loop without steering by the verdict: only tool faults make mutation parents. A row the grader fails (reward under 0.5) is otherwise re-rolled and its ask mutated the way a tool fault's is; `search["mutation_aims"]` counts each aim. `True` without `grader=` is an error |
 
 Aliases: `phrasings=` / `n=` → `requests_per_situation`; `repeats=` → `rollouts_per_request`; `unique=` → `unique_situations`; `policy=` → `system_prompt`; `risk=` → `fault_rate`.
 

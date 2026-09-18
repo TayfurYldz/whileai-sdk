@@ -147,7 +147,28 @@ def simulate(
     covering grid at the behaviors those traces show instead of the whole
     space, and drops any generated row that near-copies a source trace,
     so held-out traces stay out of training. Without it the grid comes
-    from the agent's tools and policy alone (cold start).
+    from the agent's tools and policy alone (cold start). Traces
+    reproduce situations: the tools, faults and world states the agent
+    met. A failure mode that lives in how the reply is worded (an
+    unsupported claim, an estimate not labelled as one, two questions
+    where one was asked for) has no world-visible trigger, so traces
+    alone cannot aim at it; put a grader in the loop for those.
+
+    With ``grader=`` set, the grader's verdict steers the search the way
+    a tool fault already does: a row the grader failed is re-rolled and
+    its ask is mutated into new ones, so the budget moves toward what
+    the grader catches, not only toward broken tools. A grader that
+    fails reply-form rules is exactly the signal the loop was missing
+    (#285: with a 12-rule grader, every rule with a tool-result trigger
+    was reproduced and every rule about the reply's wording was not),
+    and without a grader there is no verdict to steer by, so there is no
+    switch to set: the grader is the switch. A graded failure is a reward
+    under 0.5 (a 0 from a 0/1 judge, a failed verifier, a rubric below
+    half); markers ride along on the row but do not aim on their own,
+    since their direction differs per marker. ``search["mutation_aims"]``
+    counts the parents and the mutated rows per aim, ``world_fault`` and
+    ``graded_failure``. To grade beside the loop and still steer by tool
+    faults alone, ``advanced={"mutate_graded_failures": False}``.
 
     ``hard_share=`` is the difficulty dial: the fraction of situations drawn
     from the ambiguous, boundary and adversarial tiers (default 0.40), where
