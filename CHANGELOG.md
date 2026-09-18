@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.61 (2026-09-17)
 
 - `whileai init-evals` writes the eval harness, instead of a coding agent
   copying the recipe into the project by hand. It reads the project's
