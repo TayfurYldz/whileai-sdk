@@ -5,6 +5,30 @@ Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 
 ## Unreleased
 
+- `simulate(hard_share=)` sets the difficulty mixture: the fraction of
+  situations drawn from the ambiguous, boundary and adversarial tiers,
+  default 0.40, and the mixer honours it. `mix_items_by_tier` computed
+  `max((n + 1) // 2, round(n * ordinary_share))`, a hard 50% floor: asking
+  for 50%, 70% or 80% hard all returned exactly 50% at n=20 and n=100, so
+  the parameter moved the mix in one direction only, and no caller passed
+  it. Difficulty is what a run can teach (rlhf-book ch. 7), and selection
+  keeps only passing rows, so prompts the base already handles carry
+  nothing to imitate (ch. 9). Measured on one agent over 289 base rollouts
+  in two runs, base pass rate was 0.685 on ordinary against 0.577 on
+  boundary and 0.590 on ambiguous, with the default drawing about 31% hard.
+  The share travels through `RunConfig` to both writers as a plain
+  argument, so a hosted writer on a worker thread mixes at the share asked.
+- The hard tiers round-robin instead of draining in a fixed order. Asking for
+  75% hard returned ambiguous 60 / boundary 14 / adversarial 1, so a caller
+  buying a harder set got one hard tier rather than a hard mix; it now returns
+  25 / 25 / 25.
+- Every run records `search["tier_mix"]`: `hard_share_requested`,
+  `hard_share_realized`, per-tier `counts` and `rows`. Rows the mixer never
+  sees (open asks, arm quotas, seeds, cells with no stance) count as
+  ordinary, so a small run lands below the share it asked for; when
+  `hard_share=` was set and the gap is over ten points, the run says so in
+  `data.warnings` and names `dimensions={"stance": [...]}` as the way to
+  pin it.
 - `tools_from_traces`, `opening_share`, `infer_harness` and `marker_names`
   are exported from `whileai.simulations`. All four were public in their own
   modules and reachable only through a private path. `tools_from_traces`

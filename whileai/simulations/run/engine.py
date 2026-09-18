@@ -60,10 +60,12 @@ from ..generate.coverage import (
     space_saturated,
 )
 from ..generate.diversity import (
+    HARD_SHARE,
     MAX_NOVELTY_RESTARTS,
     NOVELTY_RESTART_FLOOR,
     adaptive_allocator,
     allocator_slot_counts,
+    behavior_tier,
     cap_scenario_families,
     new_turn_stats,
     record_turns,
@@ -225,6 +227,10 @@ PROGRESS_EVERY_S = 10.0
 PROGRESS_EVERY_ROWS = 10
 #: runs smaller than this say nothing: they are over before a line helps
 PROGRESS_MIN_BUDGET = 10
+#: Rows before the realized difficulty mix is compared with the ask.
+TIER_MIX_MIN_ROWS = 20
+#: How far (in share) the shipped rows may land below the ask before the run says so.
+TIER_MIX_TOLERANCE = 0.10
 
 
 def progress_line(rows: int, cap: int, situations: int, elapsed: float) -> str:
@@ -712,6 +718,7 @@ class Run:
             dimensions=self.dimensions,
             arm_weights=self.arm_weights,
             simulator=self.simulator,
+            hard_share=c.hard_share,
             kind=self.writer_kind,
             scenarios_per_request=c.scenarios_per_request,
             completions_per_request=c.completions_per_request,
@@ -1475,6 +1482,7 @@ class Run:
             seed=c.seed,
             dimensions=self.dimensions,
             simulator=self.simulator,
+            hard_share=c.hard_share,
             kind=self.writer_kind,
             scenarios_per_request=n_cards,
             completions_per_request=n_comp,
@@ -3050,6 +3058,7 @@ class Run:
             data.search["behavior_state"]["region_progress"] = region_progress(
                 data.search["behavior_state"], data.trajectories
             )
+        self._record_tier_mix()
         data.writer_model = self.writer_model
         data.user_model = self.user_model
         # One model writing the exam, sitting it, and playing the examiner's
@@ -3119,6 +3128,45 @@ class Run:
         if c.out_path is not None and data.trajectories:
             data.save(str(c.out_path), meta=True)
         return data
+
+    def _record_tier_mix(self) -> None:
+        """What difficulty mixture the shipped rows carry, next to the ask.
+
+        Rows the mixer never sees (seeds, open asks, the per-arm quota,
+        cells with no stance) carry the ordinary label, so a run lands
+        below the hard share it asked for; a small run more so. The gap is
+        recorded, and when the caller set the dial and the gap passes ten
+        points the run says so and names the pin.
+        """
+        c = self.c
+        data = self.data
+        requested = HARD_SHARE if c.hard_share is None else float(c.hard_share)
+        counts: dict[str, int] = {}
+        for t in data.trajectories:
+            dims = t.get("scenario_dimensions")
+            tier = str(t.get("tier") or "") or behavior_tier(dims if isinstance(dims, dict) else {})
+            counts[tier] = counts.get(tier, 0) + 1
+        rows = sum(counts.values())
+        hard = sum(counts.get(tier, 0) for tier in ("ambiguous", "boundary", "adversarial"))
+        realized = hard / rows if rows else None
+        mix: dict[str, Any] = {
+            "hard_share_requested": round(requested, 4),
+            "hard_share_realized": None if realized is None else round(realized, 4),
+            "counts": dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))),
+            "rows": rows,
+        }
+        asked = c.hard_share is not None and rows >= TIER_MIX_MIN_ROWS
+        if asked and realized is not None and requested - realized > TIER_MIX_TOLERANCE:
+            mix["note"] = (
+                f"hard_share={requested:g} asked, {realized:.2f} drawn "
+                f"({hard} of {rows} rows from the hard tiers). Open asks and cells "
+                "with no stance count as ordinary, and the grid holds a fixed number of "
+                "hard cells. For a set that is hard throughout, pin the axis: "
+                "dimensions={'stance': ['boundary', 'ambiguous', 'adversarial']}."
+            )
+            data.warnings.append(mix["note"])
+            log.warning(mix["note"])
+        data.search["tier_mix"] = mix
 
     def _finish_traces(self) -> None:
         """Record what the traces did to the run and drop generated rows
