@@ -304,11 +304,18 @@ def classify_failure(row: dict) -> str | None:
     return None
 
 
+#: Below this share of boundary, ambiguous and adversarial rows the set is easy.
+HARD_SHARE_FLOOR = 0.3
+#: Rows before the hard share is worth a warning.
+HARD_SHARE_MIN_ROWS = 20
+
+
 def dataset_report(
     rows: Sequence[dict], *, tools: Sequence[dict] | None = None, system_prompt: str = ""
 ) -> dict[str, Any]:
     """One report a developer reads after simulate/grade: size, signal, mix."""
     from ..generate.coverage import cell_key
+    from ..generate.diversity import behavior_tier
     from .grading import behavior_signature
 
     rows = [r for r in rows if isinstance(r, dict)]
@@ -322,6 +329,23 @@ def dataset_report(
     for r in fails:
         classes[classify_failure(r) or "unclassified"] += 1
     junk = sum(1 for r in passes if not str(r.get("final_text") or "").strip())
+    # Difficulty mix. behavior_tier maps a missing stance to "ordinary", which
+    # is right for sampling and wrong for a report: an unlabelled cell would
+    # count as evidence the easy tier was covered. Count it separately.
+    # Same direction as the run's search["tier_mix"] (hard_share, from #320,
+    # which merges first): counts here, shares there.
+    tiers: Counter[str] = Counter()
+    tier_labeled: dict[str, list[int]] = {}
+    for r in rows:
+        assignment = r.get("scenario_dimensions") or {}
+        has_stance = bool(assignment.get("stance") or assignment.get("user_behavior"))
+        tier = behavior_tier(assignment) if has_stance else "unlabelled"
+        tiers[tier] += 1
+        if r.get("reward") in (0, 1):
+            tier_labeled.setdefault(tier, []).append(int(r["reward"]))
+    hard = sum(tiers[t] for t in ("boundary", "ambiguous", "adversarial"))
+    hard_share = round(hard / len(rows), 3) if rows else None
+
     report: dict[str, Any] = {
         "rows": len(rows),
         "unique_prompts": len(prompts),
@@ -333,7 +357,35 @@ def dataset_report(
         "distinct_behaviors": len(behaviors),
         "cells_touched": len(cells),
         "failure_classes": dict(classes.most_common()),
+        "tier_counts": dict(tiers.most_common()),
+        "hard_share": hard_share,
+        "tier_fail_rate": {
+            t: round(1 - sum(v) / len(v), 3) for t, v in sorted(tier_labeled.items()) if v
+        },
+        # Always a list, like every other report's warnings; the tool
+        # preflight's own list is preflight_warnings.
+        "warnings": [],
     }
+    if (
+        hard_share is not None
+        and hard_share < HARD_SHARE_FLOOR
+        and len(rows) >= HARD_SHARE_MIN_ROWS
+    ):
+        report["warnings"].append(
+            f"easy set: {hard_share:.0%} of rows are boundary, ambiguous or adversarial. "
+            "An ordinary ask is the one a base already passes, so a set like this reports "
+            "a null whatever the policy does. Raise the share: "
+            "simulate(..., hard_share=0.7) asks for 70% from the hard tiers (rows the "
+            "mixer never sees keep the drawn share below the ask); "
+            "dimensions={'stance': ['boundary', 'ambiguous', 'adversarial']} pins the axis "
+            "to hard tiers only (rlhf-book ch. 7 on difficulty filtering)."
+        )
+    if tiers.get("unlabelled") and tiers["unlabelled"] / max(1, len(rows)) > 0.1:
+        report["warnings"].append(
+            f"{tiers['unlabelled']} rows carry no stance, so their difficulty is unknown, "
+            "not ordinary. Label it with dimensions={'stance': [...]} on the run, or "
+            "read hard_share as a floor."
+        )
     if tools is not None:
         pre = preflight(tools, system_prompt)
         report["cells_total"] = pre["cells"]
@@ -363,6 +415,13 @@ def format_dataset_report(report: dict[str, Any]) -> str:
         total = sum(classes.values()) or 1
         for name, n in list(classes.items())[:6]:
             lines.append(f"  {name:<20} {n:>4}  ({n / total:.0%})")
+    if report.get("hard_share") is not None:
+        lines.append(
+            f"Hard tiers:           {report['hard_share']:>6.0%}"
+            "  (boundary, ambiguous, adversarial rows)"
+        )
+    for warning in (report.get("warnings") or [])[:4]:
+        lines.append(f"! {warning}")
     for warning in (report.get("preflight_warnings") or [])[:4]:
         lines.append(f"! {warning}")
     return "\n".join(lines)
