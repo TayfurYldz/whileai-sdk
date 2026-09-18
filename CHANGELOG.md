@@ -3,7 +3,7 @@
 Versions move in hundredths (`0.04` then `0.05`). PyPI normalizes them, so
 `pip install zeroproof==0.4` is the `0.04` line below.
 
-## Unreleased
+## 0.63 (2026-09-17)
 
 - `simulate(dimensions=)` overrides the axis it names and keeps the rest of
   the coverage grid. It used to replace the grid: `dimensions={'stance':
